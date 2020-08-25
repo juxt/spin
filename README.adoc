@@ -1,0 +1,5 @@
+= Spin
+
+Spin provides an adaptor between your (Clojure) code and the 'resource interface' of the web.
+
+Spin implements HTTP, and calls into your code to provide answers to its questions at various stages in the life-cycle of an HTTP request.
