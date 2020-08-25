@@ -74,7 +74,7 @@
       (if (contains? known-methods method)
 
         (let [allow (or
-                     (some-> (keys (:juxt.http/methods resource)) set)
+                     (:juxt.http/methods resource)
                      #{:get :options})
               allow (cond-> allow
                         (contains? allow :get) (conj :head)
