@@ -11,7 +11,20 @@
             EntityTag entity-tag
             Resource invoke-method
             resource-options-headers]]
-   [juxt.spin.alpha.server :refer [server-options]]))
+   [clojure.string :as str]))
+
+;; This function only exists while we wait for reap to get encoding for
+;; media-type/content-type - then it will be removed.
+(def ^:private encode-content-type
+  (memoize
+   (fn [m]
+     (assert (:juxt.http/type m))
+     (let [params (:juxt.http/parameters m)]
+       (format "%s/%s%s"
+               (:juxt.http/type m)
+               (:juxt.http/subtype m)
+               (str/join (for [{:keys [juxt.http/parameter-name juxt.http/parameter-value]} params]
+                           (format ";%s=%s" parameter-name parameter-value))))))))
 
 (defn lookup-resource
   "Return the map corresponding to the resource identified by the given URI. Add
@@ -31,7 +44,7 @@
 
 (defn- GET-or-HEAD [resource-provider server-provider resource response request respond raise]
   (let [{:juxt.http/keys [variants vary]}
-        (if (satisfies? ContentNegotiation resource-provider)
+        (if (and (satisfies? ContentNegotiation resource-provider) (:juxt.http/variants resource))
           (best-representation
            resource-provider
            resource request)
@@ -46,11 +59,9 @@
       (respond (merge response {:status 406}))
 
       (and (sequential? representations)
-           (>= (count representations) 2))
-      (if (satisfies? MultipleRepresentations resource-provider)
-        (send-300-response resource-provider (filter uri? representations) request respond raise)
-        (throw (ex-info "negotiate-content of juxt.apex.alpha.http.ContentNegotiation protocol returned multiple representations but resource-provider does not satisfy juxt.apex.alpha.http.MultipleRepresentations protocol"
-                        {})))
+           (>= (count representations) 2)
+           (satisfies? MultipleRepresentations resource-provider))
+      (send-300-response resource-provider (filter uri? representations) request respond raise)
 
       :else
       (let [representation
@@ -76,10 +87,18 @@
             (cond-> {"date" (util/format-http-date orig-date)}
               last-modified
               (conj ["last-modified" (util/format-http-date last-modified)])
+
               entity-tag
               (conj ["etag" entity-tag])
+
               (not= (:juxt.http/uri representation) (:juxt.http/uri resource))
-              (conj ["content-location" (str (:juxt.http/uri representation))]))
+              (conj ["content-location" (str (:juxt.http/uri representation))])
+
+              representation
+              (conj ["content-type" (encode-content-type (:juxt.http/content-type representation))])
+
+              (:juxt.http/content-length representation)
+              (conj ["content-length" (str (:juxt.http/content-length representation))]))
 
             response
             {:status status
