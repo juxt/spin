@@ -30,7 +30,8 @@
 
 (defprotocol OPTIONS
   :extend-via-metadata true
-  (options [_ resource] ""))
+  (options [_ server resource response request respond raise]
+    "Invoke an OPTIONS method on the resource"))
 
 (defprotocol Resource
   :extend-via-metadata true

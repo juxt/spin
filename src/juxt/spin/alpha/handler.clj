@@ -27,11 +27,8 @@
   (fn [request respond raise]
     (try
       (if (satisfies? resource/ResourceLocator resource-provider)
-        (if-let [resource (http/lookup-resource resource-provider (effective-uri request))]
-          ;; Continue the chain, but with the resource assoc'd
-          (h (assoc request :juxt.http/resource resource) respond raise)
-          ;; The resource was not found, we exit the middleware chain with a 404
-          (respond {:status 404}))
+        ;; Continue the chain, but with the resource assoc'd, even if nil (we might be doing a PUT, or a custom 404)
+        (h (assoc request :juxt.http/resource (http/lookup-resource resource-provider (effective-uri request))) respond raise)
         ;; The will be no assoc'd resource on the request, we continue and let
         ;; the resource-provider determine the response. It is unlikely, outside of
         ;; testing and simple demos, that a resource-provider will not satisfy

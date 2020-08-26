@@ -51,84 +51,91 @@
 ;;(defn uri? [i] (instance? java.net.URI i))
 
 (defn- GET-or-HEAD [resource-provider server-provider resource response request respond raise]
-  (let [{:juxt.http/keys [variants varying]}
-        (if (and (satisfies? ContentNegotiation resource-provider) (:juxt.http/variants resource))
-          (best-representation
-           resource-provider
-           resource request)
-          {:juxt.http/variants [resource]})
-        representations variants]
+  (if resource
+    (let [{:juxt.http/keys [variants varying]}
+          (if (and (satisfies? ContentNegotiation resource-provider) (:juxt.http/variants resource))
+            (best-representation
+             resource-provider
+             resource request)
+            {:juxt.http/variants [resource]})
+          representations variants]
 
-    (cond
-      (or
-       (nil? representations)
-       (and (sequential? representations)
-            (zero? (count representations))))
-      (respond (merge response {:status 406}))
+      (cond
+        (or
+         (nil? representations)
+         (and (sequential? representations)
+              (zero? (count representations))))
+        (respond (merge response {:status 406}))
 
-      (and (sequential? representations)
-           (>= (count representations) 2)
-           (satisfies? MultipleRepresentations resource-provider))
-      (send-300-response resource-provider (filter uri? representations) request respond raise)
+        (and (sequential? representations)
+             (>= (count representations) 2)
+             (satisfies? MultipleRepresentations resource-provider))
+        (send-300-response resource-provider (filter uri? representations) request respond raise)
 
-      :else
-      (let [representation
-            (cond-> representations
-              (sequential? representations) first)
+        :else
+        (let [representation
+              (cond-> representations
+                (sequential? representations) first)
 
-            last-modified
-            (when (satisfies? LastModified resource-provider)
-              (last-modified resource-provider representation))
-
-            entity-tag
-            (when (satisfies? EntityTag resource-provider)
-              (entity-tag resource-provider representation))
-
-            status 200
-
-            ;; "In theory, the date ought to represent the moment just before
-            ;; the payload is generated."
-            orig-date
-            (new java.util.Date)
-
-            headers
-            (cond-> {"date" (util/format-http-date orig-date)}
               last-modified
-              (conj ["last-modified" (util/format-http-date last-modified)])
+              (when (satisfies? LastModified resource-provider)
+                (last-modified resource-provider representation))
 
               entity-tag
-              (conj ["etag" entity-tag])
+              (when (satisfies? EntityTag resource-provider)
+                (entity-tag resource-provider representation))
 
-              ;; RFC 7231 3.1. Representation meta-data
+              status 200
 
-              representation
-              (conj ["content-type" (encode-content-type (:juxt.http/content-type representation))])
-              ;; TODO: Content-Encoding
-              ;; TODO: Content-Language
-              (not= (:juxt.http/uri representation) (:juxt.http/uri resource))
-              (conj ["content-location" (str (:juxt.http/uri representation))])
+              ;; "In theory, the date ought to represent the moment just before
+              ;; the payload is generated."
+              orig-date
+              (new java.util.Date)
 
-              ;; RFC 7231 3.3. Payload Semantics
+              headers
+              (cond-> {"date" (util/format-http-date orig-date)}
+                last-modified
+                (conj ["last-modified" (util/format-http-date last-modified)])
 
-              (:juxt.http/content-length representation)
-              (conj ["content-length" (str (:juxt.http/content-length representation))])
+                entity-tag
+                (conj ["etag" entity-tag])
 
-              varying
-              (conj ["vary" (encode-vary varying)]))
+                ;; RFC 7231 3.1. Representation meta-data
 
-            response
-            (-> response
-                (assoc :status status)
-                (update :headers merge headers))]
+                representation
+                (conj ["content-type" (encode-content-type (:juxt.http/content-type representation))])
+                ;; TODO: Content-Encoding
+                ;; TODO: Content-Language
+                (not= (:juxt.http/uri representation) (:juxt.http/uri resource))
+                (conj ["content-location" (str (:juxt.http/uri representation))])
 
-        ;; TODO: Check condition (Last-Modified, If-None-Match)
+                ;; RFC 7231 3.3. Payload Semantics
 
-        ;; TODO: Handle errors (by responding with error response, with appropriate re-negotiation)
+                (:juxt.http/content-length representation)
+                (conj ["content-length" (str (:juxt.http/content-length representation))])
 
-        (cond
-          (satisfies? GET resource-provider)
-          (get-or-head resource-provider server-provider representation response request respond raise)
-          :else (respond response))))))
+                varying
+                (conj ["vary" (encode-vary varying)]))
+
+              response
+              (-> response
+                  (assoc :status status)
+                  (update :headers merge headers))]
+
+          ;; TODO: Check condition (Last-Modified, If-None-Match)
+
+          ;; TODO: Handle errors (by responding with error response, with appropriate re-negotiation)
+
+          (cond
+            (satisfies? GET resource-provider)
+            (get-or-head resource-provider server-provider representation response request respond raise)
+            :else (respond response)))))
+
+    ;; resource is nil
+    (respond
+     (-> response
+         (assoc :status 404 :body "Not Found\n")
+         (update :headers (fnil conj {}) ["content-type" "text/plain;charset=utf-8"])))))
 
 ;; Section 4.3.1
 (defmethod http-method :get [resource-provider server-provider resource response request respond raise]
@@ -140,18 +147,22 @@
 
 ;; Section 4.3.3
 (defmethod http-method :post [resource-provider server-provider resource response request respond raise]
-  (post resource-provider server-provider resource {:status 201} request respond raise))
+  (post resource-provider server-provider resource response request respond raise))
 
 ;; Section 4.3.4
 (defmethod http-method :put [resource-provider server-provider resource response request respond raise]
-  (put resource-provider server-provider resource {} request respond raise))
+  (if (satisfies? PUT resource-provider)
+    (put resource-provider server-provider resource response request respond raise)
+    (raise (ex-info "Resource provider does not implement PUT" {}))))
 
 ;; Section 4.3.5
 (defmethod http-method :delete [resource-provider server-provider resource response request respond raise]
-  (delete resource-provider server-provider resource {} request respond raise))
+  (delete resource-provider server-provider resource response request respond raise))
 
 ;; Section 4.3.7
 (defmethod http-method :options [resource-provider server-provider resource response request respond raise]
-  (respond
-   {:status 200
-    :headers (merge (:headers response) (options resource-provider resource))}))
+  (cond
+    (satisfies? OPTIONS resource-provider)
+    (options resource-provider server-provider resource response request respond raise)
+    ;; TODO: Investigate
+    :else (respond {:status 200})))
