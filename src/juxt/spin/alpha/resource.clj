@@ -12,6 +12,26 @@
     "Return the resource identified with the given URI. Return nil if not
     found."))
 
+(defprotocol GET
+  (get-or-head [_ server resource response request respond raise]
+    "Invoke a GET or HEAD method on the resource"))
+
+(defprotocol PUT
+  (put [_ server resource response request respond raise]
+    "Invoke a PUT method on the resource"))
+
+(defprotocol POST
+  (post [_ server resource response request respond raise]
+    "Invoke a POST method on the resource"))
+
+(defprotocol DELETE
+  (delete [_ server resource response request respond raise]
+    "Invoke a DELETE method on the resource"))
+
+(defprotocol OPTIONS
+  :extend-via-metadata true
+  (options [_ resource] ""))
+
 (defprotocol Resource
   :extend-via-metadata true
   (invoke-method
@@ -49,9 +69,7 @@
     [_ representation]
     "Return the current entity-tag for the given representation."))
 
-(defprotocol ResourceOptions
-  :extend-via-metadata true
-  (resource-options-headers [_ resource]))
+
 
 (defprotocol ReactiveStreaming
   :extend-via-metadata true

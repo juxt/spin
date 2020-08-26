@@ -52,6 +52,7 @@
        request
        (fn [response]
          (try
+           (assert response)
            (let [server
                  (when (satisfies? server/ServerOptions server)
                    (server/server-header server))]
@@ -78,7 +79,7 @@
                      #{:get :options})
               allow (cond-> allow
                         (contains? allow :get) (conj :head)
-                        (satisfies? resource/ResourceOptions resource-provider) (conj :options))]
+                        (satisfies? resource/OPTIONS resource-provider) (conj :options))]
           (if-not (contains? allow method)
             ;; Method Not Allowed!
             (respond (cond-> {:status 405}

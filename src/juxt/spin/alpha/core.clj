@@ -9,8 +9,11 @@
             MultipleRepresentations send-300-response
             LastModified last-modified
             EntityTag entity-tag
-            Resource invoke-method
-            resource-options-headers]]
+            GET get-or-head
+            PUT put
+            POST post
+            DELETE delete
+            OPTIONS options]]
    [clojure.string :as str]))
 
 ;; This function only exists while we wait for reap to get encoding for
@@ -25,6 +28,11 @@
                (:juxt.http/subtype m)
                (str/join (for [{:keys [juxt.http/parameter-name juxt.http/parameter-value]} params]
                            (format ";%s=%s" parameter-name parameter-value))))))))
+
+;; This function only exists while we wait for reap to get encoding for
+;; media-type/content-type - then it will be removed.
+(defn ^:private encode-vary [varying]
+  (str/join "," (map :juxt.http/field-name varying)))
 
 (defn lookup-resource
   "Return the map corresponding to the resource identified by the given URI. Add
@@ -43,7 +51,7 @@
 ;;(defn uri? [i] (instance? java.net.URI i))
 
 (defn- GET-or-HEAD [resource-provider server-provider resource response request respond raise]
-  (let [{:juxt.http/keys [variants vary]}
+  (let [{:juxt.http/keys [variants varying]}
         (if (and (satisfies? ContentNegotiation resource-provider) (:juxt.http/variants resource))
           (best-representation
            resource-provider
@@ -91,26 +99,35 @@
               entity-tag
               (conj ["etag" entity-tag])
 
-              (not= (:juxt.http/uri representation) (:juxt.http/uri resource))
-              (conj ["content-location" (str (:juxt.http/uri representation))])
+              ;; RFC 7231 3.1. Representation meta-data
 
               representation
               (conj ["content-type" (encode-content-type (:juxt.http/content-type representation))])
+              ;; TODO: Content-Encoding
+              ;; TODO: Content-Language
+              (not= (:juxt.http/uri representation) (:juxt.http/uri resource))
+              (conj ["content-location" (str (:juxt.http/uri representation))])
+
+              ;; RFC 7231 3.3. Payload Semantics
 
               (:juxt.http/content-length representation)
-              (conj ["content-length" (str (:juxt.http/content-length representation))]))
+              (conj ["content-length" (str (:juxt.http/content-length representation))])
+
+              varying
+              (conj ["vary" (encode-vary varying)]))
 
             response
-            {:status status
-             :headers (merge (:headers response) headers)}]
+            (-> response
+                (assoc :status status)
+                (update :headers merge headers))]
 
         ;; TODO: Check condition (Last-Modified, If-None-Match)
 
         ;; TODO: Handle errors (by responding with error response, with appropriate re-negotiation)
 
         (cond
-          (satisfies? Resource resource-provider)
-          (invoke-method resource-provider server-provider representation response request respond raise)
+          (satisfies? GET resource-provider)
+          (get-or-head resource-provider server-provider representation response request respond raise)
           :else (respond response))))))
 
 ;; Section 4.3.1
@@ -123,18 +140,18 @@
 
 ;; Section 4.3.3
 (defmethod http-method :post [resource-provider server-provider resource response request respond raise]
-  (invoke-method resource-provider server-provider resource {:status 201} request respond raise))
+  (post resource-provider server-provider resource {:status 201} request respond raise))
 
 ;; Section 4.3.4
 (defmethod http-method :put [resource-provider server-provider resource response request respond raise]
-  (invoke-method resource-provider server-provider resource {} request respond raise))
+  (put resource-provider server-provider resource {} request respond raise))
 
 ;; Section 4.3.5
 (defmethod http-method :delete [resource-provider server-provider resource response request respond raise]
-  (invoke-method resource-provider server-provider resource {} request respond raise))
+  (delete resource-provider server-provider resource {} request respond raise))
 
 ;; Section 4.3.7
 (defmethod http-method :options [resource-provider server-provider resource response request respond raise]
   (respond
    {:status 200
-    :headers (merge (:headers response) (resource-options-headers resource-provider resource))}))
+    :headers (merge (:headers response) (options resource-provider resource))}))
