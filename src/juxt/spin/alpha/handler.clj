@@ -21,14 +21,19 @@
          (str "?" query))))
 
 (defn effective-uri [request]
-  (java.net.URI. (request-url request)))
+  (request-url request))
 
 (defn wrap-lookup-resource [h resource-provider]
   (fn [request respond raise]
     (try
       (if (satisfies? resource/ResourceLocator resource-provider)
         ;; Continue the chain, but with the resource assoc'd, even if nil (we might be doing a PUT, or a custom 404)
-        (h (assoc request :juxt.http/resource (http/lookup-resource resource-provider (effective-uri request))) respond raise)
+        (if-let [resource (resource/locate-resource resource-provider (effective-uri request) request)]
+          (h (assoc request :juxt.http/resource resource) respond raise)
+          (respond
+           {:status 404
+            :headers {"content-type" "text/plain;charset=utf-8"}
+            :body "Not Found\n"}))
         ;; The will be no assoc'd resource on the request, we continue and let
         ;; the resource-provider determine the response. It is unlikely, outside of
         ;; testing and simple demos, that a resource-provider will not satisfy
@@ -71,30 +76,43 @@
 
       (if (contains? known-methods method)
 
-        (let [allow (or
-                     (:juxt.http/methods resource)
-                     #{:get :options})
-              allow (cond-> allow
+        (let [response {}]
+          (try
+            (http/http-method resource-provider server resource response request respond raise)
+            (catch Throwable t
+              (raise
+               (ex-info
+                (format
+                 "Error on %s of %s"
+                 (str/upper-case (name method))
+                 (:uri request))
+                {}
+                t)))))
+
+        #_(let [allow (or
+                       (:juxt.http/methods resource)
+                       #{:get :options})
+                allow (cond-> allow
                         (contains? allow :get) (conj :head)
                         (satisfies? resource/OPTIONS resource-provider) (conj :options))]
-          (if-not (contains? allow method)
-            ;; Method Not Allowed!
-            (respond (cond-> {:status 405}
-                       allow (conj [:headers
-                                    {"allow" (str/join ", " (map (comp str/upper-case name) allow))}])))
-            ;; Proceed to invoke method...
-            (let [response {:headers {"allow" (str/join ", " (map (comp str/upper-case name) allow))}}]
-              (try
-                (http/http-method resource-provider server resource response request respond raise)
-                (catch Throwable t
-                  (raise
-                   (ex-info
-                    (format
-                     "Error on %s of %s"
-                     (str/upper-case (name method))
-                     (:uri request))
-                    {:request request}
-                    t)))))))
+            #_(if-not (contains? allow method)
+                ;; Method Not Allowed!
+                (respond (cond-> {:status 405}
+                           allow (conj [:headers
+                                        {"allow" (str/join ", " (map (comp str/upper-case name) allow))}])))
+                ;; Proceed to invoke method...
+                (let [response {:headers {"allow" (str/join ", " (map (comp str/upper-case name) allow))}}]
+                  (try
+                    (http/http-method resource-provider server resource response request respond raise)
+                    (catch Throwable t
+                      (raise
+                       (ex-info
+                        (format
+                         "Error on %s of %s"
+                         (str/upper-case (name method))
+                         (:uri request))
+                        {:request request}
+                        t)))))))
 
         ;; Method Not Implemented!
         (respond {:status 501})))))

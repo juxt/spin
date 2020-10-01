@@ -25,33 +25,25 @@
 
 (defmethod evaluate-precondition "if-modified-since"
   [header provider request respond raise]
-  (if (satisfies? resource/LastModified provider)
-    (let [last-modified (resource/last-modified provider (:juxt.http/resource request))
-          if-modified-since
-          (some-> (get-in request [:headers "if-modified-since"])
-                  util/parse-http-date)]
+  (let [last-modified (:juxt.http/last-modified (:juxt.http/resource request))
+        if-modified-since
+        (some-> (get-in request [:headers "if-modified-since"])
+                util/parse-http-date)]
 
-      (if (and last-modified if-modified-since)
-        (if-modified-since? last-modified if-modified-since)
-        true))
-    ;; Default is to assume there's a modification, we don't know there isn't
-    ;; one!
-    true))
+    (if (and last-modified if-modified-since)
+      (if-modified-since? last-modified if-modified-since)
+      true)))
 
 (defmethod evaluate-precondition "if-none-match"
   [header provider request respond raise]
-  (if (satisfies? resource/LastModified provider)
-    (let [last-modified (resource/last-modified provider (:juxt.http/resource request))
-          if-modified-since
-          (some-> (get-in request [:headers "if-modified-since"])
-                  util/parse-http-date)]
+  (let [last-modified (:juxt.http/last-modified (:juxt.http/resource request))
+        if-modified-since
+        (some-> (get-in request [:headers "if-modified-since"])
+                util/parse-http-date)]
 
-      (if (and last-modified if-modified-since)
-        (if-modified-since? last-modified if-modified-since)
-        true))
-    ;; Default is to assume there's a modification, we don't know there isn't
-    ;; one!
-    true))
+    (if (and last-modified if-modified-since)
+      (if-modified-since? last-modified if-modified-since)
+      true)))
 
 ;; From RFC 7232:
 ;; "(an) origin server MUST evaluate received request preconditions after it has
@@ -95,11 +87,10 @@
       ;; If-Modified-Since is present, evaluate the If-Modified-Since
       ;; precondition, if true, continue to step 5, if false, respond 304 (Not
       ;; Modified)"
-      (when (or (= method :get) (= method :head))
-        (when (get-in request [:headers "if-modified-since"])
-          (let [result (evaluate-precondition "if-modified-since" provider request respond raise)]
-            (when-not result
-              (respond {:status 304})))
-          (h request respond raise)))
-
-      (h request respond raise))))
+      (if (and
+             (or (= method :get) (= method :head))
+             (get-in request [:headers "if-modified-since"])
+             (not (evaluate-precondition "if-modified-since" provider request respond raise))
+             )
+        (respond {:status 304})
+        (h request respond raise)))))
