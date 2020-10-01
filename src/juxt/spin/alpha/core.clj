@@ -66,52 +66,63 @@
       (send-300-response resource-provider (filter uri? representations) request respond raise)
 
       :else
-      (let [representation
-            (cond-> representations
-              (sequential? representations) first)
+      (if-let [representation
+               (cond-> representations
+                 (sequential? representations) first)]
 
-            ;; Validators
-            last-modified (:juxt.http/last-modified representation)
-            entity-tag (:juxt.http/entity-tag representation)
 
-            status 200
+        (let [ ;; Validators
+              last-modified (:juxt.http/last-modified representation)
+              entity-tag (:juxt.http/entity-tag representation)
 
-            ;; "In theory, the date ought to represent the moment just before
-            ;; the payload is generated."
-            orig-date (new Date)
+              status 200
 
-            headers
-            (cond-> {"date" (util/format-http-date orig-date)}
-              last-modified
-              (conj ["last-modified" (util/format-http-date last-modified)])
+              ;; "In theory, the date ought to represent the moment just before
+              ;; the payload is generated."
+              orig-date (new Date)
 
-              entity-tag
-              (conj ["etag" entity-tag])
+              headers
+              (cond-> {"date" (util/format-http-date orig-date)}
+                last-modified
+                (conj ["last-modified" (util/format-http-date last-modified)])
 
-              ;; RFC 7231 3.1. Representation meta-data
+                entity-tag
+                (conj ["etag" entity-tag])
 
-              (:juxt.http/content-type representation)
-              (conj ["content-type" (encode-content-type (:juxt.http/content-type representation))])
-              ;; TODO: Content-Encoding
-              ;; TODO: Content-Language
-              (not= (:juxt.http/uri representation) (:juxt.http/uri resource))
-              (conj ["content-location" (str (:juxt.http/uri representation))])
+                ;; RFC 7231 3.1. Representation meta-data
 
-              (:juxt.http/varying representation)
-              (conj ["vary" (encode-vary (:juxt.http/varying representation))]))
+                (:juxt.http/content-type representation)
+                (conj ["content-type" (encode-content-type (:juxt.http/content-type representation))])
+                ;; TODO: Content-Encoding
+                ;; TODO: Content-Language
+                (not= (:juxt.http/uri representation) (:juxt.http/uri resource))
+                (conj ["content-location" (str (:juxt.http/uri representation))])
 
-            response
-            (-> response
-                (assoc :status status)
-                (update :headers merge headers))]
+                (:juxt.http/varying representation)
+                (conj ["vary" (encode-vary (:juxt.http/varying representation))]))
 
-        ;; TODO: Check condition (Last-Modified, If-None-Match)
+              response
+              (-> response
+                  (assoc :status status)
+                  (update :headers merge headers))]
 
-        ;; TODO: Handle errors (by responding with error response, with appropriate re-negotiation)
+          ;; TODO: Check condition (Last-Modified, If-None-Match)
 
-        (if (satisfies? GET resource-provider)
-          (get-or-head resource-provider server-provider representation response request respond raise)
-          (respond response))))))
+          ;; TODO: Handle errors (by responding with error response, with appropriate re-negotiation)
+
+          (if (satisfies? GET resource-provider)
+            (get-or-head resource-provider server-provider representation response request respond raise)
+            (respond response)))
+
+
+        ;; "The 404 (Not Found) status code indicates that the origin server did
+        ;; not find a current representation for the target resource or is not
+        ;; willing to disclose that one exists." -- Section 6.5.4 RFC 7231
+        (respond
+         {:status 404
+          :headers {"content-type" "text/plain;charset=utf-8"}
+          :body "Not Found\n"})
+        ))))
 
 ;; Section 4.3.1
 (defmethod http-method :get [resource-provider server-provider resource response request respond raise]
@@ -137,6 +148,7 @@
 (defmethod http-method :put [resource-provider server-provider resource response request respond raise]
   (if (satisfies? PUT resource-provider)
 
+    ;; juxt.http/payload ? maybe juxt.spin/state
     (let [prior-state? (some? (:juxt.http/payload resource))
           orig-date (new Date)
           response (-> response

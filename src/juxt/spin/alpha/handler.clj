@@ -28,12 +28,11 @@
     (try
       (if (satisfies? resource/ResourceLocator resource-provider)
         ;; Continue the chain, but with the resource assoc'd, even if nil (we might be doing a PUT, or a custom 404)
-        (if-let [resource (resource/locate-resource resource-provider (effective-uri request) request)]
-          (h (assoc request :juxt.http/resource resource) respond raise)
-          (respond
-           {:status 404
-            :headers {"content-type" "text/plain;charset=utf-8"}
-            :body "Not Found\n"}))
+        (let [resource (resource/locate-resource resource-provider (effective-uri request) request)]
+          (h (cond-> request
+               resource (conj {:juxt.http/resource resource}))
+             respond raise))
+
         ;; The will be no assoc'd resource on the request, we continue and let
         ;; the resource-provider determine the response. It is unlikely, outside of
         ;; testing and simple demos, that a resource-provider will not satisfy
