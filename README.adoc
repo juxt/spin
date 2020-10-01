@@ -1,5 +1,37 @@
 = Spin
 
-Spin provides an adaptor between your (Clojure) code and the 'resource interface' of the web.
+Spin provides an adaptor between your (Clojure) code and the 'resource
+interface' of the web.
 
-Spin implements HTTP, and calls into your code to provide answers to its questions at various stages in the life-cycle of an HTTP request.
+Spin implements all of HTTP (RFCs 7230-7235) as faithfully as possible.
+
+You provide the code that satisfies Spin's protocols. In exchange, you get a
+runtime that fully conforms with HTTP.
+
+== Status
+
+Spin is still under active development and is ALPHA status, meaning that the API
+should be considered unstable and likely to change.
+
+It is planned that Spin will be agnostic as to whether you are using Ring's sync
+(1-arity) of async (3-arity) forms and will support both. Currently, only the
+3-arity form is supported.
+
+== Relationship to other Clojure libraries
+
+Spin is the successor to yada, JUXT's HTTP library.
+
+Spin asks you to 'bring your own router', and so can be used with Compojure,
+bidi, Reitit and other Clojure routing libraries.
+
+== License
+
+The MIT License (MIT)
+
+Copyright © 2020 JUXT LTD.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
