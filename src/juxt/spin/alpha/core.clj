@@ -50,15 +50,19 @@
           (representation resource-provider resource request)
           resource)]
     (cond
-      (or
-       (nil? representations)
-       (and (sequential? representations)
-            (zero? (count representations))))
+      (and
+       (or
+        (nil? representations)
+        (and (sequential? representations)
+             (zero? (count representations))))
+       ;; We don't want to return a 406 if the resource-provider doesn't deal in
+       ;; representations!
+       (satisfies? Representation resource-provider))
       (respond (merge response {:status 406}))
 
       (and (sequential? representations)
-             (>= (count representations) 2)
-             (satisfies? MultipleRepresentations resource-provider))
+           (>= (count representations) 2)
+           (satisfies? MultipleRepresentations resource-provider))
       (send-300-response resource-provider (filter uri? representations) request respond raise)
 
       :else
@@ -66,6 +70,7 @@
             (cond-> representations
               (sequential? representations) first)
 
+            ;; Validators
             last-modified (:juxt.http/last-modified representation)
             entity-tag (:juxt.http/entity-tag representation)
 
