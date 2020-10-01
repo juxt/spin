@@ -139,8 +139,7 @@
           orig-date (new Date)
           response (-> response
                        (assoc :status (if prior-state? 200 201))
-                       (update :headers (fnil conj {}) ["date" (util/format-http-date orig-date)])
-                       (update :headers (fnil conj {}) ["content-length" "0"]))]
+                       (update :headers (fnil conj {}) ["date" (util/format-http-date orig-date)]))]
       (post resource-provider server-provider resource response request respond raise))
     (respond {:status 405})))
 
@@ -153,8 +152,7 @@
           orig-date (new Date)
           response (-> response
                        (assoc :status (if prior-state? 200 201))
-                       (update :headers (fnil conj {}) ["date" (util/format-http-date orig-date)])
-                       (update :headers (fnil conj {}) ["content-length" "0"]))]
+                       (update :headers (fnil conj {}) ["date" (util/format-http-date orig-date)]))]
       (put resource-provider server-provider resource response request respond raise)
 
       #_(request-body-as-bytes
