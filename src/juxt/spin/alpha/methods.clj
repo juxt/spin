@@ -52,7 +52,7 @@
           (resource/get-or-head
            resource-provider server-provider resource request
            (fn [response]
-             (respond response))
+             (respond (into {:status 200} response)))
            raise)]
 
       #_(if (satisfies? resource/ContentNegotiation resource-provider)
