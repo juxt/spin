@@ -70,16 +70,21 @@
                (let [selected-variants
                      (resource/select-variants
                       resource-provider server-provider request available-variants)]
+
                  (if (seq selected-variants)
                    (throw (ex-info "TODO" {}))
+
                    (respond-with-content-maybe
-                    resource-provider server-provider resource (conj response [:status 406])
+                    resource-provider
+                    server-provider resource
+                    (conj response [:status 406])
                     request respond raise)))
 
                (respond-with-content-maybe
-                resource-provider server-provider resource (conj response [:status 404])
+                resource-provider
+                server-provider resource
+                (conj response [:status 404])
                 request respond raise)))
-
 
            (respond-with-content-maybe
             resource-provider server-provider resource response request respond raise)))
