@@ -3,7 +3,7 @@
 (ns juxt.spin.alpha.handler
   (:require
    [clojure.string :as str]
-   [juxt.spin.alpha.core :as http]
+   [juxt.spin.alpha.methods :as methods]
    [juxt.spin.alpha.resource :as resource]
    [juxt.spin.alpha.server :as server]
    [juxt.spin.alpha.conditional :refer [wrap-precondition-evalution]]
@@ -77,7 +77,7 @@
 
         (let [response {}]
           (try
-            (http/http-method resource-provider server resource response request respond raise)
+            (methods/http-method resource-provider server resource response request respond raise)
             (catch Throwable t
               (raise
                (ex-info
@@ -117,7 +117,7 @@
         (respond {:status 501})))))
 
 (defn handler [resource-provider server]
-  (let [known-methods (set (keys (methods http/http-method)))]
+  (let [known-methods (set (keys (methods methods/http-method)))]
     (->
      (invoke-method resource-provider server known-methods)
      (wrap-precondition-evalution resource-provider)

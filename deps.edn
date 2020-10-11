@@ -2,6 +2,16 @@
 
 {:paths ["src"]
  :deps
- {juxt/reap
+ {org.clojure/tools.logging
+  {:mvn/version "0.5.0"}
+
+  juxt/reap
   {:git/url "https://github.com/juxt/reap.git"
-   :sha "55aefc6885480f0f2143a304bbc0d58f838b86d7"}}}
+   :sha "55aefc6885480f0f2143a304bbc0d58f838b86d7"}}
+
+ :aliases
+ {:dev
+  {:extra-paths ["test"]
+   :jvm-opts ["-XX:-OmitStackTraceInFastThrow"]
+   :extra-deps
+   {ring/ring-mock {:mvn/version "0.4.0"}}}}}
