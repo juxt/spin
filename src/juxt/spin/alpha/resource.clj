@@ -19,6 +19,12 @@
     fields (e.g. :juxt.http/last-modified-since) should be also returned since
     any pre-conditions will be checked against this returned value."))
 
+(defprotocol AllowedMethods
+  :extend-via-metadata true
+  (allowed-methods [_ server resource request]
+    "Return a set of keywords indicating the allowed methods on this
+    resource. If not satisfied, defaults to #{:get}"))
+
 (defprotocol GET
   :extend-via-metadata true
   (get-or-head [_ server resource response request respond raise]

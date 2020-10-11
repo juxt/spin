@@ -75,9 +75,16 @@
 
       (if (contains? known-methods method)
 
-        (let [response {}]
+        (let [resource-methods
+              (if (satisfies? resource/AllowedMethods resource-provider)
+                (resource/allowed-methods resource-provider server resource request)
+                (or
+                 (:juxt.http/allowed-methods resource) ; TODO: document this
+                 #{:get}))
+              response {}]
+
           (try
-            (methods/http-method resource-provider server resource response request respond raise)
+            (methods/http-method resource-provider server resource resource-methods response request respond raise)
             (catch Throwable t
               (raise
                (ex-info
@@ -114,6 +121,7 @@
                         t)))))))
 
         ;; Method Not Implemented!
+        ;; TODO: respond-with-content-maybe - implement this by proxying the response fn?
         (respond {:status 501})))))
 
 (defn handler [resource-provider server]
