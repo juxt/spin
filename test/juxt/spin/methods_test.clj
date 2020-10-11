@@ -2,15 +2,10 @@
 
 (ns juxt.spin.methods-test
   (:require
-   [clojure.test :refer [deftest is use-fixtures are testing]]
-   [clojure.java.io :as io]
+   [clojure.test :refer [deftest is use-fixtures]]
    [juxt.spin.alpha.methods :refer [http-method]]
    [juxt.spin.alpha.resource :as r]
-   [juxt.spin.alpha.server :as s]
-   [ring.mock.request :refer [request]]
-   [clojure.tools.logging :as log]
-   [clojure.tools.logging.impl :as impl]
-   [juxt.spin.alpha.resource :as resource])
+   [ring.mock.request :refer [request]])
   (:import
    (java.util.logging LogManager Logger Level Handler)))
 
@@ -36,29 +31,7 @@
 
 (use-fixtures :each with-log-capture)
 
-;; TODO: Push resource-methods out of defmulti and into caller. We shouldn't
-;; even attempt to call http-method if the method is not known to the resource!
-
-(deftest get-with-no-protocol-support-test
-  (let [*response (promise)]
-    (http-method
-     nil                                ; nil resource-provider
-     nil                                ; nil server-provider
-     nil                                ; nil resource
-     #{:get}
-     {}                                 ; response
-     (request :get "/")
-     (fn [r] (deliver *response r))
-     (fn [_]))
-
-    (let [response (deref *response 0 :timeout)]
-      (is (= 405 (:status response)))
-      (is (= "GET" (get-in response [:headers "allow"]))))))
-
-;; TODO:
-;;
-;; "The origin server MUST generate an Allow header field in a 405 response
-;;    containing a list of the target resource's currently supported methods."
+;; Test for 405 by testing invoke-method
 
 (deftest get-with-body-default-status-test
   (let [*response (promise)]
@@ -69,7 +42,6 @@
          (respond (conj response [:body "Hello World!"]))))
      nil                                ; nil server-provider
      nil                                ; nil resource
-     #{:get}
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -91,7 +63,6 @@
                                    :body "Hello World!"}))))
      nil                                ; nil server-provider
      nil                                ; nil resource
-     #{:get}
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -113,7 +84,6 @@
                                    :body "Bad request!"}))))
      nil                                ; nil server-provider
      nil                                ; nil resource
-     #{:get}
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -142,7 +112,6 @@
 
      nil                                ; nil server-provider
      nil                                ; nil resource
-     #{:get}
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -167,7 +136,6 @@
 
      nil                                ; nil server-provider
      nil                                ; nil resource
-     #{:get}
      {}
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -194,7 +162,6 @@
 
      nil                                ; nil server-provider
      nil                                ; nil resource
-     #{:get}
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))

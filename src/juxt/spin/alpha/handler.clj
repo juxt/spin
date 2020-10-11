@@ -75,7 +75,7 @@
 
       (if (contains? known-methods method)
 
-        (let [resource-methods
+        (let [allowed-methods
               (if (satisfies? resource/AllowedMethods resource-provider)
                 (resource/allowed-methods resource-provider server resource request)
                 (or
@@ -83,17 +83,23 @@
                  #{:get}))
               response {}]
 
-          (try
-            (methods/http-method resource-provider server resource resource-methods response request respond raise)
-            (catch Throwable t
-              (raise
-               (ex-info
-                (format
-                 "Error on %s of %s"
-                 (str/upper-case (name method))
-                 (:uri request))
-                {}
-                t)))))
+          (if (contains? allowed-methods (:request-method request))
+            (try
+              (methods/http-method resource-provider server resource response request respond raise)
+              (catch Throwable t
+                (raise
+                 (ex-info
+                  (format
+                   "Error on %s of %s"
+                   (str/upper-case (name method))
+                   (:uri request))
+                  {}
+                  t))))
+            (methods/respond-with-content-maybe
+             resource-provider server resource
+             (-> response (assoc :status 405)
+                 (assoc-in [:headers "allow"] (str/join ", " (map str/upper-case (map name allowed-methods)))))
+             request respond raise)))
 
         #_(let [allow (or
                        (:juxt.http/methods resource)
@@ -121,8 +127,9 @@
                         t)))))))
 
         ;; Method Not Implemented!
-        ;; TODO: respond-with-content-maybe - implement this by proxying the response fn?
-        (respond {:status 501})))))
+        (methods/respond-with-content-maybe
+         resource-provider server resource {:status 501} request respond raise)))))
+
 
 (defn handler [resource-provider server]
   (let [known-methods (set (keys (methods methods/http-method)))]

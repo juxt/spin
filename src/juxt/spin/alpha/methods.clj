@@ -39,9 +39,9 @@
     ;; No ResposeContent to consider, just respond with the response.
     (respond response)))
 
-(defmulti http-method (fn [resource-provider server-provider resource resource-methods response request respond raise] (:request-method request)))
+(defmulti http-method (fn [resource-provider server-provider resource response request respond raise] (:request-method request)))
 
-(defmethod http-method :default [resource-provider server-provider resource resource-methods response request respond raise]
+(defmethod http-method :default [resource-provider server-provider resource response request respond raise]
   (respond-with-content-maybe
      resource-provider server-provider resource
      (conj response [:status 501]) request respond raise))
@@ -221,25 +221,19 @@
           ))))
 
 ;; Section 4.3.1
-(defmethod http-method :get [resource-provider server-provider resource resource-methods response request respond raise]
+(defmethod http-method :get [resource-provider server-provider resource response request respond raise]
   (if (satisfies? resource/GET resource-provider)
     (GET-or-HEAD resource-provider server-provider resource response request respond raise)
-    (respond-with-content-maybe
-     resource-provider server-provider resource
-     (-> response (assoc :status 405)
-         (assoc-in [:headers "allow"] (str/join ", " (map str/upper-case (map name resource-methods)))))
-     request respond raise)))
+    (respond response)))
 
 ;; Section 4.3.2
-(defmethod http-method :head [resource-provider server-provider resource resource-methods response request respond raise]
+(defmethod http-method :head [resource-provider server-provider resource response request respond raise]
   (if (satisfies? resource/GET resource-provider)
     (GET-or-HEAD resource-provider server-provider resource response request respond raise)
-    (respond-with-content-maybe
-     resource-provider server-provider resource
-     (conj response [:status 405]) request respond raise)))
+    (respond (dissoc response :body))))
 
 ;; Section 4.3.3
-(defmethod http-method :post [resource-provider server-provider resource resource-methods response request respond raise]
+(defmethod http-method :post [resource-provider server-provider resource response request respond raise]
   (if (satisfies? resource/POST resource-provider)
     (let [prior-state? (some? (:juxt.http/payload resource))
           orig-date (new Date)
@@ -248,12 +242,11 @@
                        (update :headers (fnil conj {}) ["date" (util/format-http-date orig-date)]))]
       (resource/post resource-provider server-provider resource response request respond raise))
 
-    (respond-with-content-maybe
-     resource-provider server-provider resource
-     (conj response [:status 405]) request respond raise)))
+    ;; What should be the default behavior for a POST method which isn't implemented in the resource provider?
+    (throw (ex-info "TODO" {}))))
 
 ;; Section 4.3.4
-(defmethod http-method :put [resource-provider server-provider resource resource-methods response request respond raise]
+(defmethod http-method :put [resource-provider server-provider resource response request respond raise]
   (if (satisfies? resource/PUT resource-provider)
 
     ;; juxt.http/payload ? maybe juxt.spin/state
@@ -296,22 +289,22 @@
                   true (update :headers (fnil conj {}) ["content-length" "0"])
                   true )))))))
 
-    (respond-with-content-maybe
-     resource-provider server-provider resource
-     (conj response [:status 405]) request respond raise)))
+    ;; What should be the default behavior for a PUT method which isn't
+    ;; implemented in the resource provider?
+    (throw (ex-info "TODO" {}))))
 
 ;; Section 4.3.5
-(defmethod http-method :delete [resource-provider server-provider resource resource-methods response request respond raise]
+(defmethod http-method :delete [resource-provider server-provider resource response request respond raise]
   (if (satisfies? resource/DELETE resource-provider)
     (resource/delete resource-provider server-provider resource response request respond raise)
-    (respond-with-content-maybe
-     resource-provider server-provider resource
-     (conj response [:status 405]) request respond raise)))
+    ;; What should be the default behavior for a DELETE method which isn't
+    ;; implemented in the resource provider?
+    (throw (ex-info "TODO" {}))))
 
 ;; Section 4.3.7
-(defmethod http-method :options [resource-provider server-provider resource resource-methods response request respond raise]
+(defmethod http-method :options [resource-provider server-provider resource response request respond raise]
   (if (satisfies? resource/OPTIONS resource-provider)
     (resource/options resource-provider server-provider resource response request respond raise)
-    (respond-with-content-maybe
-     resource-provider server-provider resource
-     (conj response [:status 405]) request respond raise)))
+    ;; What should be the default behavior for a OPTIONS method which isn't
+    ;; implemented in the resource provider?
+    (throw (ex-info "TODO" {}))))
