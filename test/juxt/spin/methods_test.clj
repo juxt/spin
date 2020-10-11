@@ -36,16 +36,12 @@
 
 (use-fixtures :each with-log-capture)
 
-(def NIL_RESOURCE_PROVIDER nil)
-(def NIL_SERVER_PROVIDER nil)
-(def NIL_RESOURCE nil)
-
 (deftest get-with-no-protocol-support-test
   (let [*response (promise)]
     (http-method
-     nil ; NIL_RESOURCE_PROVIDER
-     nil ; NIL_SERVER_PROVIDER
-     nil ; NIL_RESOURCE
+     nil                                ; nil resource-provider
+     nil                                ; nil server-provider
+     nil                                ; nil resource
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -61,8 +57,8 @@
        r/GET
        (get-or-head [_ server resource response request respond raise]
          (respond (conj response [:body "Hello World!"]))))
-     nil ; NIL_SERVER_PROVIDER
-     nil ; NIL_RESOURCE
+     nil                                ; nil server-provider
+     nil                                ; nil resource
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -82,8 +78,8 @@
        (get-or-head [_ server resource response request respond raise]
          (respond (merge response {:status 200
                                    :body "Hello World!"}))))
-     nil ; NIL_SERVER_PROVIDER
-     nil ; NIL_RESOURCE
+     nil                                ; nil server-provider
+     nil                                ; nil resource
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -103,8 +99,8 @@
        (get-or-head [_ server resource response request respond raise]
          (respond (merge response {:status 400
                                    :body "Bad request!"}))))
-     nil ; NIL_SERVER_PROVIDER
-     nil ; NIL_RESOURCE
+     nil                                ; nil server-provider
+     nil                                ; nil resource
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -131,9 +127,9 @@
                 [:headers {"content-type" "text/plain;charset=utf8"}]
                 [:body "Hello World!"]))))
 
-     nil ; NIL_SERVER_PROVIDER
-     nil ; NIL_RESOURCE
-     {}                                   ; response
+     nil                                ; nil server-provider
+     nil                                ; nil resource
+     {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
      (fn [_]))
@@ -155,8 +151,8 @@
        (available-variants [_ server resource response]
          []))
 
-     nil ; NIL_SERVER_PROVIDER
-     nil ; NIL_RESOURCE
+     nil                                ; nil server-provider
+     nil                                ; nil resource
      {}
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -181,9 +177,9 @@
        (select-variants [_ server request variants]
          []))
 
-     nil ; NIL_SERVER_PROVIDER
-     nil ; NIL_RESOURCE
-     {}                                   ; response
+     nil                                ; nil server-provider
+     nil                                ; nil resource
+     {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
      (fn [_]))
