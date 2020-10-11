@@ -105,8 +105,7 @@
      (reify
        r/GET
        (get-or-head [_ server resource response request respond raise]
-         ;; We can choose to decide the status
-         (respond (conj response [:status 200])))
+         (respond response))
 
        r/ResponseContent
        (response-content [_ server resource response request respond raise]
@@ -127,18 +126,55 @@
       (is (= "text/plain;charset=utf8" (get-in response [:headers "content-type"])))
       (is (= "Hello World!" (:body response))))))
 
-;; TODO: Simple content negotiation
+(deftest get-with-no-representation-404-test
+  (let [*response (promise)]
+    (http-method
+     (reify
+       r/GET
+       (get-or-head [_ server resource response request respond raise]
+         (respond response))
+
+       r/ContentNegotiation
+       (available-variants [_ server resource response]
+         []))
+
+     NIL_SERVER_PROVIDER
+     NIL_RESOURCE
+     {}
+     (request :get "/")
+     (fn [r] (deliver *response r))
+     (fn [_]))
+
+    (let [response (deref *response 0 :timeout)]
+      (is (= 404 (:status response))))))
+
+(deftest get-with-no-acceptable-representation-406-test
+  (let [*response (promise)]
+    (http-method
+     (reify
+       r/GET
+       (get-or-head [_ server resource response request respond raise]
+         ;; TODO: Could these be defaulted?
+         (respond response))
+
+       r/ContentNegotiation
+       (available-variants [_ server resource response]
+         [:json])
+
+       (select-variants [_ server request variants]
+         []))
+
+     NIL_SERVER_PROVIDER
+     NIL_RESOURCE
+     {}                                   ; response
+     (request :get "/")
+     (fn [r] (deliver *response r))
+     (fn [_]))
+
+    (let [response (deref *response 0 :timeout)]
+      (is (= 406 (:status response))))))
+
+
 
 ;; TODO: What if ContentNegotiation is satisfied but no ResponseBody? (invalid, I think)
 ;; TODO: What if ResponseBody is satisfied but not ContentNegotiation? (valid, I think)
-
-
-;; r/ContentNegotiation
-;;        (available-variants [_ server resource response]
-;;          ;; TODO:
-;;          []
-;;          )
-;;        (select-variants [_ server request variants]
-;;          ;; TODO:
-;;          []
-;;          )

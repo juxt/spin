@@ -8,7 +8,8 @@
    [juxt.spin.alpha.resource
     :as resource]
    [juxt.reap.alpha.decoders :refer [content-type]]
-   [clojure.string :as str])
+   [clojure.string :as str]
+   [juxt.spin.alpha.resource :as r])
   (:import
    (java.nio.charset Charset)
    (java.util Date)))
@@ -38,6 +39,13 @@
 
 ;; TODO: Most :apex ns keywords should be in :juxt.http ns. Refactor!
 
+(defn respond-with-content-maybe [resource-provider server-provider resource response request respond raise]
+  (if (satisfies? resource/ResponseContent resource-provider)
+    (resource/response-content
+     resource-provider server-provider resource response request respond raise)
+    ;; No ResposeContent to consider, just respond with the response.
+    (respond response)))
+
 
 ;; The GET method requests transfer of a current selected representation for the
 ;; target resource.
@@ -54,13 +62,28 @@
        (into {:status 200} response)
        request
        (fn [response]
-         (if (satisfies? resource/ResponseContent resource-provider)
-           (resource/response-content
-            resource-provider server-provider resource response request respond raise)
-           ;; No ResposeContent to consider, just respond with the response.
-           (respond response)
-           )
-         )
+         (if (satisfies? resource/ContentNegotiation resource-provider)
+           (let [available-variants
+                 (resource/available-variants
+                  resource-provider server-provider resource response)]
+             (if (seq available-variants)
+               (let [selected-variants
+                     (resource/select-variants
+                      resource-provider server-provider request available-variants)]
+                 (if (seq selected-variants)
+                   (throw (ex-info "TODO" {}))
+                   (respond-with-content-maybe
+                    resource-provider server-provider resource (conj response [:status 406])
+                    request respond raise)))
+
+               (respond-with-content-maybe
+                resource-provider server-provider resource (conj response [:status 404])
+                request respond raise)))
+
+
+           (respond-with-content-maybe
+            resource-provider server-provider resource response request respond raise)))
+
        raise))
 
     #_(if (satisfies? resource/ContentNegotiation resource-provider)
