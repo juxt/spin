@@ -47,15 +47,23 @@
   (if (satisfies? resource/GET resource-provider)
 
     ;; get-or-head decides on the response code
-    (let [_ (log/trace "resource-provider satisfies? resource/GET")
-          response
-          (resource/get-or-head
-           resource-provider server-provider resource request
-           (fn [response]
-             (respond (into {:status 200} response)))
-           raise)]
+    (do
+      (log/trace "resource-provider satisfies? resource/GET")
+      (resource/get-or-head
+       resource-provider server-provider resource
+       (into {:status 200} response)
+       request
+       (fn [response]
+         (if (satisfies? resource/ResponseContent resource-provider)
+           (resource/response-content
+            resource-provider server-provider resource response request respond raise)
+           ;; No ResposeContent to consider, just respond with the response.
+           (respond response)
+           )
+         )
+       raise))
 
-      #_(if (satisfies? resource/ContentNegotiation resource-provider)
+    #_(if (satisfies? resource/ContentNegotiation resource-provider)
         ;; Content negotiation is an optional feature. The path where we have
         ;; content negotiation can be more convoluted than where the
         ;; resource-provider has elected not to provide this facility.
@@ -105,7 +113,7 @@
 
         ;; No content negotiation, make this straight forward
         )
-      )
+
 
     ;; TODO: Think about this
     (respond response)))

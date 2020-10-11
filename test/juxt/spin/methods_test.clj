@@ -42,8 +42,8 @@
     (http-method
      (reify
        r/GET
-       (get-or-head [_ server resource request respond raise]
-         (respond {:body "Hello World!"})))
+       (get-or-head [_ server resource response request respond raise]
+         (respond (conj response [:body "Hello World!"]))))
      NIL_SERVER_PROVIDER
      NIL_RESOURCE
      {}                                 ; response
@@ -62,9 +62,9 @@
     (http-method
      (reify
        r/GET
-       (get-or-head [_ server resource request respond raise]
-         (respond {:staus 200
-                   :body "Hello World!"})))
+       (get-or-head [_ server resource response request respond raise]
+         (respond (merge response {:status 200
+                                   :body "Hello World!"}))))
      NIL_SERVER_PROVIDER
      NIL_RESOURCE
      {}                                 ; response
@@ -83,9 +83,9 @@
     (http-method
      (reify
        r/GET
-       (get-or-head [_ server resource request respond raise]
-         (respond {:status 400
-                   :body "Bad request!"})))
+       (get-or-head [_ server resource response request respond raise]
+         (respond (merge response {:status 400
+                                   :body "Bad request!"}))))
      NIL_SERVER_PROVIDER
      NIL_RESOURCE
      {}                                 ; response
@@ -98,3 +98,47 @@
     (let [response (deref *response 0 :timeout)]
       (is (= 400 (:status response)))
       (is (= "Bad request!" (:body response))))))
+
+(deftest get-with-response-payload
+  (let [*response (promise)]
+    (http-method
+     (reify
+       r/GET
+       (get-or-head [_ server resource response request respond raise]
+         ;; We can choose to decide the status
+         (respond (conj response [:status 200])))
+
+       r/ResponseContent
+       (response-content [_ server resource response request respond raise]
+         (respond
+          (conj response
+                [:headers {"content-type" "text/plain;charset=utf8"}]
+                [:body "Hello World!"]))))
+
+     NIL_SERVER_PROVIDER
+     NIL_RESOURCE
+     {}                                   ; response
+     (request :get "/")
+     (fn [r] (deliver *response r))
+     (fn [_]))
+
+    (let [response (deref *response 0 :timeout)]
+      (is (= 200 (:status response)))
+      (is (= "text/plain;charset=utf8" (get-in response [:headers "content-type"])))
+      (is (= "Hello World!" (:body response))))))
+
+;; TODO: Simple content negotiation
+
+;; TODO: What if ContentNegotiation is satisfied but no ResponseBody? (invalid, I think)
+;; TODO: What if ResponseBody is satisfied but not ContentNegotiation? (valid, I think)
+
+
+;; r/ContentNegotiation
+;;        (available-variants [_ server resource response]
+;;          ;; TODO:
+;;          []
+;;          )
+;;        (select-variants [_ server request variants]
+;;          ;; TODO:
+;;          []
+;;          )

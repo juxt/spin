@@ -21,7 +21,7 @@
 
 (defprotocol GET
   :extend-via-metadata true
-  (get-or-head [_ server resource request respond raise]
+  (get-or-head [_ server resource response request respond raise]
     "Invoke the GET or HEAD method on the resource."))
 
 (defprotocol POST
@@ -96,9 +96,9 @@
   to return the 'best' variant for an error message or any other response you're
   sending with a content payload."))
 
-(defprotocol ResponseBody
+(defprotocol ResponseContent
   :extend-via-metadata true
-  (response-payload [_ server resource response request respond raise]
+  (response-content [_ server resource response request respond raise]
     "You should add headers to the given response to describe the
     payload (content-length, content-range) and representation
     validators (last-modified-date, etag). Then, unless the :request-method
