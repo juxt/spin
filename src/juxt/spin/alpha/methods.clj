@@ -144,7 +144,7 @@
 
 
     ;; TODO: Think about this
-    (respond response)))
+    (respond (into {:status 405} response))))
 
 #_(defn- GET-or-HEAD [resource-provider server-provider resource response request respond raise]
     (let [representations

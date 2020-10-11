@@ -14,6 +14,8 @@
   (:import
    (java.util.logging LogManager Logger Level Handler)))
 
+;;(remove-ns (symbol (str *ns*)))
+
 (def ^:dynamic  *log-records* nil)
 
 (defn with-log-capture [f]
@@ -34,8 +36,23 @@
 
 (use-fixtures :each with-log-capture)
 
+(def NIL_RESOURCE_PROVIDER nil)
 (def NIL_SERVER_PROVIDER nil)
 (def NIL_RESOURCE nil)
+
+(deftest get-with-no-protocol-support-test
+  (let [*response (promise)]
+    (http-method
+     nil ; NIL_RESOURCE_PROVIDER
+     nil ; NIL_SERVER_PROVIDER
+     nil ; NIL_RESOURCE
+     {}                                 ; response
+     (request :get "/")
+     (fn [r] (deliver *response r))
+     (fn [_]))
+
+    (let [response (deref *response 0 :timeout)]
+      (is (= 405 (:status response))))))
 
 (deftest get-with-body-default-status-test
   (let [*response (promise)]
@@ -44,8 +61,8 @@
        r/GET
        (get-or-head [_ server resource response request respond raise]
          (respond (conj response [:body "Hello World!"]))))
-     NIL_SERVER_PROVIDER
-     NIL_RESOURCE
+     nil ; NIL_SERVER_PROVIDER
+     nil ; NIL_RESOURCE
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -65,8 +82,8 @@
        (get-or-head [_ server resource response request respond raise]
          (respond (merge response {:status 200
                                    :body "Hello World!"}))))
-     NIL_SERVER_PROVIDER
-     NIL_RESOURCE
+     nil ; NIL_SERVER_PROVIDER
+     nil ; NIL_RESOURCE
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -86,8 +103,8 @@
        (get-or-head [_ server resource response request respond raise]
          (respond (merge response {:status 400
                                    :body "Bad request!"}))))
-     NIL_SERVER_PROVIDER
-     NIL_RESOURCE
+     nil ; NIL_SERVER_PROVIDER
+     nil ; NIL_RESOURCE
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -114,8 +131,8 @@
                 [:headers {"content-type" "text/plain;charset=utf8"}]
                 [:body "Hello World!"]))))
 
-     NIL_SERVER_PROVIDER
-     NIL_RESOURCE
+     nil ; NIL_SERVER_PROVIDER
+     nil ; NIL_RESOURCE
      {}                                   ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -138,8 +155,8 @@
        (available-variants [_ server resource response]
          []))
 
-     NIL_SERVER_PROVIDER
-     NIL_RESOURCE
+     nil ; NIL_SERVER_PROVIDER
+     nil ; NIL_RESOURCE
      {}
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -164,8 +181,8 @@
        (select-variants [_ server request variants]
          []))
 
-     NIL_SERVER_PROVIDER
-     NIL_RESOURCE
+     nil ; NIL_SERVER_PROVIDER
+     nil ; NIL_RESOURCE
      {}                                   ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -174,7 +191,7 @@
     (let [response (deref *response 0 :timeout)]
       (is (= 406 (:status response))))))
 
-
-
-;; TODO: What if ContentNegotiation is satisfied but no ResponseBody? (invalid, I think)
-;; TODO: What if ResponseBody is satisfied but not ContentNegotiation? (valid, I think)
+;; Note: When there is a method, such as 'GET', which is not actually a method
+;; on the resource (however that can be determined, perhaps through a 'methods'
+;; entry on the resource) then it's up to the protocol implementation to return
+;; a 405.
