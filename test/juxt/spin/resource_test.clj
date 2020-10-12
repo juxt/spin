@@ -1,6 +1,6 @@
 ;; Copyright © 2020, JUXT LTD.
 
-(ns juxt.spin.methods-test
+(ns juxt.spin.resource-test
   (:require
    [clojure.test :refer [deftest is use-fixtures]]
    [juxt.spin.alpha.methods :refer [http-method]]
@@ -167,8 +167,3 @@
 
     (let [response (deref *response 0 :timeout)]
       (is (= 406 (:status response))))))
-
-;; Note: When there is a method, such as 'GET', which is not actually a method
-;; on the resource (however that can be determined, perhaps through a 'methods'
-;; entry on the resource) then it's up to the protocol implementation to return
-;; a 405.
