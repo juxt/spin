@@ -1,12 +1,24 @@
 = Spin
 
-Spin provides an adaptor between your (Clojure) code and the 'resource
-interface' of the web.
+The sophistication of the HTTP protocol means it just isn't possible to expect
+that its laws and proscriptions to be followed with any precision without a
+higher-level orchestrator. That's what Spin provides.
 
-Spin implements all of HTTP (RFCs 7230-7235) as faithfully as possible.
+Think of Spin as a kernel designed to handle web requests. This kernel calls out
+to code in 'user space' for anything it needs from the application to handle the
+request on its behalf.
 
 You provide the code that satisfies Spin's protocols. In exchange, you get a
 runtime that fully conforms with HTTP.
+
+== But why is it called Spin?
+
+The name 'spin' is a deliberate pun on the word 'web'. A spider spinning its web
+is a very intricate affair, and so is reacting to an HTTP request!
+
+== Relevant Standards
+
+Spin implements RFCs 7231-7235 as faithfully as possible.
 
 == Status
 
@@ -19,10 +31,15 @@ It is planned that Spin will be agnostic as to whether you are using Ring's sync
 
 == Relationship to other Clojure libraries
 
-Spin is the successor to yada, JUXT's HTTP library.
+Spin is hoped to be an official successor to https://github.com/juxt/yada.
 
-Spin asks you to 'bring your own router', and so can be used with Compojure,
-bidi, Reitit and other Clojure routing libraries.
+Spin is independent of routing and treats URIs as opaque. This lets you 'bring
+your own router', and so can be used with Compojure, bidi, Reitit and other
+Clojure routing libraries.
+
+== Features
+
+TBD.
 
 == License
 
