@@ -33,8 +33,8 @@
   (str/join "," (map :juxt.http/field-name varying)))
 
 (defn respond-with-content-maybe [resource-provider server-provider resource response request respond raise]
-  (if (satisfies? resource/ResponseContent resource-provider)
-    (resource/response-content
+  (if (satisfies? resource/ContentResponse resource-provider)
+    (resource/respond-with-content
      resource-provider server-provider resource response request respond raise)
     ;; No ResposeContent to consider, just respond with the response.
     (respond response)))

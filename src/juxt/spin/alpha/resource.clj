@@ -102,9 +102,9 @@
   to return the 'best' variant for an error message or any other response you're
   sending with a content payload."))
 
-(defprotocol ResponseContent
+(defprotocol ContentResponse
   :extend-via-metadata true
-  (response-content [_ server resource response request respond raise]
+  (respond-with-content [_ server resource response request respond raise]
     "You should add headers to the given response to describe the
     payload (content-length, content-range) and representation
     validators (last-modified-date, etag). Then, unless the :request-method
