@@ -31,8 +31,6 @@
 
 (use-fixtures :each with-log-capture)
 
-;; Test for 405 by testing invoke-method
-
 (deftest get-with-body-default-status-test
   (let [*response (promise)]
     (http-method

@@ -39,7 +39,9 @@
     ;; No ResposeContent to consider, just respond with the response.
     (respond response)))
 
-(defmulti http-method (fn [resource-provider server-provider resource response request respond raise] (:request-method request)))
+(defmulti http-method
+  (fn [resource-provider server-provider resource response request respond raise]
+    (:request-method request)))
 
 (defmethod http-method :default [resource-provider server-provider resource response request respond raise]
   (respond-with-content-maybe
