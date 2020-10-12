@@ -94,30 +94,22 @@
     variants are available (for example, variants may differ for 4xx/5xx
     errors.")
 
-  (select-variants [_ server request variants]
-    "Return the variant (or variants) to return in the response. Return a
-  collection. Returning empty or nil will result in a 406 response. Returning
-  multiple variants will result in a 300 response. While the variant is
-  established ahead-of-time, you can call select-variants yourself, for example,
-  to return the 'best' variant for an error message or any other response you're
-  sending with a content payload."))
+  (select-representations [_ server request variants]
+    "Return the representation (or representations) from the variants to return
+  in the response. Return a collection. Returning empty or nil will result in a
+  406 response. Returning multiple representations may result in a 300
+  response."))
 
 (defprotocol ContentResponse
   :extend-via-metadata true
-  (respond-with-content [_ server resource response request respond raise]
-    "You should add headers to the given response to describe the
-    payload (content-length, content-range) and representation
-    validators (last-modified-date, etag). Then, unless the :request-method
-    is :head, also add the payload itself in the :body of the response. Finally
-    call the respond callback with the response. Warning: Be careful only to
-    modify the given response argument, which may already contain a status and
-    some headers."))
-
-
-
-;; Not sure about this -  what about the 'initial response'? This is better served by providing the variants as a collection.
-#_(defprotocol MultipleRepresentations :extend-via-metadata true
-  (send-300-response
-    [_ representations request respond raise]
-    "Satisfy this protocol if you want to support reactive
-    negotation."))
+  (respond-with-content [_ server resource representations response request respond raise]
+    "The representations may be empty, in which case decide what type of content, if any,
+    to send. You should add headers to the given response to describe the
+    content (content-length, content-range) and representation
+    validators (last-modified-date, etag) as applicable. Then (unless
+    the :request-method is :head) also add the payload itself in the :body of
+    the response. If there are multiple representations, they can be used as
+    links in the content, either as a menu (300) or as part of an initial
+    response (200). Finally call the respond callback with the
+    response. Warning: Be careful only to modify the given response argument,
+    which may already contain a status and some headers."))

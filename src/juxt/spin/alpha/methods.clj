@@ -32,11 +32,11 @@
 (defn ^:private encode-vary [varying]
   (str/join "," (map :juxt.http/field-name varying)))
 
-(defn respond-with-content-maybe [resource-provider server-provider resource response request respond raise]
+(defn respond-with-content-maybe [resource-provider server-provider resource representations response request respond raise]
   (if (satisfies? resource/ContentResponse resource-provider)
     (resource/respond-with-content
-     resource-provider server-provider resource response request respond raise)
-    ;; No ResposeContent to consider, just respond with the response.
+     resource-provider server-provider resource representations response request respond raise)
+    ;; No content to consider, just respond with the response.
     (respond response)))
 
 (defmulti http-method
@@ -50,97 +50,142 @@
 
 ;; TODO: Most :apex ns keywords should be in :juxt.http ns. Refactor!
 
+(defn vary [variants]
+  ;; TODO: Work out how variants vary.
+  "accept"
+  )
+
 ;; The GET method requests transfer of a current selected representation for the
 ;; target resource.
 (defn- GET-or-HEAD [resource-provider server-provider resource response request respond raise]
+  (let [
+        ;; Ensure body is removed if this is a head, although implementations
+        ;; should check and optimise
+        respond (fn [response]
+                  (respond
+                   (cond-> response
+                     (= (:request-method request) :head)
+                     (dissoc :body))))
 
-  (log/trace "resource-provider satisfies? resource/GET")
-  (resource/get-or-head
-   resource-provider server-provider resource
-   (into {:status 200} response)
-   request
-   (fn [response]
-     (if (satisfies? resource/ContentNegotiation resource-provider)
-       (let [available-variants
-             (resource/available-variants
-              resource-provider server-provider resource response)]
-         (if (seq available-variants)
-           (let [selected-variants
-                 (resource/select-variants
-                  resource-provider server-provider request available-variants)]
+        respond
+        (fn [response]
+          (if (satisfies? resource/ContentNegotiation resource-provider)
+            (let [available-variants
+                  (resource/available-variants
+                   resource-provider server-provider resource response)]
+              (if (seq available-variants)
+                (let [response
+                      (update response :headers (fnil conj {}) ["vary" (vary available-variants)])
+                      representations
+                      (resource/select-representations
+                       resource-provider server-provider request available-variants)]
 
-             (if (seq selected-variants)
-               (throw (ex-info "TODO" {}))
+                  (if (seq representations)
+                    (respond-with-content-maybe
+                     resource-provider
+                     server-provider
+                     resource
+                     representations
+                     response
+                     request respond raise)
 
-               (respond-with-content-maybe
-                resource-provider
-                server-provider resource
-                (conj response [:status 406])
-                request respond raise)))
+                    ;; 406!
+                    (let [response (conj response [:status 406])
+                          available-variants
+                          (resource/available-variants
+                           resource-provider server-provider resource response)]
+                      (respond-with-content-maybe
+                       resource-provider
+                       server-provider
+                       resource
+                       (when (seq available-variants)
+                         (resource/select-representations
+                          resource-provider server-provider request available-variants))
+                       response
+                       request respond raise))))
 
-           (respond-with-content-maybe
-            resource-provider
-            server-provider resource
-            (conj response [:status 404])
-            request respond raise)))
+                ;; 404!
+                (let [response (conj response [:status 404])
+                      available-variants
+                      (resource/available-variants
+                       resource-provider server-provider resource response)]
+                  (respond-with-content-maybe
+                   resource-provider
+                   server-provider
+                   resource
+                   (when (seq available-variants)
+                     (resource/select-representations
+                      resource-provider server-provider request available-variants))
+                   response
+                   request respond raise))))
 
-       (respond-with-content-maybe
-        resource-provider server-provider resource response request respond raise)))
+            ;; No ContentNegotiation show we leave it up to the implementation
+            ;; to decide what content to send.
+            (respond-with-content-maybe
+             resource-provider server-provider resource nil response request respond raise)))]
 
-   raise)
+    (log/trace (str "resource-provider satisfies resource/GET ? " (satisfies? resource/GET resource-provider)))
 
-  #_(if (satisfies? resource/ContentNegotiation resource-provider)
-      ;; Content negotiation is an optional feature. The path where we have
-      ;; content negotiation can be more convoluted than where the
-      ;; resource-provider has elected not to provide this facility.
-      (let [available-variants (resource/available-variants resource-provider server-provider resource response)]
-        (if-not (seq available-variants)
-          ;; A 404
-          (if-not (= (:status response) 404)
-            ;; Unless this was already a 404 (and then it's pointless asking a
-            ;; second time), this new status code might result in available
-            ;; variants. Let's check!
-            (let [available-variants-404
-                  (let [available-variants-404
-                        (resource/available-variants resource-provider server-provider resource (conj response [:status 404]))]
-                    (if (seq available-variants-404)
-                      available-variants-404
-                      ;; The resource-provider is not providing any variants for a
-                      ;; 404. But we still have to communicate a 404 to the
-                      ;; user-agent. By default, we should provide a human friendly
-                      ;; response.
-                      [{:juxt.http/content-type "text/html"
-                        :juxt.http/language "en"
-                        :juxt.http/encoding "identity"}
-                       {:juxt.http/content-type "text/plain"
-                        :juxt.http/language "en"
-                        :juxt.http/encoding "identity"}]
-                      ;; TODO: But we should also provide these nice defaults in the case where ContentNegotiation isn't satisfied!
-                      ))]))
+    (if (satisfies? resource/GET resource-provider)
+      (resource/get-or-head
+       resource-provider server-provider resource
+       response
+       request
+       respond
+       raise)
+      ;; Otherwise just respond
+      (respond response))))
 
-          (let [selected-variants (resource/select-variants resource-provider server-provider request available-variants)]
-            (if (seq selected-variants)
-              (if (= 1 (count selected-variants))
-                (let [variant (first selected-variants)
-                      ;; TODO: Transplant variant into response headers - e.g. Content-Type, Content-Location
+#_(if (satisfies? resource/ContentNegotiation resource-provider)
+    ;; Content negotiation is an optional feature. The path where we have
+    ;; content negotiation can be more convoluted than where the
+    ;; resource-provider has elected not to provide this facility.
+    (let [available-variants (resource/available-variants resource-provider server-provider resource response)]
+      (if-not (seq available-variants)
+        ;; A 404
+        (if-not (= (:status response) 404)
+          ;; Unless this was already a 404 (and then it's pointless asking a
+          ;; second time), this new status code might result in available
+          ;; variants. Let's check!
+          (let [available-variants-404
+                (let [available-variants-404
+                      (resource/available-variants resource-provider server-provider resource (conj response [:status 404]))]
+                  (if (seq available-variants-404)
+                    available-variants-404
+                    ;; The resource-provider is not providing any variants for a
+                    ;; 404. But we still have to communicate a 404 to the
+                    ;; user-agent. By default, we should provide a human friendly
+                    ;; response.
+                    [{:juxt.http/content-type "text/html"
+                      :juxt.http/language "en"
+                      :juxt.http/encoding "identity"}
+                     {:juxt.http/content-type "text/plain"
+                      :juxt.http/language "en"
+                      :juxt.http/encoding "identity"}]
+                    ;; TODO: But we should also provide these nice defaults in the case where ContentNegotiation isn't satisfied!
+                    ))]))
 
-                      ;; TODO: But don't penalise code that doesn't care about
-                      ;; content-negotiation with too many mandatory
-                      ;; callbacks!
-                      response response]
+        (let [selected-variants (resource/select-variants resource-provider server-provider request available-variants)]
+          (if (seq selected-variants)
+            (if (= 1 (count selected-variants))
+              (let [variant (first selected-variants)
+                    ;; TODO: Transplant variant into response headers - e.g. Content-Type, Content-Location
 
-                  (resource/get-response
-                   resource-provider server-provider resource response request respond raise))
-                )
+                    ;; TODO: But don't penalise code that doesn't care about
+                    ;; content-negotiation with too many mandatory
+                    ;; callbacks!
+                    response response]
+
+                (resource/get-response
+                 resource-provider server-provider resource response request respond raise))
               )
             )
           )
         )
-
-      ;; No content negotiation, make this straight forward
       )
 
-  )
+    ;; No content negotiation, make this straight forward
+    )
 
 #_(defn- GET-or-HEAD [resource-provider server-provider resource response request respond raise]
     (let [representations
@@ -224,15 +269,11 @@
 
 ;; Section 4.3.1
 (defmethod http-method :get [resource-provider server-provider resource response request respond raise]
-  (if (satisfies? resource/GET resource-provider)
-    (GET-or-HEAD resource-provider server-provider resource response request respond raise)
-    (respond response)))
+  (GET-or-HEAD resource-provider server-provider resource (into {:status 200} response) request respond raise))
 
 ;; Section 4.3.2
 (defmethod http-method :head [resource-provider server-provider resource response request respond raise]
-  (if (satisfies? resource/GET resource-provider)
-    (GET-or-HEAD resource-provider server-provider resource response request respond raise)
-    (respond (dissoc response :body))))
+  (GET-or-HEAD resource-provider server-provider resource (into {:status 200} response) request respond raise))
 
 ;; Section 4.3.3
 (defmethod http-method :post [resource-provider server-provider resource response request respond raise]
