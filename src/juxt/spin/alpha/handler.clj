@@ -97,6 +97,7 @@
                   t))))
             (methods/respond-with-content-maybe
              resource-provider server resource
+             nil ; representations
              (-> response (assoc :status 405)
                  (assoc-in [:headers "allow"] (str/join ", " (map str/upper-case (map name allowed-methods)))))
              request respond raise)))
@@ -127,8 +128,13 @@
                         t)))))))
 
         ;; Method Not Implemented!
+        ;; TODO: Content Negotiation of 501?
         (methods/respond-with-content-maybe
-         resource-provider server resource {:status 501} request respond raise)))))
+         resource-provider
+         server resource
+         nil ; representations
+         {:status 501}
+         request respond raise)))))
 
 
 (defn handler [resource-provider server]

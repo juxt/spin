@@ -216,6 +216,6 @@
           (is (= "accept" (get-in response [:headers "vary"]))))))))
 
 
+;; TODO: Try with a 404 content response
 ;; TODO: Try with a 406 content response
-
 ;; TODO: Try with a 500 content response
