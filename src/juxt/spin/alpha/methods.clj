@@ -69,16 +69,22 @@
 
         respond
         (fn [response]
-          (if (satisfies? resource/ContentNegotiation resource-provider)
+          (if (satisfies? resource/ContentVariants resource-provider)
             (let [available-variants
                   (resource/available-variants
                    resource-provider server-provider resource response)]
               (if (seq available-variants)
-                (let [response
-                      (update response :headers (fnil conj {}) ["vary" (vary available-variants)])
-                      representations
-                      (resource/select-representations
-                       resource-provider server-provider request available-variants)]
+
+                (let [representations
+                      (if (satisfies? resource/ContentProactiveNegotiation resource-provider)
+                        (resource/select-representations
+                         resource-provider server-provider request available-variants)
+                        available-variants)
+
+                      response
+                      (cond-> response
+                        (satisfies? resource/ContentProactiveNegotiation resource-provider)
+                        (update :headers (fnil conj {}) ["vary" (vary available-variants)]))]
 
                   (if (seq representations)
                     (respond-with-content-maybe

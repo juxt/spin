@@ -120,7 +120,7 @@
   (let [*response (promise)]
     (http-method
      (reify
-       r/ContentNegotiation
+       r/ContentVariants
        (available-variants [_ server resource response]
          []))
      nil                                ; nil server-provider
@@ -137,13 +137,13 @@
   (let [*response (promise)]
     (http-method
      (reify
-       r/ContentNegotiation
+       r/ContentVariants
        (available-variants [_ server resource response]
          [:json])
 
+       r/ContentProactiveNegotiation
        (select-representations [_ server request variants]
          []))
-
      nil                                ; nil server-provider
      nil                                ; nil resource
      {}                                 ; response
@@ -156,11 +156,12 @@
 
 (deftest get-with-varying-content-type-test
   (let [rp (reify
-             r/ContentNegotiation
+             r/ContentVariants
              (available-variants [_ server resource response]
                [{:juxt.http/content-type "text/html;charset=utf8"}
                 {:juxt.http/content-type "application/json"}])
 
+             r/ContentProactiveNegotiation
              (select-representations [_ server request variants]
                (is (= 2 (count variants)))
                (is (= [{:juxt.http/content-type "text/html;charset=utf8"}

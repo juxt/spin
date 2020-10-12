@@ -62,38 +62,40 @@
     "Invoke the OPTIONS method on the resource. Implementations are expected to
     signal a response with the respond callback."))
 
-(defprotocol ContentNegotiation
+;; All resources:
+
+;; if never content-negotiation, don't satisfy protocol ContentNegotiation
+
+;; if always reactive content-negotiation, implement ContentVariants but don't implement
+;; ContentNegotation, (default is to just pass back the variants argument)
+
+;; if always proactive content-negotiation, then implement ContentVariants AND
+;; ContentNegotiation
+
+;; Per-resource strategy:
+
+;; if no content-negotiation, return [resource] from available-variants, return
+;; [variant] in select-variants
+
+;; if proactive content-negotiation, return variants collection from available-variants
+;; (nil/empty means 404), then pick one in select-variants - returning nil/empty
+;; means 406
+
+;; if reactive content-negotiation, return variants collection, return
+;; collection (containing multiple items) from select-variants, which will
+;; result in 300
+
+
+(defprotocol ContentVariants
   :extend-via-metadata true
-
-  ;; All resources:
-
-  ;; if never content-negotiation, don't satisfy protocol ContentNegotiation
-
-  ;; if always reactive content-negotiation, implement variants but in
-  ;; select-variants, always just pass back the variants argument
-
-  ;; if always proactive content-negotiation, then implement variants AND
-  ;; select-variants
-
-  ;; Per-resource strategy:
-
-  ;; if no content-negotiation, return [resource] from available-variants, return
-  ;; [variant] in select-variants
-
-  ;; if proactive content-negotiation, return variants collection from available-variants
-  ;; (nil/empty means 404), then pick one in select-variants - returning nil/empty
-  ;; means 406
-
-  ;; if reactive content-negotiation, return variants collection, return
-  ;; collection (containing multiple items) from select-variants, which will
-  ;; result in 300
-
   (available-variants [_ server resource response]
     "Return a collection of available variants for a response. Returning empty
     or nil will result in a 404 response. The response may indicate which
     variants are available (for example, variants may differ for 4xx/5xx
-    errors.")
+    errors."))
 
+(defprotocol ContentProactiveNegotiation
+  :extend-via-metadata true
   (select-representations [_ server request variants]
     "Return the representation (or representations) from the variants to return
   in the response. Return a collection. Returning empty or nil will result in a
