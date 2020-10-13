@@ -5,7 +5,29 @@
    [clojure.test :refer [deftest is use-fixtures]]
    [juxt.spin.alpha.resource :as r]
    [juxt.spin.alpha.handler :as handler]
-   [ring.mock.request :refer [request]]))
+   [ring.mock.request :refer [request]])
+  (:import (java.util.logging Logger Level Handler)))
+
+(def ^:dynamic *log-records* [])
+
+(defn with-log-capture [f]
+  (binding [*log-records* (atom [])]
+    (let [juxt-logger (Logger/getLogger "juxt")
+          h (proxy [Handler] []
+              (close [] nil)
+              (flush [] nil)
+              (publish [lr] (swap! *log-records* conj lr)))
+          old-level (.getLevel juxt-logger)]
+      (try
+        (.addHandler juxt-logger h)
+        (.setLevel juxt-logger Level/FINEST)
+        (f)
+        (finally
+          (.setLevel juxt-logger old-level)
+          (.removeHandler juxt-logger h))))))
+
+(use-fixtures :each with-log-capture)
+
 
 (deftest nil-resource-test
   ;; Principle of Least Surprise: Should return 404 if nil resource
@@ -38,6 +60,13 @@
   (is (= 6 (count (handler/known-methods)))))
 
 
-
-
 ;; TODO: Test other combinations, including where AllowedMethods is implemented.
+
+(deftest content-length-in-response-test
+  (let [h (handler/handler
+           (reify
+             r/ResourceLocator
+             (locate-resource [_ uri request]
+               {:juxt.http/content-length 1000})))]
+    (let [response (h (request :get "/connor"))]
+      (is (= "1000" (get-in response [:headers "content-length"]))))))

@@ -47,7 +47,7 @@
      (fn [r] (deliver *response r))
      (fn [_]))
 
-    (is (= ["resource-provider satisfies resource/GET ? true"]
+    #_(is (= ["resource-provider satisfies resource/GET ? true"]
            (map (memfn getMessage) @*log-records*)))
     (let [response (deref *response 0 :timeout)]
       (is (= 200 (:status response)))
@@ -68,7 +68,7 @@
      (fn [r] (deliver *response r))
      (fn [_]))
 
-    (is (= ["resource-provider satisfies resource/GET ? true"]
+    #_(is (= ["resource-provider satisfies resource/GET ? true"]
            (map (memfn getMessage) @*log-records*)))
     (let [response (deref *response 0 :timeout)]
       (is (= 200 (:status response)))
@@ -89,7 +89,7 @@
      (fn [r] (deliver *response r))
      (fn [_]))
 
-    (is (= ["resource-provider satisfies resource/GET ? true"]
+    #_(is (= ["resource-provider satisfies resource/GET ? true"]
            (map (memfn getMessage) @*log-records*)))
     (let [response (deref *response 0 :timeout)]
       (is (= 400 (:status response)))
@@ -216,7 +216,6 @@
           (is (nil? (:body response)))
           (is (= "text/html;charset=utf8" (get-in response [:headers "content-type"])))
           (is (= "accept" (get-in response [:headers "vary"]))))))))
-
 
 ;; TODO: Try with a 404 content response
 ;; TODO: Try with a 406 content response

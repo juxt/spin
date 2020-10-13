@@ -34,10 +34,21 @@
 
 (defn respond-with-content-maybe [resource-provider server-provider resource representations response request respond raise]
   (if (satisfies? resource/ContentResponse resource-provider)
+
+    ;; TODO: What to do with content-length in this branch?
     (resource/respond-with-content
      resource-provider server-provider resource representations response request respond raise)
+
+    ;; TODO: What to do if there ARE multiple representations at this stage???
+
+
     ;; No content to consider, just respond with the response.
-    (respond response)))
+    (respond
+     (cond-> response
+       (:juxt.http/content-length (first representations))
+       (assoc-in
+        [:headers "content-length"]
+        (str (:juxt.http/content-length (first representations))))))))
 
 (defmulti http-method
   (fn [resource-provider server-provider resource response request respond raise]
@@ -59,9 +70,10 @@
 ;; The GET method requests transfer of a current selected representation for the
 ;; target resource.
 (defn- GET-or-HEAD [resource-provider server-provider resource response request respond raise]
+  (log/trace "GET-or-HEAD, resource is" resource)
   (let [
-        ;; Ensure body is removed if this is a head, although implementations
-        ;; should check and optimise
+        ;; Ensure body is removed if this is a HEAD request, although
+        ;; implementations should check and optimise.
         respond (fn [response]
                   (respond
                    (cond-> response
@@ -127,9 +139,10 @@
                    request respond raise))))
 
             ;; No ContentNegotiation show we leave it up to the implementation
-            ;; to decide what content to send.
+            ;; to decide what content to send.  We will use the resource as the
+            ;; (only) representation.
             (respond-with-content-maybe
-             resource-provider server-provider resource nil response request respond raise)))]
+             resource-provider server-provider resource [resource] response request respond raise)))]
 
     (log/trace (str "resource-provider satisfies resource/GET ? " (satisfies? resource/GET resource-provider)))
 
