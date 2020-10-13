@@ -7,6 +7,19 @@
    [juxt.spin.alpha.handler :as handler]
    [ring.mock.request :refer [request]]))
 
+(deftest nil-resource-test
+  ;; Principle of Least Surprise: Should return 404 if nil resource
+  (let [h (handler/handler
+           (reify
+             r/ResourceLocator
+             (locate-resource [_ uri request]
+               (cond
+                 (.endsWith uri "/connor") {:name "Connor"})))
+           nil)]
+
+    (is (= 200 (:status (h (request :get "/connor")))))
+    (is (= 404 (:status (h (request :get "/malcolm")))))))
+
 (deftest method-not-allowed-test
   (let [*response (promise)
         h (#'handler/invoke-method
@@ -22,19 +35,3 @@
       response)))
 
 ;; TODO: Test other combinations, including where AllowedMethods is implemented.
-
-
-
-(deftest nil-resource-test
-  ;; Should return 404 if nil resource
-  (let [h (handler/handler
-           (reify
-             r/ResourceLocator
-             (locate-resource [_ uri request]
-               (cond
-                 (.endsWith uri "/connor") {:name "Connor"}
-                 :else nil)))
-           nil)]
-
-    (is (= 200 (:status (h (request :get "/connor")))))
-    (is (= 404 (:status (h (request :get "/malcolm")))))))
