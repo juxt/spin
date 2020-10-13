@@ -27,7 +27,6 @@
 
 (defn wrap-lookup-resource [h resource-provider]
   (fn [request respond raise]
-    (log/info "looking up resource")
     (try
       (if (satisfies? resource/ResourceLocator resource-provider)
         ;; Continue the chain, but with the resource assoc'd, even if nil (we might be doing a PUT, or a custom 404)
@@ -75,8 +74,6 @@
   (fn [request respond raise]
     (let [resource (:juxt.http/resource request)
           method (:request-method request)]
-
-      (log/info "invoking method" method)
 
       (if (contains? known-methods method)
 
