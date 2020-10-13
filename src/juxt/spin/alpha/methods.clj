@@ -130,7 +130,7 @@
             (respond-with-content-maybe
              resource-provider server-provider resource nil response request respond raise)))]
 
-    (log/info (str "resource-provider satisfies resource/GET ? " (satisfies? resource/GET resource-provider)))
+    (log/trace (str "resource-provider satisfies resource/GET ? " (satisfies? resource/GET resource-provider)))
 
     (if (satisfies? resource/GET resource-provider)
       (resource/get-or-head

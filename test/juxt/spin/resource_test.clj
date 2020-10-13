@@ -40,7 +40,7 @@
        (get-or-head [_ server resource response request respond raise]
          (respond (conj response [:body "Hello World!"]))))
      nil                                ; nil server-provider
-     nil                                ; nil resource
+     {}                                ; resource
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -105,7 +105,7 @@
               (update :headers (fnil conj {}) ["content-type" "text/plain;charset=utf8"])
               (conj [:body "Hello World!"])))))
      nil                                ; nil server-provider
-     nil                                ; nil resource
+     {}                                 ; resource
      {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
@@ -187,7 +187,7 @@
         (http-method
          rp
          nil                            ; nil server-provider
-         nil                            ; nil resource
+         {}                             ; resource
          {}                             ; response
          (request :get "/")
          (fn [r] (deliver *response r))
@@ -204,7 +204,7 @@
         (http-method
          rp
          nil                            ; nil server-provider
-         nil                            ; nil resource
+         {}                             ; resource
          {}                             ; response
          (request :head "/")
          (fn [r] (deliver *response r))
