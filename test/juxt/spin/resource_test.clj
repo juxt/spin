@@ -6,7 +6,8 @@
    [juxt.spin.alpha.methods :refer [http-method]]
    [juxt.spin.alpha.resource :as r]
    [ring.mock.request :refer [request]]
-   [clojure.tools.logging :as log])
+   [clojure.tools.logging :as log]
+   [juxt.spin.alpha.methods :as methods])
   (:import
    (java.util.logging LogManager Logger Level Handler)))
 

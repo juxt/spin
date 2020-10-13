@@ -41,9 +41,10 @@
 
 (defmulti http-method
   (fn [resource-provider server-provider resource response request respond raise]
-    (:request-method request)))
+    (:request-method request))
+  :default ::default)
 
-(defmethod http-method :default [resource-provider server-provider resource response request respond raise]
+(defmethod http-method ::default [resource-provider server-provider resource response request respond raise]
   (respond-with-content-maybe
      resource-provider server-provider resource
      (conj response [:status 501]) request respond raise))

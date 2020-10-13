@@ -14,8 +14,7 @@
              r/ResourceLocator
              (locate-resource [_ uri request]
                (cond
-                 (.endsWith uri "/connor") {:name "Connor"})))
-           nil)]
+                 (.endsWith uri "/connor") {:name "Connor"}))))]
 
     (is (= 200 (:status (h (request :get "/connor")))))
     (is (= 404 (:status (h (request :get "/malcolm")))))))
@@ -33,5 +32,12 @@
       (is (= 405 (:status response)))
       (is (= "GET" (get-in response [:headers "allow"])))
       response)))
+
+
+(deftest known-methods-test
+  (is (= 6 (count (handler/known-methods)))))
+
+
+
 
 ;; TODO: Test other combinations, including where AllowedMethods is implemented.

@@ -139,11 +139,17 @@
          request respond raise)))))
 
 
-(defn handler [resource-provider server]
-  (let [known-methods (set (keys (methods methods/http-method)))]
-    (->
-     (invoke-method resource-provider server known-methods)
-     (wrap-precondition-evalution resource-provider)
-     (wrap-lookup-resource resource-provider)
-     (wrap-server-options server)
-     ring/sync-adapt)))
+(defn known-methods []
+  (set (remove namespace (keys (methods methods/http-method)))))
+
+(defn handler
+  ([resource-provider]
+   (handler resource-provider nil))
+  ([resource-provider server]
+   (let [known-methods (known-methods)]
+     (->
+      (invoke-method resource-provider server known-methods)
+      (wrap-precondition-evalution resource-provider)
+      (wrap-lookup-resource resource-provider)
+      (wrap-server-options server)
+      ring/sync-adapt))))
