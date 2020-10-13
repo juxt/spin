@@ -130,7 +130,7 @@
             (respond-with-content-maybe
              resource-provider server-provider resource nil response request respond raise)))]
 
-    (log/trace (str "resource-provider satisfies resource/GET ? " (satisfies? resource/GET resource-provider)))
+    (log/info (str "resource-provider satisfies resource/GET ? " (satisfies? resource/GET resource-provider)))
 
     (if (satisfies? resource/GET resource-provider)
       (resource/get-or-head
@@ -275,11 +275,11 @@
 
 ;; Section 4.3.1
 (defmethod http-method :get [resource-provider server-provider resource response request respond raise]
-  (GET-or-HEAD resource-provider server-provider resource (into {:status 200} response) request respond raise))
+  (GET-or-HEAD resource-provider server-provider resource (into {:status (if resource 200 404)} response) request respond raise))
 
 ;; Section 4.3.2
 (defmethod http-method :head [resource-provider server-provider resource response request respond raise]
-  (GET-or-HEAD resource-provider server-provider resource (into {:status 200} response) request respond raise))
+  (GET-or-HEAD resource-provider server-provider resource (into {:status (if resource 200 404)} response) request respond raise))
 
 ;; Section 4.3.3
 (defmethod http-method :post [resource-provider server-provider resource response request respond raise]

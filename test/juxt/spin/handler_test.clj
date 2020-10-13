@@ -3,6 +3,7 @@
 (ns juxt.spin.handler-test
   (:require
    [clojure.test :refer [deftest is use-fixtures]]
+   [juxt.spin.alpha.resource :as r]
    [juxt.spin.alpha.handler :as handler]
    [ring.mock.request :refer [request]]))
 
@@ -21,3 +22,19 @@
       response)))
 
 ;; TODO: Test other combinations, including where AllowedMethods is implemented.
+
+
+
+(deftest nil-resource-test
+  ;; Should return 404 if nil resource
+  (let [h (handler/handler
+           (reify
+             r/ResourceLocator
+             (locate-resource [_ uri request]
+               (cond
+                 (.endsWith uri "/connor") {:name "Connor"}
+                 :else nil)))
+           nil)]
+
+    (is (= 200 (:status (h (request :get "/connor")))))
+    (is (= 404 (:status (h (request :get "/malcolm")))))))

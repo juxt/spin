@@ -7,12 +7,14 @@
    [juxt.spin.alpha.resource :as resource]
    [juxt.spin.alpha.server :as server]
    [juxt.spin.alpha.conditional :refer [wrap-precondition-evalution]]
-   [juxt.spin.alpha.ring :as ring]))
+   [juxt.spin.alpha.ring :as ring]
+   [clojure.tools.logging :as log]))
 
 (defn request-url
   "Return the full URL of the request. Copied from Ring core 1.8.0, to avoid
   adding a dependency on Ring."
   [request]
+  (assert (:scheme request))
   (str (-> request :scheme name)
        "://"
        (get-in request [:headers "host"])
@@ -25,19 +27,20 @@
 
 (defn wrap-lookup-resource [h resource-provider]
   (fn [request respond raise]
+    (log/info "looking up resource")
     (try
       (if (satisfies? resource/ResourceLocator resource-provider)
         ;; Continue the chain, but with the resource assoc'd, even if nil (we might be doing a PUT, or a custom 404)
         (let [resource (resource/locate-resource resource-provider (effective-uri request) request)]
           (h (cond-> request
-               resource (conj {:juxt.http/resource resource}))
+               resource (conj [:juxt.http/resource resource]))
              respond raise))
 
-        ;; The will be no assoc'd resource on the request, we continue and let
-        ;; the resource-provider determine the response. It is unlikely, outside of
-        ;; testing and simple demos, that a resource-provider will not satisfy
-        ;; http/ResourceLocator
-        (h request respond raise))
+        ;; If ResourceLocator is not satisfied, let's assume the resource exists
+        ;; and set it to an empty map. That's the most sensible default. It is
+        ;; unlikely, outside of testing and simple demos, that a
+        ;; resource-provider will not satisfy http/ResourceLocator
+        (h (conj request [:juxt.http/resource {}]) respond raise))
       (catch Exception e
         (raise e)))))
 
@@ -73,6 +76,8 @@
     (let [resource (:juxt.http/resource request)
           method (:request-method request)]
 
+      (log/info "invoking method" method)
+
       (if (contains? known-methods method)
 
         (let [allowed-methods
@@ -97,7 +102,7 @@
                   t))))
             (methods/respond-with-content-maybe
              resource-provider server resource
-             nil ; representations
+             nil                        ; representations
              (-> response (assoc :status 405)
                  (assoc-in [:headers "allow"] (str/join ", " (map str/upper-case (map name allowed-methods)))))
              request respond raise)))
@@ -132,7 +137,7 @@
         (methods/respond-with-content-maybe
          resource-provider
          server resource
-         nil ; representations
+         nil                            ; representations
          {:status 501}
          request respond raise)))))
 
