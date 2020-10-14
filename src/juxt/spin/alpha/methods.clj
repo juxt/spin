@@ -32,33 +32,70 @@
 (defn ^:private encode-vary [varying]
   (str/join "," (map :juxt.http/field-name varying)))
 
+(defn if-modified-since? [^Date this ^Date other]
+  (.isAfter (.toInstant this) (.toInstant other)))
+
 (defn respond-with-content-maybe [resource-provider server-provider resource representations response request respond raise]
-  (if (satisfies? resource/ContentResponse resource-provider)
 
-    (resource/respond-with-content
-     resource-provider server-provider resource
-     representations response request respond raise)
+  ;; TODO: Only do on a normal 200 response?
+  ;; RFC 7231 discusses which methods/status-codes are 'cacheable' - refer to that
+  (if (and
+       (get-in request [:headers "if-modified-since"])
+       (not (let [last-modified (:juxt.http/last-modified (first representations))
+                  if-modified-since
+                  (some-> (get-in request [:headers "if-modified-since"])
+                          util/parse-http-date)]
 
-    ;; TODO: What to do If there ARE multiple representations at this stage???
+              (if (and last-modified if-modified-since)
+                (if-modified-since? last-modified if-modified-since)
+                true)))
 
-    ;; No content to consider, just respond with the response.
-    (case (count representations)
-      0 (throw (ex-info "TODO: 0 representations" {:resource resource :response response}))
-      1 (let [representation (first representations)]
-          (respond
-           (cond-> response
-             (:juxt.http/content-length representation)
-             (assoc-in
-              [:headers "content-length"]
-              (str (:juxt.http/content-length representation)))
+       ;; TODO: Repeat for etags!
+       ;; TODO: Make extensible to allow for any type of validator
+       ;; TODO: Extract this into a function
+       )
 
-             (:juxt.http/last-modified representation)
-             (assoc-in [:headers "last-modified"] (util/format-http-date (:juxt.http/last-modified representation)))
-             (:juxt.http/entity-tag representation)
-             (assoc-in [:headers "etag"] (:juxt.http/entity-tag representation))
+    (respond {:status 304})
 
-             )))
-      (throw (ex-info "TODO: Create a text/plain or text/html menu of links to these representations?" {})))))
+    ;; At this point we should check preconditions.
+    ;; We can only do this if we know the actual representation (hint, representations contains a single entry)
+
+    ;; If there is a single representation - then check the preconditions
+    ;; The representation should contain the validator metadata (last-modified, etag), so we can now run the validators.
+
+    (if (satisfies? resource/ContentResponse resource-provider)
+
+      ;; Now check any preconditions
+
+      (resource/respond-with-content
+       resource-provider server-provider resource
+       representations response request respond raise)
+
+      ;; TODO: What to do If there ARE multiple representations at this stage???
+
+      ;; No content to consider, just respond with the response.
+      (case (count representations)
+        0 (throw (ex-info "TODO: 0 representations" {:resource resource :response response}))
+        1 (let [representation (first representations)]
+
+            ;; Now check any preconditions
+
+
+
+            (respond
+             (cond-> response
+               (:juxt.http/content-length representation)
+               (assoc-in
+                [:headers "content-length"]
+                (str (:juxt.http/content-length representation)))
+
+               (:juxt.http/last-modified representation)
+               (assoc-in [:headers "last-modified"] (util/format-http-date (:juxt.http/last-modified representation)))
+               (:juxt.http/entity-tag representation)
+               (assoc-in [:headers "etag"] (:juxt.http/entity-tag representation))
+
+               )))
+        (throw (ex-info "TODO: Create a text/plain or text/html menu of links to these representations?" {}))))))
 
 (defmulti http-method
   (fn [resource-provider server-provider resource response request respond raise]

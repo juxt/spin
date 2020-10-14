@@ -164,7 +164,7 @@
    (let [known-methods (known-methods)]
      (->
       (invoke-method resource-provider server known-methods)
-      (wrap-precondition-evalution resource-provider)
+      ;;(wrap-precondition-evalution resource-provider)
       (wrap-lookup-resource resource-provider)
       (wrap-server-options server)
       ring/sync-adapt))))

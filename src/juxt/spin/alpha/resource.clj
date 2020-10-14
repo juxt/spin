@@ -16,8 +16,8 @@
     "Return the resource identified with the given URI. Return nil if no
     resource found. The resource should be returned as a map containing
     a :juxt.http/uri entry of type String. Validator
-    fields (e.g. :juxt.http/last-modified-since) should be also returned since
-    any pre-conditions will be checked against this returned value."))
+    fields (e.g. :juxt.http/last-modified-since, :juxt.http/entity-tag) should
+    be also returned here OR by the available-variants method below."))
 
 (defprotocol AllowedMethods
   :extend-via-metadata true
@@ -85,14 +85,14 @@
 ;; collection (containing multiple items) from select-variants, which will
 ;; result in 300
 
-
 (defprotocol ContentVariants
   :extend-via-metadata true
   (available-variants [_ server resource response]
     "Return a collection of available variants for a response. Returning empty
     or nil will result in a 404 response. The response may indicate which
     variants are available (for example, variants may differ for 4xx/5xx
-    errors."))
+    errors). Variants SHOULD contain validator
+    fields (:juxt.http/last-modified, :juxt.http/entity-tag)."))
 
 (defprotocol ContentProactiveNegotiation
   :extend-via-metadata true
@@ -107,8 +107,7 @@
   (respond-with-content [_ server resource representations response request respond raise]
     "The representations may be empty, in which case decide what type of content, if any,
     to send. You should add headers to the given response to describe the
-    content (content-length, content-range) and representation
-    validators (last-modified-date, etag) as applicable. Then (unless
+    content (content-length, content-range). Then (unless
     the :request-method is :head) also add the payload itself in the :body of
     the response. If there are multiple representations, either send an initial
     representation with a menu of links, or just a menu of links to the

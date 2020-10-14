@@ -45,3 +45,14 @@
             (request :get "/connor")
             [:headers "if-none-match"] "W/\"V1\", W/\"V2\""))]
       (is (= 304 (:status response))))))
+
+
+#_(let [h (handler/handler
+         (reify
+           r/ResourceLocator
+           (locate-resource [_ uri request]
+             {:juxt.http/last-modified #inst "2020-10-14"})))]
+  (h (assoc-in
+      (request :get "/connor")
+      [:headers "if-modified-since"] "Wed, 14 Oct 2020 00:00:00 GMT"))
+  )
