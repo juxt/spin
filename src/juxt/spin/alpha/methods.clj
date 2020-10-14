@@ -50,7 +50,14 @@
              (:juxt.http/content-length representation)
              (assoc-in
               [:headers "content-length"]
-              (str (:juxt.http/content-length representation))))))
+              (str (:juxt.http/content-length representation)))
+
+             (:juxt.http/last-modified representation)
+             (assoc-in [:headers "last-modified"] (util/format-http-date (:juxt.http/last-modified representation)))
+             (:juxt.http/entity-tag representation)
+             (assoc-in [:headers "etag"] (:juxt.http/entity-tag representation))
+
+             )))
       (throw (ex-info "TODO: Create a text/plain or text/html menu of links to these representations?" {})))))
 
 (defmulti http-method
@@ -75,6 +82,7 @@
 ;; target resource.
 (defn- GET-or-HEAD [resource-provider server-provider resource response request respond raise]
   (log/trace "GET-or-HEAD, resource is" resource)
+
   (let [
         ;; Ensure body is removed if this is a HEAD request, although
         ;; implementations should check and optimise.
