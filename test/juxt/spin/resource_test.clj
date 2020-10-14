@@ -123,10 +123,12 @@
      (reify
        r/ContentVariants
        (available-variants [_ server resource response]
-         []))
+         (case (:status response)
+           200 []
+           404 [{:juxt.http/content-type "text/plain;charset=utf8"}])))
      nil                                ; nil server-provider
      nil                                ; nil resource
-     {}
+     {}                                 ; response
      (request :get "/")
      (fn [r] (deliver *response r))
      (fn [_]))
@@ -140,20 +142,26 @@
      (reify
        r/ContentVariants
        (available-variants [_ server resource response]
-         [:json])
+         (case (:status response)
+           200 [:json]
+           ;; Here's our error message!
+           406 [{:juxt.http/content-type "text/plain;charset=utf8"}]
+           (throw (ex-info "Unexpected case" {:response response}))))
 
        r/ContentProactiveNegotiation
        (select-representations [_ server request variants]
-         []))
+         (remove #(= :json %) variants)))
      nil                                ; nil server-provider
-     nil                                ; nil resource
+     {}                                 ; nil resource
      {}                                 ; response
      (request :get "/")
-     (fn [r] (deliver *response r))
+     (fn [r]
+       (deliver *response r))
      (fn [_]))
 
     (let [response (deref *response 0 :timeout)]
-      (is (= 406 (:status response))))))
+      (is (= 406 (:status response)))
+      )))
 
 (deftest get-with-varying-content-type-test
   (let [rp (reify

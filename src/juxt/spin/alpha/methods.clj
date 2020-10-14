@@ -35,20 +35,23 @@
 (defn respond-with-content-maybe [resource-provider server-provider resource representations response request respond raise]
   (if (satisfies? resource/ContentResponse resource-provider)
 
-    ;; TODO: What to do with content-length in this branch?
     (resource/respond-with-content
-     resource-provider server-provider resource representations response request respond raise)
+     resource-provider server-provider resource
+     representations response request respond raise)
 
-    ;; TODO: What to do if there ARE multiple representations at this stage???
-
+    ;; TODO: What to do If there ARE multiple representations at this stage???
 
     ;; No content to consider, just respond with the response.
-    (respond
-     (cond-> response
-       (:juxt.http/content-length (first representations))
-       (assoc-in
-        [:headers "content-length"]
-        (str (:juxt.http/content-length (first representations))))))))
+    (case (count representations)
+      0 (throw (ex-info "TODO: 0 representations" {:resource resource :response response}))
+      1 (let [representation (first representations)]
+          (respond
+           (cond-> response
+             (:juxt.http/content-length representation)
+             (assoc-in
+              [:headers "content-length"]
+              (str (:juxt.http/content-length representation))))))
+      (throw (ex-info "TODO: Create a text/plain or text/html menu of links to these representations?" {})))))
 
 (defmulti http-method
   (fn [resource-provider server-provider resource response request respond raise]
@@ -57,8 +60,9 @@
 
 (defmethod http-method ::default [resource-provider server-provider resource response request respond raise]
   (respond-with-content-maybe
-     resource-provider server-provider resource
-     (conj response [:status 501]) request respond raise))
+   resource-provider server-provider resource
+   [{:juxt.http/content-type "text/plain;charset=utf8"}]
+   (conj response [:status 501]) request respond raise))
 
 ;; TODO: Most :apex ns keywords should be in :juxt.http ns. Refactor!
 

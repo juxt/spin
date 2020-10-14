@@ -110,8 +110,8 @@
     content (content-length, content-range) and representation
     validators (last-modified-date, etag) as applicable. Then (unless
     the :request-method is :head) also add the payload itself in the :body of
-    the response. If there are multiple representations, they can be used as
-    links in the content, either as a menu (300) or as part of an initial
-    response (200). Finally call the respond callback with the
+    the response. If there are multiple representations, either send an initial
+    representation with a menu of links, or just a menu of links to the
+    representations. Finally call the respond callback with the
     response. Warning: Be careful only to modify the given response argument,
     which may already contain a status and some headers."))

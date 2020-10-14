@@ -28,7 +28,6 @@
 
 (use-fixtures :each with-log-capture)
 
-
 (deftest nil-resource-test
   ;; Principle of Least Surprise: Should return 404 if nil resource
   (let [h (handler/handler
@@ -52,9 +51,8 @@
        (fn [_]))
     (let [response (deref *response 0 :timeout)]
       (is (= 405 (:status response)))
-      (is (= "GET" (get-in response [:headers "allow"])))
+      (is (= "GET, HEAD" (get-in response [:headers "allow"])))
       response)))
-
 
 (deftest known-methods-test
   (is (= 6 (count (handler/known-methods)))))

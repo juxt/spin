@@ -78,11 +78,18 @@
       (if (contains? known-methods method)
 
         (let [allowed-methods
-              (if (satisfies? resource/AllowedMethods resource-provider)
+              (cond
+                (satisfies? resource/AllowedMethods resource-provider)
                 (resource/allowed-methods resource-provider server resource request)
-                (or
-                 (:juxt.http/allowed-methods resource) ; TODO: document this
-                 #{:get}))
+
+                (:juxt.http/allowed-methods resource)
+                (:juxt.http/allowed-methods resource)
+
+                ;; GET/HEAD are the default methods for a given resource,
+                ;; regardless of the capabilities of the resource-provider.
+                :else
+                #{:get :head})
+
               response {}]
 
           (if (contains? allowed-methods (:request-method request))
@@ -97,11 +104,19 @@
                    (:uri request))
                   {}
                   t))))
+
+            ;; We have to now return a 405
             (methods/respond-with-content-maybe
              resource-provider server resource
-             nil                        ; representations
+             ;; TODO: This is just to get the tests passing, but really we
+             ;; should do content-negotiation on this 405 response. This is
+             ;; similar to the code that handles a 406.
+
+             [{:juxt.http/content-type "text/plain;utf8"}]
              (-> response (assoc :status 405)
-                 (assoc-in [:headers "allow"] (str/join ", " (map str/upper-case (map name allowed-methods)))))
+                 (assoc-in
+                  [:headers "allow"]
+                  (str/join ", " (map str/upper-case (map name allowed-methods)))))
              request respond raise)))
 
         #_(let [allow (or
