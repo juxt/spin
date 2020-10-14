@@ -34,134 +34,108 @@
 (use-fixtures :each with-log-capture)
 
 (deftest get-with-body-default-status-test
-  (let [*response (promise)]
-    (http-method
-     (reify
-       r/GET
-       (get-or-head [_ server resource response request respond raise]
-         (respond (conj response [:body "Hello World!"]))))
-     nil                                ; nil server-provider
-     {}                                ; resource
-     {}                                 ; response
-     (request :get "/")
-     (fn [r] (deliver *response r))
-     (fn [_]))
-
-    #_(is (= ["resource-provider satisfies resource/GET ? true"]
-           (map (memfn getMessage) @*log-records*)))
-    (let [response (deref *response 0 :timeout)]
-      (is (= 200 (:status response)))
-      (is (= "Hello World!" (:body response))))))
+  (http-method
+   (reify
+     r/GET
+     (get-or-head [_ server resource response request respond raise]
+       (respond (conj response [:body "Hello World!"]))))
+   nil                                ; nil server-provider
+   {}                                ; resource
+   {}                                 ; response
+   (request :get "/")
+   (fn [response]
+     (is (= 200 (:status response)))
+     (is (= "Hello World!" (:body response))))
+   (fn [t] (throw t))))
 
 (deftest get-with-body-explicit-status-test
-  (let [*response (promise)]
-    (http-method
-     (reify
-       r/GET
-       (get-or-head [_ server resource response request respond raise]
-         (respond (merge response {:status 200
-                                   :body "Hello World!"}))))
-     nil                                ; nil server-provider
-     nil                                ; nil resource
-     {}                                 ; response
-     (request :get "/")
-     (fn [r] (deliver *response r))
-     (fn [_]))
-
-    #_(is (= ["resource-provider satisfies resource/GET ? true"]
-           (map (memfn getMessage) @*log-records*)))
-    (let [response (deref *response 0 :timeout)]
-      (is (= 200 (:status response)))
-      (is (= "Hello World!" (:body response))))))
+  (http-method
+   (reify
+     r/GET
+     (get-or-head [_ server resource response request respond raise]
+       (respond (merge response {:status 200
+                                 :body "Hello World!"}))))
+   nil                                ; nil server-provider
+   nil                                ; nil resource
+   {}                                 ; response
+   (request :get "/")
+   (fn [response]
+     (is (= 200 (:status response)))
+     (is (= "Hello World!" (:body response))))
+   (fn [t] (throw t))))
 
 (deftest get-with-body-explicit-not-ok-test
-  (let [*response (promise)]
-    (http-method
-     (reify
-       r/GET
-       (get-or-head [_ server resource response request respond raise]
-         (respond (merge response {:status 400
-                                   :body "Bad request!"}))))
-     nil                                ; nil server-provider
-     nil                                ; nil resource
-     {}                                 ; response
-     (request :get "/")
-     (fn [r] (deliver *response r))
-     (fn [_]))
-
-    #_(is (= ["resource-provider satisfies resource/GET ? true"]
-           (map (memfn getMessage) @*log-records*)))
-    (let [response (deref *response 0 :timeout)]
-      (is (= 400 (:status response)))
-      (is (= "Bad request!" (:body response))))))
+  (http-method
+   (reify
+     r/GET
+     (get-or-head [_ server resource response request respond raise]
+       (respond (merge response {:status 400
+                                 :body "Bad request!"}))))
+   nil                                ; nil server-provider
+   nil                                ; nil resource
+   {}                                 ; response
+   (request :get "/")
+   (fn [response]
+     (is (= 400 (:status response)))
+     (is (= "Bad request!" (:body response))))
+   (fn [t] (throw t))))
 
 (deftest get-with-content-response
-  (let [*response (promise)]
-    (http-method
-     (reify
-       r/ContentResponse
-       (respond-with-content [_ server resource representations response request respond raise]
-         (respond
-          (-> response
-              (update :headers (fnil conj {}) ["content-type" "text/plain;charset=utf8"])
-              (conj [:body "Hello World!"])))))
-     nil                                ; nil server-provider
-     {}                                 ; resource
-     {}                                 ; response
-     (request :get "/")
-     (fn [r] (deliver *response r))
-     (fn [_]))
-
-    (let [response (deref *response 0 :timeout)]
-      (is (= 200 (:status response)))
-      (is (= "text/plain;charset=utf8" (get-in response [:headers "content-type"])))
-      (is (= "Hello World!" (:body response))))))
+  (http-method
+   (reify
+     r/ContentResponse
+     (respond-with-content [_ server resource representations response request respond raise]
+       (respond
+        (-> response
+            (update :headers (fnil conj {}) ["content-type" "text/plain;charset=utf8"])
+            (conj [:body "Hello World!"])))))
+   nil                                ; nil server-provider
+   {}                                 ; resource
+   {}                                 ; response
+   (request :get "/")
+   (fn [response]
+     (is (= 200 (:status response)))
+     (is (= "text/plain;charset=utf8" (get-in response [:headers "content-type"])))
+     (is (= "Hello World!" (:body response))))
+   (fn [t] (throw t))))
 
 (deftest get-with-no-representation-404-test
-  (let [*response (promise)]
-    (http-method
-     (reify
-       r/ContentVariants
-       (available-variants [_ server resource response]
-         (case (:status response)
-           200 []
-           404 [{:juxt.http/content-type "text/plain;charset=utf8"}])))
-     nil                                ; nil server-provider
-     nil                                ; nil resource
-     {}                                 ; response
-     (request :get "/")
-     (fn [r] (deliver *response r))
-     (fn [_]))
-
-    (let [response (deref *response 0 :timeout)]
-      (is (= 404 (:status response))))))
+  (http-method
+   (reify
+     r/ContentVariants
+     (available-variants [_ server resource response]
+       (case (:status response)
+         200 []
+         404 [{:juxt.http/content-type "text/plain;charset=utf8"}])))
+   nil                                  ; nil server-provider
+   nil                                  ; nil resource
+   {}                                   ; response
+   (request :get "/")
+   (fn [response]
+     (is (= 404 (:status response))))
+   (fn [t] (throw t))))
 
 (deftest get-with-no-acceptable-representation-406-test
-  (let [*response (promise)]
-    (http-method
-     (reify
-       r/ContentVariants
-       (available-variants [_ server resource response]
-         (case (:status response)
-           200 [:json]
-           ;; Here's our error message!
-           406 [{:juxt.http/content-type "text/plain;charset=utf8"}]
-           (throw (ex-info "Unexpected case" {:response response}))))
+  (http-method
+   (reify
+     r/ContentVariants
+     (available-variants [_ server resource response]
+       (case (:status response)
+         200 [:json]
+         ;; Here's our error message!
+         406 [{:juxt.http/content-type "text/plain;charset=utf8"}]
+         (throw (ex-info "Unexpected case" {:response response}))))
 
-       r/ContentProactiveNegotiation
-       (select-representations [_ server request variants]
-         (remove #(= :json %) variants)))
-     nil                                ; nil server-provider
-     {}                                 ; nil resource
-     {}                                 ; response
-     (request :get "/")
-     (fn [r]
-       (deliver *response r))
-     (fn [_]))
-
-    (let [response (deref *response 0 :timeout)]
-      (is (= 406 (:status response)))
-      )))
+     r/ContentProactiveNegotiation
+     (select-representations [_ server request variants]
+       (remove #(= :json %) variants)))
+   nil                                ; nil server-provider
+   {}                                 ; nil resource
+   {}                                 ; response
+   (request :get "/")
+   (fn [response]
+     (is (= 406 (:status response))))
+   (fn [t] (throw t))))
 
 (deftest get-with-varying-content-type-test
   (let [rp (reify
@@ -192,38 +166,32 @@
                                    "text/html;charset=utf8" "<h1>Hello World!</h1>"
                                    "application/json" "{\"message\": \"Hello World!\"}")])))))]
     (testing "GET"
-      (let [*response (promise)]
-        (http-method
-         rp
-         nil                            ; nil server-provider
-         {}                             ; resource
-         {}                             ; response
-         (request :get "/")
-         (fn [r] (deliver *response r))
-         (fn [_]))
-
-        (let [response (deref *response 0 :timeout)]
-          (is (= 200 (:status response)))
-          (is (= "<h1>Hello World!</h1>" (:body response)))
-          (is (= "text/html;charset=utf8" (get-in response [:headers "content-type"])))
-          (is (= "accept" (get-in response [:headers "vary"]))))))
+      (http-method
+       rp
+       nil                              ; nil server-provider
+       {}                               ; resource
+       {}                               ; response
+       (request :get "/")
+       (fn [response]
+         (is (= 200 (:status response)))
+         (is (= "<h1>Hello World!</h1>" (:body response)))
+         (is (= "text/html;charset=utf8" (get-in response [:headers "content-type"])))
+         (is (= "accept" (get-in response [:headers "vary"]))))
+       (fn [t] (throw t))))
 
     (testing "HEAD"
-      (let [*response (promise)]
-        (http-method
-         rp
-         nil                            ; nil server-provider
-         {}                             ; resource
-         {}                             ; response
-         (request :head "/")
-         (fn [r] (deliver *response r))
-         (fn [_]))
-
-        (let [response (deref *response 0 :timeout)]
-          (is (= 200 (:status response)))
-          (is (nil? (:body response)))
-          (is (= "text/html;charset=utf8" (get-in response [:headers "content-type"])))
-          (is (= "accept" (get-in response [:headers "vary"]))))))))
+      (http-method
+       rp
+       nil                            ; nil server-provider
+       {}                             ; resource
+       {}                             ; response
+       (request :head "/")
+       (fn [response]
+         (is (= 200 (:status response)))
+         (is (nil? (:body response)))
+         (is (= "text/html;charset=utf8" (get-in response [:headers "content-type"])))
+         (is (= "accept" (get-in response [:headers "vary"]))))
+       (fn [t] (throw t))))))
 
 ;; TODO: Try with a 404 content response
 ;; TODO: Try with a 406 content response
