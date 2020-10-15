@@ -3,11 +3,9 @@
 (ns juxt.spin.resource-test
   (:require
    [clojure.test :refer [deftest is use-fixtures testing]]
-   [juxt.spin.alpha.methods :refer [http-method]]
    [juxt.spin.alpha.handler :refer [handler]]
    [juxt.spin.alpha.resource :as r]
-   [ring.mock.request :refer [request]]
-   [clojure.tools.logging :as log])
+   [ring.mock.request :refer [request]])
   (:import
    (java.util.logging Logger Level Handler)))
 

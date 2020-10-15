@@ -8,8 +8,14 @@
    [juxt.spin.alpha.resource
     :as resource]
    [juxt.reap.alpha.decoders :refer [content-type]]
+   ;; TODO for reap: if-none-match should be precompiled as a decoder
+   [juxt.reap.alpha.rfc7232 :refer [if-none-match]]
+   [juxt.reap.alpha.regex :as re]
+
    [clojure.string :as str]
-   [juxt.spin.alpha.resource :as r])
+   [juxt.spin.alpha.resource :as r]
+   [juxt.reap.alpha.rfc7232 :as rfc7232]
+   [juxt.reap.alpha.regex :as re])
   (:import
    (java.nio.charset Charset)
    (java.util Date)))
@@ -39,20 +45,38 @@
 
   ;; TODO: Only do on a normal 200 response?
   ;; RFC 7231 discusses which methods/status-codes are 'cacheable' - refer to that
-  (if (and
-       (get-in request [:headers "if-modified-since"])
-       (not (let [last-modified (:juxt.http/last-modified (first representations))
-                  if-modified-since
-                  (some-> (get-in request [:headers "if-modified-since"])
-                          util/parse-http-date)]
+  ;; TODO: Should only do this when there is a single representation
+  (if (or
+       (and
+        (get-in request [:headers "if-modified-since"])
+        (not (let [last-modified (:juxt.http/last-modified (first representations))
+                   if-modified-since
+                   (some-> (get-in request [:headers "if-modified-since"])
+                           util/parse-http-date)]
 
-              (if (and last-modified if-modified-since)
-                (if-modified-since? last-modified if-modified-since)
-                true)))
+               (if (and last-modified if-modified-since)
+                 (if-modified-since? last-modified if-modified-since)
+                 true))))
 
-       ;; TODO: Repeat for etags!
-       ;; TODO: Make extensible to allow for any type of validator
-       ;; TODO: Extract this into a function
+       (and
+        (get-in request [:headers "if-none-match"])
+
+        (let [decode (:juxt.reap/decode (rfc7232/if-none-match {}))
+              etags-to-check (decode (re/input (get-in request [:headers "if-none-match"])))
+              etag-of-rep (:juxt.http/entity-tag (first representations))]
+
+          (some (fn [etag-to-check]
+                  (= etag-of-rep (get-in etag-to-check [:juxt.http/entity-tag :entity-tag])))
+                etags-to-check))
+
+        #_(#:juxt.http{:entity-tag {:weak false, :tag "xyzzy", :opaque-tag "\"xyzzy\""}}
+           #:juxt.http{:entity-tag {:weak true, :tag "abc", :opaque-tag "\"abc\""}})
+
+)
+
+        ;; TODO: Make extensible to allow for any type of validator
+        ;; TODO: Extract this into a function
+
        )
 
     (respond {:status 304})
