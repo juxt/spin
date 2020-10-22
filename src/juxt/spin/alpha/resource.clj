@@ -114,3 +114,8 @@
     representations. Finally call the respond callback with the
     response. Warning: Be careful only to modify the given response argument,
     which may already contain a status and some headers."))
+
+(defprotocol ErrorResponse
+  (respond-with-error [_ server resource representation response request respond raise]
+    "Use the respond function to respond with an error. The status code is in
+    the :status entry of the response argument."))

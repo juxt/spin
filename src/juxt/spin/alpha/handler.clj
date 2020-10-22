@@ -25,15 +25,33 @@
 (defn effective-uri [request]
   (request-url request))
 
-(defn wrap-lookup-resource [h resource-provider]
+(defn wrap-lookup-resource [h resource-provider server]
   (fn [request respond raise]
     (try
       (if (satisfies? resource/ResourceLocator resource-provider)
         ;; Continue the chain, but with the resource assoc'd, even if nil (we might be doing a PUT, or a custom 404)
-        (let [resource (resource/locate-resource resource-provider (effective-uri request) request)]
+        (if-let [resource (resource/locate-resource resource-provider (effective-uri request) request)]
           (h (cond-> request
                resource (conj [:juxt.http/resource resource]))
-             respond raise))
+             respond raise)
+
+          ;; 404
+          (let [response {:status 404}
+
+                variants
+                (if (satisfies? resource/ContentVariants resource-provider)
+                  (resource/available-variants resource-provider server nil response)
+                  [{:juxt.http/content-type "text/plain;charset=utf8"}
+                   {:juxt.http/content-type "text/html;charset=utf8"}])
+
+                representation
+                (if (satisfies? resource/ContentProactiveNegotiation resource-provider)
+                  (first (resource/select-representations resource-provider server request variants))
+                  (first variants))]
+
+            (if (satisfies? resource/ErrorResponse resource-provider)
+              (resource/respond-with-error resource-provider server nil representation response request respond raise)
+              (respond (assoc response :body "spin: Not Found!")))))
 
         ;; If ResourceLocator is not satisfied, let's assume the resource exists
         ;; and set it to an empty map. That's the most sensible default. It is
@@ -165,6 +183,6 @@
      (->
       (invoke-method resource-provider server known-methods)
       ;;(wrap-precondition-evalution resource-provider)
-      (wrap-lookup-resource resource-provider)
+      (wrap-lookup-resource resource-provider server)
       (wrap-server-options server)
       ring/sync-adapt))))
