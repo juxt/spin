@@ -1,6 +1,8 @@
 ;; Copyright © 2020, JUXT LTD.
 
-(ns juxt.spin.alpha.resource)
+(ns juxt.spin.alpha.resource
+  (:require
+   [juxt.spin.alpha.util :as util]))
 
 ;; TODO: OpenAPI in Apex support should be written in terms of these
 ;; interfaces.
@@ -119,3 +121,161 @@
   (respond-with-error [_ server resource representation response request respond raise]
     "Use the respond function to respond with an error. The status code is in
     the :status entry of the response argument."))
+
+
+;; Forwarding proxy
+(defrecord ResourceProviderProxy [app-impl default-impl]
+  ResourceLocator
+  (locate-resource [_ uri request]
+    (if (satisfies? ResourceLocator app-impl)
+      (locate-resource app-impl uri request)
+      (locate-resource default-impl uri request)))
+
+  AllowedMethods
+  (allowed-methods [_ server resource request]
+    (if (satisfies? AllowedMethods app-impl)
+      (allowed-methods app-impl server resource request)
+      (allowed-methods default-impl server resource request)))
+
+  GET
+  (get-or-head [_ server resource response request respond raise]
+    (if (satisfies? GET app-impl)
+      (get-or-head app-impl server resource response request respond raise)
+      (get-or-head default-impl server resource response request respond raise)))
+
+  POST
+  (post [_ server resource response request respond raise]
+    (if (satisfies? POST app-impl)
+      (post app-impl server resource response request respond raise)
+      (post default-impl server resource response request respond raise)))
+
+  PUT
+  (put [_ server resource response request respond raise]
+    (if (satisfies? PUT app-impl)
+      (put app-impl server resource response request respond raise)
+      (put default-impl server resource response request respond raise)))
+
+  DELETE
+  (delete [_ server resource response request respond raise]
+    (if (satisfies? DELETE app-impl)
+      (delete app-impl server resource response request respond raise)
+      (delete default-impl server resource response request respond raise)))
+
+  OPTIONS
+  (options [_ server resource response request respond raise]
+    (if (satisfies? OPTIONS app-impl)
+      (options app-impl server resource response request respond raise)
+      (options default-impl server resource response request respond raise)))
+
+  ContentVariants
+  (available-variants [_ server resource response]
+    (if (satisfies? ContentVariants app-impl)
+      (available-variants app-impl server resource response)
+      (available-variants default-impl server resource response)))
+
+  ContentProactiveNegotiation
+  (select-representations [_ server request variants]
+    (if (satisfies? ContentProactiveNegotiation app-impl)
+      (select-representations app-impl server request variants)
+      (select-representations default-impl server request variants)))
+
+  ContentResponse
+  (respond-with-content [_ server resource representations response request respond raise]
+    (if (satisfies? ContentResponse app-impl)
+      (respond-with-content app-impl server resource representations response request respond raise)
+      (respond-with-content default-impl server resource representations response request respond raise)))
+
+  ErrorResponse
+  (respond-with-error [_ server resource representation response request respond raise]
+    (if (satisfies? ErrorResponse app-impl)
+      (respond-with-error app-impl server resource representation response request respond raise)
+      (respond-with-error default-impl server resource representation response request respond raise))))
+
+
+;; Defaults
+(defrecord BackingResourceProvider []
+  ResourceLocator
+  ;; If ResourceLocator is not satisfied, let's assume the resource exists
+  ;; and set it to an empty map. That's the most sensible default. It is
+  ;; unlikely, outside of testing and simple demos, that a
+  ;; resource-provider will not satisfy http/ResourceLocator
+  (locate-resource [_ uri request] {})
+
+  AllowedMethods
+  (allowed-methods [_ server resource request]
+    (or
+     (:juxt.http/allowed-methods resource)
+     #{:get :head}))
+
+  GET
+  (get-or-head [_ server resource response request respond raise]
+    (respond response))
+
+  POST
+  (post [_ server resource response request respond raise]
+    (throw (ex-info "Default not implemented!" {})))
+
+  PUT
+  (put [_ server resource response request respond raise]
+    (throw (ex-info "Default not implemented!" {})))
+
+  DELETE
+  (delete [_ server resource response request respond raise]
+    (throw (ex-info "Default not implemented!" {})))
+
+  OPTIONS
+  (options [_ server resource response request respond raise]
+    (throw (ex-info "Default not implemented!" {})))
+
+  ContentVariants
+  (available-variants [_ server resource response]
+    (if (< (:status response) 400)
+      ;; We will use the resource as the (only) representation.
+      [resource]
+      ;; Types we're happy to produce on error (4xx/5xx)
+      [{:juxt.http/content-type "text/plain;charset=utf8"}
+       {:juxt.http/content-type "text/html;charset=utf8"}]))
+
+  ContentProactiveNegotiation
+  (select-representations [_ server request variants]
+    variants)
+
+  ContentResponse
+  (respond-with-content [_ server resource representations response request respond raise]
+    ;; No content to consider, just respond with the response.
+
+    (cond
+      (and
+       (< (:status response) 400)
+       (> (count representations) 1))
+      ;; We could produce an automatic 300 here
+      (throw (ex-info "TODO: Create a text/plain or text/html menu of links to these representations?" {}))
+
+      (zero? (count representations))
+      (throw (ex-info "TODO: 0 representations" {:resource resource :response response}))
+
+      (or
+       (= (count representations) 1)
+       ;; On error, we just take the first representation
+       (>= (:status response) 400))
+      (let [representation (first representations)]
+        (respond
+         (cond-> response
+           (:juxt.http/content-length representation)
+           (assoc-in
+            [:headers "content-length"]
+            (str (:juxt.http/content-length representation)))
+
+           (:juxt.http/last-modified representation)
+           (assoc-in [:headers "last-modified"] (util/format-http-date (:juxt.http/last-modified representation)))
+           (:juxt.http/entity-tag representation)
+           (assoc-in [:headers "etag"] (:juxt.http/entity-tag representation)))))
+
+      :else (raise (ex-info "Unexpected case" {:response response
+                                               :representations representations}))))
+
+
+  ErrorResponse
+  (respond-with-error [_ server resource representation response request respond raise]
+    ;; TODO: Make this a little more informative!
+    (respond (assoc response :body "spin: ERROR"))))

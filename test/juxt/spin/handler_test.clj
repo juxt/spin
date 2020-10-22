@@ -41,18 +41,17 @@
     (is (= 404 (:status (h (request :get "/malcolm")))))))
 
 (deftest method-not-allowed-test
-  (let [*response (promise)
-        h (#'handler/invoke-method
-           nil
-           nil
-           #{:get :head :put :post :delete :options})]
-    (h (request :post "/")
-       (fn [r] (deliver *response r))
-       (fn [_]))
-    (let [response (deref *response 0 :timeout)]
-      (is (= 405 (:status response)))
-      (is (= "GET, HEAD" (get-in response [:headers "allow"])))
-      response)))
+  ((handler/handler
+    (reify
+      r/AllowedMethods
+      (allowed-methods [_ server resource request]
+        #{:put :post})))
+   (request :get "/")
+   (fn [response]
+     (is (= 405 (:status response)))
+     ;; TODO: Perhaps we should sort to make this determinstic?
+     (is (= "POST, PUT" (get-in response [:headers "allow"]))))
+   (fn [_])))
 
 (deftest known-methods-test
   (is (= 6 (count (handler/known-methods)))))

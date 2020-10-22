@@ -25,41 +25,27 @@
 (defn effective-uri [request]
   (request-url request))
 
+;; Continue the chain, but with the resource assoc'd, even if nil (we might be doing a PUT, or a custom 404)
+
 (defn wrap-lookup-resource [h resource-provider server]
   (fn [request respond raise]
     (try
-      (if (satisfies? resource/ResourceLocator resource-provider)
-        ;; Continue the chain, but with the resource assoc'd, even if nil (we might be doing a PUT, or a custom 404)
-        (if-let [resource (resource/locate-resource resource-provider (effective-uri request) request)]
-          (h (cond-> request
-               resource (conj [:juxt.http/resource resource]))
-             respond raise)
+      (if-let [resource (resource/locate-resource resource-provider (effective-uri request) request)]
+        (h (cond-> request
+             resource (conj [:juxt.http/resource resource]))
+           respond raise)
 
-          ;; 404
-          (let [response {:status 404}
+        ;; 404: Not found
+        (let [response {:status 404}
+              variants (resource/available-variants resource-provider server nil response)
+              representation (first (resource/select-representations resource-provider server request variants))]
 
-                variants
-                (if (satisfies? resource/ContentVariants resource-provider)
-                  (resource/available-variants resource-provider server nil response)
-                  [{:juxt.http/content-type "text/plain;charset=utf8"}
-                   {:juxt.http/content-type "text/html;charset=utf8"}])
+          (resource/respond-with-error resource-provider server nil representation response request respond raise)))
 
-                representation
-                (if (satisfies? resource/ContentProactiveNegotiation resource-provider)
-                  (first (resource/select-representations resource-provider server request variants))
-                  (first variants))]
-
-            (if (satisfies? resource/ErrorResponse resource-provider)
-              (resource/respond-with-error resource-provider server nil representation response request respond raise)
-              (respond (assoc response :body "spin: Not Found!")))))
-
-        ;; If ResourceLocator is not satisfied, let's assume the resource exists
-        ;; and set it to an empty map. That's the most sensible default. It is
-        ;; unlikely, outside of testing and simple demos, that a
-        ;; resource-provider will not satisfy http/ResourceLocator
-        (h (conj request [:juxt.http/resource {}]) respond raise))
       (catch Exception e
         (raise e)))))
+
+;;(h (conj request [:juxt.http/resource {}]) respond raise)
 
 (defn wrap-server-options [h server]
   (fn [request respond raise]
@@ -96,18 +82,7 @@
       (if (contains? known-methods method)
 
         (let [allowed-methods
-              (cond
-                (satisfies? resource/AllowedMethods resource-provider)
-                (resource/allowed-methods resource-provider server resource request)
-
-                (:juxt.http/allowed-methods resource)
-                (:juxt.http/allowed-methods resource)
-
-                ;; GET/HEAD are the default methods for a given resource,
-                ;; regardless of the capabilities of the resource-provider.
-                :else
-                #{:get :head})
-
+              (resource/allowed-methods resource-provider server resource request)
               response {}]
 
           (if (contains? allowed-methods (:request-method request))
@@ -179,7 +154,11 @@
   ([resource-provider]
    (handler resource-provider nil))
   ([resource-provider server]
-   (let [known-methods (known-methods)]
+   (let [resource-provider
+         (resource/->ResourceProviderProxy
+          resource-provider
+          (resource/->BackingResourceProvider))
+         known-methods (known-methods)]
      (->
       (invoke-method resource-provider server known-methods)
       ;;(wrap-precondition-evalution resource-provider)

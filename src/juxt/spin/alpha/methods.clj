@@ -46,6 +46,13 @@
   ;; TODO: Only do on a normal 200 response?
   ;; RFC 7231 discusses which methods/status-codes are 'cacheable' - refer to that
   ;; TODO: Should only do this when there is a single representation
+
+  ;; At this point we should check preconditions.
+  ;; We can only do this if we know the actual representation (hint, representations contains a single entry)
+
+  ;; If there is a single representation - then check the preconditions
+  ;; The representation should contain the validator metadata (last-modified, etag), so we can now run the validators.
+
   (if (or
        (and
         (get-in request [:headers "if-modified-since"])
@@ -72,54 +79,19 @@
         #_(#:juxt.http{:entity-tag {:weak false, :tag "xyzzy", :opaque-tag "\"xyzzy\""}}
            #:juxt.http{:entity-tag {:weak true, :tag "abc", :opaque-tag "\"abc\""}})
 
-)
+        )
 
-        ;; TODO: Make extensible to allow for any type of validator
-        ;; TODO: Extract this into a function
+       ;; TODO: Make extensible to allow for any type of validator
+       ;; TODO: Extract this into a function
 
        )
 
     (respond {:status 304})
 
-    ;; At this point we should check preconditions.
-    ;; We can only do this if we know the actual representation (hint, representations contains a single entry)
 
-    ;; If there is a single representation - then check the preconditions
-    ;; The representation should contain the validator metadata (last-modified, etag), so we can now run the validators.
-
-    (if (satisfies? resource/ContentResponse resource-provider)
-
-      ;; Now check any preconditions
-
-      (resource/respond-with-content
-       resource-provider server-provider resource
-       representations response request respond raise)
-
-      ;; TODO: What to do If there ARE multiple representations at this stage???
-
-      ;; No content to consider, just respond with the response.
-      (case (count representations)
-        0 (throw (ex-info "TODO: 0 representations" {:resource resource :response response}))
-        1 (let [representation (first representations)]
-
-            ;; Now check any preconditions
-
-
-
-            (respond
-             (cond-> response
-               (:juxt.http/content-length representation)
-               (assoc-in
-                [:headers "content-length"]
-                (str (:juxt.http/content-length representation)))
-
-               (:juxt.http/last-modified representation)
-               (assoc-in [:headers "last-modified"] (util/format-http-date (:juxt.http/last-modified representation)))
-               (:juxt.http/entity-tag representation)
-               (assoc-in [:headers "etag"] (:juxt.http/entity-tag representation))
-
-               )))
-        (throw (ex-info "TODO: Create a text/plain or text/html menu of links to these representations?" {}))))))
+    (resource/respond-with-content
+     resource-provider server-provider resource
+     representations response request respond raise)))
 
 (defmulti http-method
   (fn [resource-provider server-provider resource response request respond raise]
@@ -155,69 +127,56 @@
 
         respond
         (fn [response]
-          (if (satisfies? resource/ContentVariants resource-provider)
-            (let [available-variants
-                  (resource/available-variants
-                   resource-provider server-provider resource response)]
-              (if (seq available-variants)
+          (let [available-variants
+                (resource/available-variants
+                 resource-provider server-provider resource response)]
+            (if (seq available-variants)
 
-                (let [representations
-                      (if (satisfies? resource/ContentProactiveNegotiation resource-provider)
-                        (resource/select-representations
-                         resource-provider server-provider request available-variants)
-                        available-variants)
+              (let [representations
+                    (resource/select-representations
+                     resource-provider server-provider request available-variants)
 
-                      response
-                      (cond-> response
-                        (satisfies? resource/ContentProactiveNegotiation resource-provider)
-                        (update :headers (fnil conj {}) ["vary" (vary available-variants)]))]
+                    response
+                    (update response :headers (fnil conj {}) ["vary" (vary available-variants)])]
 
-                  (if (seq representations)
-                    (respond-with-content-maybe
-                     resource-provider
-                     server-provider
-                     resource
-                     representations
-                     response
-                     request respond raise)
-
-                    ;; 406!
-                    (let [response (conj response [:status 406])
-                          available-variants
-                          (resource/available-variants
-                           resource-provider server-provider resource response)]
-                      (respond-with-content-maybe
-                       resource-provider
-                       server-provider
-                       resource
-                       (when (seq available-variants)
-                         (resource/select-representations
-                          resource-provider server-provider request available-variants))
-                       response
-                       request respond raise))))
-
-                ;; 404!
-                (let [response (conj response [:status 404])
-                      available-variants
-                      (resource/available-variants
-                       resource-provider server-provider resource response)]
+                (if (seq representations)
                   (respond-with-content-maybe
                    resource-provider
                    server-provider
                    resource
-                   (when (seq available-variants)
-                     (resource/select-representations
-                      resource-provider server-provider request available-variants))
+                   representations
                    response
-                   request respond raise))))
+                   request respond raise)
 
-            ;; No ContentNegotiation show we leave it up to the implementation
-            ;; to decide what content to send.  We will use the resource as the
-            ;; (only) representation.
-            (respond-with-content-maybe
-             resource-provider server-provider resource [resource] response request respond raise)))]
+                  ;; 406!
+                  (let [response (conj response [:status 406])
+                        available-variants
+                        (resource/available-variants
+                         resource-provider server-provider resource response)]
+                    (respond-with-content-maybe
+                     resource-provider
+                     server-provider
+                     resource
+                     (when (seq available-variants)
+                       (resource/select-representations
+                        resource-provider server-provider request available-variants))
+                     response
+                     request respond raise))))
 
-    (log/trace (str "resource-provider satisfies resource/GET ? " (satisfies? resource/GET resource-provider)))
+              ;; 404!
+              (let [response (conj response [:status 404])
+                    available-variants
+                    (resource/available-variants
+                     resource-provider server-provider resource response)]
+                (respond-with-content-maybe
+                 resource-provider
+                 server-provider
+                 resource
+                 (when (seq available-variants)
+                   (resource/select-representations
+                    resource-provider server-provider request available-variants))
+                 response
+                 request respond raise)))))]
 
     (if (satisfies? resource/GET resource-provider)
       (resource/get-or-head
