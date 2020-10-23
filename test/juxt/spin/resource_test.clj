@@ -5,7 +5,8 @@
    [clojure.test :refer [deftest is use-fixtures testing]]
    [juxt.spin.alpha.handler :refer [handler]]
    [juxt.spin.alpha.resource :as r]
-   [ring.mock.request :refer [request]])
+   [ring.mock.request :refer [request]]
+   [juxt.reap.alpha.api :as reap])
   (:import
    (java.util.logging Logger Level Handler)))
 
@@ -172,6 +173,42 @@
          (is (= "text/html;charset=utf8" (get-in response [:headers "content-type"])))
          (is (= "accept" (get-in response [:headers "vary"]))))
        (fn [t] (throw t))))))
+
+(deftest vary-header-test
+  (let [make-handler
+        (fn [variants]
+          (handler
+           (reify
+             r/ContentVariants
+             (available-variants [_ server resource response]
+               variants)
+
+             r/ContentProactiveNegotiation
+             (select-representations [_ server request variants]
+               (take 1 variants)))))]
+    (testing "vary by accept"
+      (let [h (make-handler
+               [{:juxt.http/content-type "text/html;charset=utf8"}
+                {:juxt.http/content-type "application/json"}])]
+        (h
+         (request :get "/")
+         (fn [response]
+           (is (= 200 (:status response)))
+           (is (= "accept" (get-in response [:headers "vary"]))))
+         (fn [t] (throw t)))))
+
+    (testing "vary by accept-language"
+      (let [h (make-handler
+               [{:juxt.http/content-type "text/html;charset=utf8"
+                 :juxt.http/content-language "en-US"}
+                {:juxt.http/content-type "text/html;charset=utf8"
+                 :juxt.http/content-language "de"}])]
+        (h
+         (request :get "/")
+         (fn [response]
+           (is (= 200 (:status response)))
+           (is (= "accept-language" (get-in response [:headers "vary"]))))
+         (fn [t] (throw t)))))))
 
 ;; TODO: Try with a 404 content response
 ;; TODO: Try with a 406 content response

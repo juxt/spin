@@ -106,10 +106,19 @@
 
 ;; TODO: Most :apex ns keywords should be in :juxt.http ns. Refactor!
 
+;; TODO: If the media-types differ only by charset, then we _should_ generate
+;; accept-charset rather than accept.
 (defn vary [variants]
-  ;; TODO: Work out how variants vary.
-  "accept"
-  )
+  (str/join
+   ", "
+   (for [[header key-fn]
+         [["accept" :juxt.http/content-type]
+          ["accept-language" :juxt.http/content-language]
+          ["accept-encoding" :juxt.http/content-encoding]]
+         :when (>
+                (count (remove nil? (distinct (map key-fn variants))))
+                1)]
+     header)))
 
 ;; The GET method requests transfer of a current selected representation for the
 ;; target resource.
