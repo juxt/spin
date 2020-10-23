@@ -109,16 +109,17 @@
 ;; TODO: If the media-types differ only by charset, then we _should_ generate
 ;; accept-charset rather than accept.
 (defn vary [variants]
-  (str/join
-   ", "
-   (for [[header key-fn]
-         [["accept" :juxt.http/content-type]
-          ["accept-language" :juxt.http/content-language]
-          ["accept-encoding" :juxt.http/content-encoding]]
-         :when (>
-                (count (remove nil? (distinct (map key-fn variants))))
-                1)]
-     header)))
+  (let [varying
+        (for [[header key-fn]
+              [["accept" :juxt.http/content-type]
+               ["accept-language" :juxt.http/content-language]
+               ["accept-encoding" :juxt.http/content-encoding]]
+              :when (>
+                     (count (remove nil? (distinct (map key-fn variants))))
+                     1)]
+          header)]
+    (when (not-empty varying)
+      (str/join ", " varying))))
 
 ;; The GET method requests transfer of a current selected representation for the
 ;; target resource.
@@ -145,8 +146,11 @@
                     (resource/select-representations
                      resource-provider server-provider request available-variants)
 
+                    vary-header (vary available-variants)
+
                     response
-                    (update response :headers (fnil conj {}) ["vary" (vary available-variants)])]
+                    (cond-> response
+                      vary-header (update :headers (fnil conj {}) ["vary" vary-header]))]
 
                 (if (seq representations)
                   (respond-with-content-maybe

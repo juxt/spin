@@ -208,7 +208,18 @@
          (fn [response]
            (is (= 200 (:status response)))
            (is (= "accept-language" (get-in response [:headers "vary"]))))
+         (fn [t] (throw t)))))
+
+    (testing "no variance"
+      (let [h (make-handler
+               [{:juxt.http/content-type "application/json"}])]
+        (h
+         (request :get "/")
+         (fn [response]
+           (is (= 200 (:status response)))
+           (is (nil? (get-in response [:headers "vary"]))))
          (fn [t] (throw t)))))))
+
 
 ;; TODO: Try with a 404 content response
 ;; TODO: Try with a 406 content response
