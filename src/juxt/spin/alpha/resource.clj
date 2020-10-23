@@ -261,6 +261,21 @@
       (let [representation (first representations)]
         (respond
          (cond-> response
+           (:juxt.http/content-type representation)
+           (assoc-in
+            [:headers "content-type"]
+            (:juxt.http/content-type representation))
+
+           (:juxt.http/content-language representation)
+           (assoc-in
+            [:headers "content-language"]
+            (:juxt.http/content-language representation))
+
+           (:juxt.http/content-encoding representation)
+           (assoc-in
+            [:headers "content-encoding"]
+            (:juxt.http/content-encoding representation))
+
            (:juxt.http/content-length representation)
            (assoc-in
             [:headers "content-length"]

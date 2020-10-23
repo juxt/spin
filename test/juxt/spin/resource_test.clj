@@ -125,6 +125,19 @@
      (is (= 406 (:status response))))
    (fn [t] (throw t))))
 
+(deftest content-type-header-test
+  (let [h (handler
+           (reify
+             r/ContentVariants
+             (available-variants [_ server resource response]
+               [{:juxt.http/content-type "application/json"}])))]
+    (h
+     (request :get "/")
+     (fn [response]
+       (is (= 200 (:status response)))
+       (is (= "application/json" (get-in response [:headers "content-type"]))))
+     (fn [t] (throw t)))))
+
 (deftest get-with-varying-content-type-test
   (let [handler
         (handler
