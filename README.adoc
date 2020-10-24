@@ -1,20 +1,61 @@
 = Spin
 
-The sophistication of the HTTP protocol means it just isn't possible to expect
-that its laws and proscriptions to be followed with any precision without a
-higher-level orchestrator. That's what Spin provides.
+_Far more web_ for _much less code_.
 
-Think of Spin as a kernel designed to handle web requests. This kernel calls out
-to code in 'user space' for anything it needs from the application to handle the
-request on its behalf.
+Since the earliest web servers, dynamic behaviour in web servers has been built
+on the https://www.w3.org/CGI/[CGI: Common Gateway Interface]. CGI itself has
+been consigned to history but the model of web development that it inspired is
+still by far the dominant model used by developers of websites and web APIs.
 
-You provide the code that satisfies Spin's protocols. In exchange, you get a
+In CGI, a web-server captures information about a web request (such as the
+request method, path, remote address, query-string, etc.) and calls a sends it
+to an external program or script, or in-process function, that generates the
+response on behalf of the web server.
+
+As web-servers have evolved, virtually every web library and framework has
+inherited this minimalist design: from Java's 'servlets' and Ruby's
+https://www.rubyguides.com/2018/09/rack-middleware/[Rack] and PHP to Node.js
+Express, Erlang's https://www.phoenixframework.org/[Phoenix], Clojure's
+https://github.com/ring-clojure/ring[Ring] and hundreds more.
+
+== Problem Statement
+
+The problem at the heart of CGI, and everything based on it, is that it is an
+interface based on a web _request_ rather than a web _resource_. It was designed
+to attach basic scripts to web servers, not to build the web itself.
+
+The web is built on the HTTP protocol, which governs how browsers, web-servers,
+proxies and other participants communicate. What does HTTP provide? It's right
+there in just the second paragraph:
+
+[quote,RFC 7231 - Section 1]
+____
+HTTP provides a uniform interface for interacting with a _resource_
+____
+
+The problem with CGI-based web libraries is that CGI is too low-level. It asks
+too much of developers who have to recreate this 'resource' abstraction in every
+handler they write. Of course this results in HTTP services that are half-baked,
+half-implemented and non-comformant with HTTP. This makes the web poorer: *less
+inter-operable*, *less dynamic* and *more expensive to create and maintain*.
+
+== Proposed Solution
+
+Spin defines a new _resource-oriented_ interface to replace CGI.
+
+Spin also provides an adapter that converts the CGI-based request-oriented
+interface of Java/Clojure web servers to this new resource-oriented interface.
+
+You provide code that satisfies Spin's Clojure protocols. In exchange, you get a
 runtime that fully conforms with HTTP.
+
+Spin is written in Clojure because it provides a very fast design iteration
+cycle. But it is hoped that once Spin's design stabilises it can be copied by
+others, just as CGI was.
 
 == But why is it called Spin?
 
-The name 'spin' is a deliberate pun on the word 'web'. A spider spinning its web
-is a very intricate affair, and so is reacting to an HTTP request!
+The name 'spin' is a deliberate pun on the word 'web'.
 
 == Relevant Standards
 
