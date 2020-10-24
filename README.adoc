@@ -78,10 +78,6 @@ Spin is independent of routing and treats URIs as opaque. This lets you 'bring
 your own router', and so can be used with Compojure, bidi, Reitit and other
 Clojure routing libraries.
 
-== Features
-
-TBD.
-
 == License
 
 The MIT License (MIT)
