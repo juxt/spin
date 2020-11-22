@@ -19,10 +19,10 @@
    :ring.request/path path})
 
 (deftest response-test
-  (testing "responds 404 if no locate-resource callback"
+  (testing "responds 200 if no locate-resource callback"
     (is
      (=
-      {:status 404}
+      {:status 200}
       (response-for
        #::spin{}
        (request :get "/")
@@ -65,7 +65,7 @@
       (response-for
        #::spin{:locate-resource (fn [_] {})
                :get-or-head!
-               (fn [{::spin/keys [respond]}]
-                 (respond {:status 200 :body "Hello World\n"}))}
+               (fn [{::spin/keys [respond!]}]
+                 (respond! {:status 200 :body "Hello World\n"}))}
        (request :get "/")
        [:status :body])))))

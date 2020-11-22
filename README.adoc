@@ -67,8 +67,7 @@ Spin is still under active development and is ALPHA status, meaning that the API
 should be considered unstable and likely to change.
 
 It is planned that Spin will be agnostic as to whether you are using Ring's sync
-(1-arity) of async (3-arity) forms and will support both. Currently, only the
-3-arity form is supported.
+(1-arity) of async (3-arity) forms and will support both.
 
 == Relationship to other Clojure libraries
 
@@ -77,6 +76,51 @@ Spin is hoped to be an official successor to https://github.com/juxt/yada.
 Spin is independent of routing and treats URIs as opaque. This lets you 'bring
 your own router', and so can be used with Compojure, bidi, Reitit and other
 Clojure routing libraries.
+
+== Reference
+
+You create a Ring handler with `juxt.spin.alpha.ctx/handler` that takes a single map argument, called the context.
+
+[source,clojure]
+----
+(def handler (juxt.spin.alpha.ctx/handler {…}))
+
+(handler req) => response
+----
+
+This map contains the following entries, which are namespaced in the
+`juxt.spin.alpha` namespace (aliased below to `spin`).
+
+=== `::spin/request` (provided)
+
+A map describing a Ring request, see https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md
+
+=== `::spin/respond!` (provided)
+
+A callback function that is used to return a Ring response, which is map. See
+https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
+
+=== `::spin/raise!` (provided)
+
+A callback function that is used to raise any errors. See
+https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
+
+=== `::spin/locate-resource` (optional)
+
+A function that takes the context as an argument, and returns a map describing
+the target resource, or nil if a resource cannot be found.
+
+If not provided, the resource defaults to an empty map.
+
+=== `::spin/resource` (optional)
+
+A map describing the target resource. If this is provided, then it is used regardless of whether `::spin/locate-resource` is provided also. If this is not specified up-front, it is provided in the context once it is located. See `::spin/locate-resource`.
+
+=== `::spin/get-or-head!`
+
+A function that takes the context as an argument. The function should call the
+`::spin/respond!` function provided in the context to return a response.
+
 
 == License
 

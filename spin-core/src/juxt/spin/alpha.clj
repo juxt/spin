@@ -14,7 +14,7 @@
                 :ring.request/path]
           :opt [:ring.request/headers]))
 
-(s/def ::ctx (s/keys :opt [::request ::raise]))
+(s/def ::ctx (s/keys :opt [::request ::raise!]))
 
 (s/def ::resource
   (s/keys :opt []))
