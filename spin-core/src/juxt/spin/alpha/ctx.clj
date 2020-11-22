@@ -68,9 +68,6 @@
 
 (defn handler [ctx]
   (-> (fn [request respond raise]
-        #_(s/explain ::spin/ctx {::spin/request request
-                               ::spin/respond respond
-                               ::spin/raise raise})
         (locate-resource
          (conj ctx {::spin/request request
                     ::spin/respond respond
