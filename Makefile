@@ -10,7 +10,7 @@ lint:
 	clojure -Alint
 
 lint2:
-	clj-kondo --lint src/juxt --lint test/juxt
+	clj-kondo --lint spin-core/src/juxt --lint spin-core/test/juxt
 
 watch:
 	find . -name "*.clj" | entr make test
