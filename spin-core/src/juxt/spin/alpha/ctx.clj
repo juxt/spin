@@ -56,9 +56,9 @@
       (not-found ctx))))
 
 (defn handler [ctx]
-  (sync-adapt
-   (fn [request respond raise]
-     (locate-resource
-      (conj ctx {:juxt.spin.alpha/request request
-                 :juxt.spin.alpha/respond respond
-                 :juxt.spin.alpha/raise raise})))))
+  (-> (fn [request respond raise]
+        (locate-resource
+         (conj ctx {:juxt.spin.alpha/request request
+                    :juxt.spin.alpha/respond respond
+                    :juxt.spin.alpha/raise raise})))
+      sync-adapt))
