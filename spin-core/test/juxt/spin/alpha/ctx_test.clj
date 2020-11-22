@@ -24,8 +24,7 @@
      (=
       {:status 404}
       (response-for
-       #::spin
-       {}
+       #::spin{}
        (request :get "/")
        [:status]))))
 
@@ -34,9 +33,8 @@
      (=
       {:status 404}
       (response-for
-       #::spin
-       {:locate-resource
-        (fn [_] nil)}
+       #::spin{:locate-resource
+               (fn [_] nil)}
        (request :get "/")
        [:status]))))
 
@@ -45,8 +43,29 @@
      (=
       {:status 404}
       (response-for
-       #::spin
-       {:locate-resource
-        (fn [_] nil)}
+       #::spin{:locate-resource
+               (fn [_] nil)}
        (request :get "/")
-       [:status])))))
+       [:status]))))
+
+  (testing "responds 501 for unknown method"
+    (is
+     (=
+      {:status 501}
+      (response-for
+       #::spin{:locate-resource (fn [_] {})}
+       (request :brew "/")
+       [:status]))))
+
+  (testing "Hello World!"
+    (is
+     (=
+      {:status 200
+       :body "Hello World\n"}
+      (response-for
+       #::spin{:locate-resource (fn [_] {})
+               :get-or-head!
+               (fn [{::spin/keys [respond]}]
+                 (respond {:status 200 :body "Hello World\n"}))}
+       (request :get "/")
+       [:status :body])))))
