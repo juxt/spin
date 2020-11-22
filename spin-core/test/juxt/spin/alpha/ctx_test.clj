@@ -3,13 +3,20 @@
 (ns juxt.spin.alpha.ctx-test
   (:require
    [clojure.test :refer [deftest is testing]]
+   [clojure.spec.test.alpha :as stest]
    [juxt.spin.alpha.ctx :as ctx]
-   [ring.mock.request :refer [request]]))
+   [juxt.spin.alpha :as spin]))
 
-(defn response-for [spi request keyseq]
+(stest/instrument `ctx/locate-resource)
+
+(defn response-for [ctx request keyseq]
   (select-keys
-   ((ctx/handler spi) request)
+   ((ctx/handler ctx) request)
    keyseq))
+
+(defn request [method path]
+  {:ring.request/method method
+   :ring.request/path path})
 
 (deftest response-test
   (testing "responds 404 if no locate-resource callback"
@@ -17,7 +24,7 @@
      (=
       {:status 404}
       (response-for
-       #:juxt.spin.alpha
+       #::spin
        {}
        (request :get "/")
        [:status]))))
@@ -27,7 +34,18 @@
      (=
       {:status 404}
       (response-for
-       #:juxt.spin.alpha
+       #::spin
+       {:locate-resource
+        (fn [_] nil)}
+       (request :get "/")
+       [:status]))))
+
+  (testing "responds 404 if locate-resource returns nil"
+    (is
+     (=
+      {:status 404}
+      (response-for
+       #::spin
        {:locate-resource
         (fn [_] nil)}
        (request :get "/")

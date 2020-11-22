@@ -1,6 +1,9 @@
 ;; Copyright © 2020, JUXT LTD.
 
-(ns juxt.spin.alpha.ctx)
+(ns juxt.spin.alpha.ctx
+  (:require
+   [clojure.spec.alpha :as s]
+   [juxt.spin.alpha :as spin]))
 
 (defn sync-adapt [h]
   (fn this
@@ -55,10 +58,20 @@
       (check-allowed-method ctx)
       (not-found ctx))))
 
+(s/fdef locate-resource
+  :args (s/cat :ctx (s/keys :req []
+                            :opt [::spin/locate-resource
+                                  ::spin/resource]))
+  :ret ::spin/resource
+  )
+
 (defn handler [ctx]
   (-> (fn [request respond raise]
+        #_(s/explain ::spin/ctx {::spin/request request
+                               ::spin/respond respond
+                               ::spin/raise raise})
         (locate-resource
-         (conj ctx {:juxt.spin.alpha/request request
-                    :juxt.spin.alpha/respond respond
-                    :juxt.spin.alpha/raise raise})))
+         (conj ctx {::spin/request request
+                    ::spin/respond respond
+                    ::spin/raise raise})))
       sync-adapt))
