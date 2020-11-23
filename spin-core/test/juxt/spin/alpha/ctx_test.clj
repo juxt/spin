@@ -115,7 +115,22 @@
        (request :get "/")
        [:status :body "content-length"]))))
 
-  (testing "Hello World! with select-representation callback"
+  (testing "HEAD Hello World!"
+    (is
+     (=
+      {:status 200
+       :headers {"content-length" "13"}}
+      (response-for
+
+       {::spin/resource
+        {::spin/representation
+         {::spin/content-type "text/plain"
+          ::spin/content "Hello World!\n"}}}
+
+       (request :head "/")
+       [:status :body "content-length"]))))
+
+  (testing "GET on Hello World! with select-representation callback"
     (is
      (=
       {:status 200
@@ -125,12 +140,66 @@
 
        {::spin/resource
         {::spin/select-representation
-         (fn [{::spin/keys [status]}]
-           (is (= status 200))
+         (fn [_]
            {::spin/content-type "text/plain"
             ::spin/content "Hello World!\n"})}}
 
        (request :get "/")
+       [:status :body "content-length"]))))
+
+  (testing "HEAD on Hello World! with select-representation callback"
+    (is
+     (=
+      {:status 200
+       :headers {"content-length" "13"}}
+      (response-for
+
+       {::spin/resource
+        {::spin/select-representation
+         (fn [_]
+           {::spin/content-type "text/plain"
+            ::spin/content "Hello World!\n"})}}
+
+       (request :head "/")
+       [:status :body "content-length"]))))
+
+  (testing "GET on Hello World! with representation respond!"
+    (is
+     (=
+      {:status 200
+       :headers {"content-length" "13"}
+       :body "Hello World!\n"}
+      (response-for
+
+       {::spin/resource
+        {::spin/select-representation
+         (fn [_]
+           {::spin/content-type "text/plain"
+            ::spin/content "Hello World!\n"
+            ::spin/respond!
+            (fn [{::spin/keys [respond! response]}]
+              (respond! response))})}}
+
+       (request :get "/")
+       [:status :body "content-length"]))))
+
+  (testing "HEAD on Hello World! with representation respond!"
+    (is
+     (=
+      {:status 200
+       :headers {"content-length" "13"}}
+      (response-for
+
+       {::spin/resource
+        {::spin/select-representation
+         (fn [_]
+           {::spin/content-type "text/plain"
+            ::spin/content "Hello World!\n"
+            ::spin/respond!
+            (fn [{::spin/keys [respond! response]}]
+              (respond! response))})}}
+
+       (request :head "/")
        [:status :body "content-length"]))))
 
   (testing "responds with 405 (Method Not Allowed) if POST but no post! callback"

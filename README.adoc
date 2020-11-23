@@ -143,22 +143,6 @@ determine the representation.
 The representation meta-data, as a constant. If this is present, then it is
 chosen when the status is 200 (in the case of a GET).p
 
-=== `get-or-head!` (deprecated?)
-
-A function that takes the context as an argument. The function MUST call the
-`respond!` function provided in the context to return a response.
-
-The function SHOULD check the `status` of the context to determine the
-nature of any content it should produce. For instance, it might wish to generate
-content for a 404.
-
-While the `status` SHOULD be honored and returned, this function is the
-ultimate authority as to which status is returned and MAY choose to return a
-different status.
-
-It is important to check the method when generating a message body. A HEAD
-request should not include a response body.
-
 === `post!`
 
 A function that takes the context as an argument. The function should call the

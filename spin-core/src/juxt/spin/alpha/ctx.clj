@@ -38,7 +38,8 @@
   (fn [{::spin/keys [request]}] (:ring.request/method request))
   :default ::default)
 
-(defmethod http-method :get [{::spin/keys [respond! raise! resource] :as ctx}]
+(defn get-or-head [{::spin/keys [request resource respond! raise!] :as ctx}]
+  (prn "GET" ctx)
   (let [{::spin/keys [select-representation representation]} resource
         status 200
         ctx (into {::spin/status status} ctx)]
@@ -53,17 +54,35 @@
                    (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))
                :else nil)]
 
-      (let [{::spin/keys [content content-length content-type]} representation
-            content-length (or content-length (count content))]
+      (let [ctx (assoc ctx ::spin/representation representation)
+            response (let [{::spin/keys [content content-length content-type]} representation
+                           content-length (or content-length (when content (count content)))]
+                       (cond-> {:status status}
+                         content-length
+                         (assoc-in [:headers "content-length"] (str content-length))
+                         content-type
+                         (assoc-in [:headers "content-type"] content-type)
+                         (and (= (:ring.request/method request) :get) content)
+                         (conj [:body content])))
 
-        (respond!
-         (cond-> {:status status}
-           content (conj [:body content])
-           content-length (assoc-in [:headers "content-length"] (str content-length))
-           content-type (assoc-in [:headers "content-type"] content-type))))
+            ctx (assoc ctx ::spin/response response)]
 
-      ;; Respond with 404
+        (case (:ring.request/method request)
+          :get
+          (if-let [rep-respond! (::spin/respond! representation)]
+            (rep-respond! ctx)
+            (respond! response))
+          :head
+          (respond! response)))
+
+      ;; If not representation, respond with 404
       (respond! {:status 404}))))
+
+(defmethod http-method :get [ctx]
+  (get-or-head ctx))
+
+(defmethod http-method :head [ctx]
+  (get-or-head ctx))
 
 (defmethod http-method :post [{::spin/keys [post! respond!] :as ctx}]
   (if post!
