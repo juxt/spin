@@ -28,7 +28,7 @@
       {:status 404}
       (response-for
 
-       #::spin{:resource {}}
+       {::spin/resource {}}
 
        (request :get "/")))))
 
@@ -39,7 +39,7 @@
       {:status 404}
       (response-for
 
-       #::spin{}
+       {}
 
        (request :get "/")
        [:status]))))
@@ -50,8 +50,8 @@
       {:status 404}
       (response-for
 
-       #::spin{:locate-resource
-               (fn [_] {})}
+       {::spin/locate-resource
+        (fn [_] {})}
 
        (request :get "/")
        [:status]))))
@@ -62,9 +62,9 @@
       {:status 400}
       (response-for
 
-       #::spin{:locate-resource
-               (fn [{::spin/keys [respond!]}]
-                 (respond! {:status 400}))}
+       {::spin/locate-resource
+        (fn [{::spin/keys [respond!]}]
+          (respond! {:status 400}))}
 
        (request :get "/")
        [:status]))))
@@ -74,12 +74,12 @@
      (= {:status 404}
         (response-for
 
-         #::spin{:resource {}
-                 :locate-resource
-                 (fn [{::spin/keys [respond!]}]
-                   (respond!
-                    ;; We'll return 400 so we can distinguish
-                    {:status 400}))}
+         {::spin/resource {}
+          ::spin/locate-resource
+          (fn [{::spin/keys [respond!]}]
+            (respond!
+             ;; We'll return 400 so we can distinguish
+             {:status 400}))}
 
          (request :get "/")))))
 
@@ -89,7 +89,7 @@
       {:status 501}
       (response-for
 
-       #::spin{:locate-resource (fn [_] {})}
+       {::spin/locate-resource (fn [_] {})}
 
        (request :brew "/")
        [:status]))))
@@ -101,10 +101,8 @@
        :body "Hello World\n"}
       (response-for
 
-       #::spin
-       {:resource
-        #::spin
-        {:get-or-head!
+       {::spin/resource
+        {::spin/get-or-head!
          (fn [{::spin/keys [status respond!]}]
            (is (= status 404))
            ;; We will return a fixed message, overriding the status
@@ -120,10 +118,8 @@
        :body "Hello World!\n"}
       (response-for
 
-       #::spin
-       {:resource
-        #::spin
-        {:get-or-head!
+       {::spin/resource
+        {::spin/get-or-head!
          (fn [{::spin/keys [status respond!]}]
            (is (= status 404))
            ;; We will return a fixed message, overriding the status
@@ -139,11 +135,9 @@
        :body "Hello World!\n"}
       (response-for
 
-       #::spin
-       {:resource
-        #::spin
-        {:representation
-         #::spin{:content "Hello World!\n"}}}
+       {::spin/resource
+        {::spin/representation
+         {::spin/content "Hello World!\n"}}}
 
        (request :get "/")
        [:status :body]))))
