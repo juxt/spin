@@ -99,7 +99,7 @@
        (request :brew "/")
        [:status]))))
 
-  (testing "Hello World!"
+  (testing "GET on 'Hello World!'"
     (is
      (=
       {:status 200
@@ -115,7 +115,7 @@
        (request :get "/")
        [:status :body "content-length"]))))
 
-  (testing "HEAD Hello World!"
+  (testing "HEAD on 'Hello World!'"
     (is
      (=
       {:status 200
@@ -130,7 +130,7 @@
        (request :head "/")
        [:status :body "content-length"]))))
 
-  (testing "GET on Hello World! with select-representation callback"
+  (testing "GET on 'Hello World!' with select-representation callback"
     (is
      (=
       {:status 200
@@ -147,7 +147,7 @@
        (request :get "/")
        [:status :body "content-length"]))))
 
-  (testing "HEAD on Hello World! with select-representation callback"
+  (testing "HEAD on 'Hello World!' with select-representation callback"
     (is
      (=
       {:status 200
@@ -163,7 +163,7 @@
        (request :head "/")
        [:status :body "content-length"]))))
 
-  (testing "GET on Hello World! with representation respond!"
+  (testing "GET on 'Hello World!' with representation respond!"
     (is
      (=
       {:status 200
@@ -175,10 +175,13 @@
         {::spin/select-representation
          (fn [_]
            {::spin/content-type "text/plain"
-            ::spin/content "Hello World!\n"
             ::spin/respond!
             (fn [{::spin/keys [respond! response]}]
-              (respond! response))})}}
+              (respond!
+               (-> response
+                   (assoc :body "Hello World!\n")
+                   (assoc-in [:headers "content-length"]
+                             (str (count "Hello World!\n"))))))})}}
 
        (request :get "/")
        [:status :body "content-length"]))))
