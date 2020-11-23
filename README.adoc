@@ -129,6 +129,14 @@ is provided in the context once it is located. See `::spin/locate-resource`.
 A function that takes the context as an argument. The function should call the
 `::spin/respond!` function provided in the context to return a response.
 
+The function should check the `::spin/status` of the context to determine the
+nature of any content it should produce. For instance, it might wish to generate
+content for a 404.
+
+While the `::spin/status` SHOULD be honored and returned, this function is the
+ultimate authority as to which status is returned and MAY choose to return a
+different status.
+
 
 == License
 

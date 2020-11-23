@@ -100,7 +100,9 @@
       (response-for
        #::spin{:locate-resource (fn [_] {})
                :get-or-head!
-               (fn [{::spin/keys [respond!]}]
+               (fn [{::spin/keys [status respond!]}]
+                 (is (= status 404))
+                 ;; We will return a fixed message, overriding the status
                  (respond! {:status 200 :body "Hello World\n"}))}
        (request :get "/")
        [:status :body])))))

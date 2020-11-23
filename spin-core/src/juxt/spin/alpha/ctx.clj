@@ -39,9 +39,10 @@
   :default ::default)
 
 (defmethod http-method :get [{::spin/keys [respond! resource get-or-head!] :as ctx}]
-  (if get-or-head!
-    (get-or-head! ctx)
-    (respond! {:status (if (empty? resource) 404 200)})))
+  (let [status (if (empty? resource) 404 200)]
+    (if get-or-head!
+      (get-or-head! (into {::spin/status status} ctx))
+      (respond! {:status status}))))
 
 (defmethod http-method ::default [{::spin/keys [respond!]}]
   (respond! {:status 501}))
