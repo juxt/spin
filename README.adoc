@@ -107,41 +107,54 @@ and policies.
 
 ==== `locate-resource` (optional)
 
-A function that takes the context as an argument, and returns a map describing
-the target resource.
+A function that takes a request context as an argument, and returns a map
+describing the target resource.
 
 A resource is always deemed to exist. Return an empty map (`{}`) if there are no
 current representations for the resource.
 
-If not provided, the resource defaults to an empty map.
+A `locate-resource` function can use the `respond!` entry in the request context
+argument in order to respond directly. This effectively returns a nil, which indicates a response is made directly. Therefore, it is important never to return nil from `locate-resource`.
+
+If `locate-resource` is not provided in the initial context, the resource
+defaults to an empty map.
 
 ==== `resource` (optional)
 
 A map describing the target resource.
 
 If this is provided, then it is used regardless of whether
-`::spin/locate-resource` is provided also. If this is not specified up-front, it
-is provided in the context once it is located. See `::spin/locate-resource`.
+`locate-resource` is provided also. If this is not specified up-front, it
+is provided in the context once it is located. See `locate-resource`.
 
 == Resource entries
 
 === `get-or-head!`
 
-A function that takes the context as an argument. The function should call the
-`::spin/respond!` function provided in the context to return a response.
+A function that takes the context as an argument. The function MUST call the
+`respond!` function provided in the context to return a response.
 
-The function should check the `::spin/status` of the context to determine the
+The function SHOULD check the `status` of the context to determine the
 nature of any content it should produce. For instance, it might wish to generate
 content for a 404.
 
-While the `::spin/status` SHOULD be honored and returned, this function is the
+While the `status` SHOULD be honored and returned, this function is the
 ultimate authority as to which status is returned and MAY choose to return a
 different status.
+
+It is important to check the method when generating a message body. A HEAD
+request should not include a response body.
 
 === `post!`
 
 A function that takes the context as an argument. The function should call the
-`::spin/respond!` function provided in the context to return a response.
+`respond!` function provided in the context to return a response.
+
+A `post!` function is responsible for any data processing. If a new resource is
+created, it should return a 201 status and a `Location` header containing the
+URL of the new resource.  See
+link:https://tools.ietf.org/html/rfc7231.html#section-4.3.3[Section 4.3.3 of RFC
+7231] for further details.
 
 == Request context entries
 
