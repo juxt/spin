@@ -101,11 +101,11 @@ application. If you are using a router (Compojure, bidi, reitit, etc.), you
 might route directly to the target resource. This also makes sense for simple
 demos.
 
-However, the benefit of using `locate-resource` is that you can have one initial
+However, the benefit of using `locate-resource!` is that you can have one initial
 context defined with all your application-wide (or context-wide) configuration
 and policies.
 
-==== `locate-resource` (optional)
+==== `locate-resource!` (optional)
 
 A function that takes a request context as an argument, and returns a map
 describing the target resource.
@@ -113,10 +113,10 @@ describing the target resource.
 A resource is always deemed to exist. Return an empty map (`{}`) if there are no
 current representations for the resource.
 
-A `locate-resource` function can use the `respond!` entry in the request context
-argument in order to respond directly. This effectively returns a nil, which indicates a response is made directly. Therefore, it is important never to return nil from `locate-resource`.
+A `locate-resource!` function can use the `respond!` entry in the request context
+argument in order to respond directly. This effectively returns a nil, which indicates a response is made directly. Therefore, it is important never to return nil from `locate-resource!`.
 
-If `locate-resource` is not provided in the initial context, the resource
+If `locate-resource!` is not provided in the initial context, the resource
 defaults to an empty map.
 
 ==== `resource` (optional)
@@ -124,12 +124,26 @@ defaults to an empty map.
 A map describing the target resource.
 
 If this is provided, then it is used regardless of whether
-`locate-resource` is provided also. If this is not specified up-front, it
-is provided in the context once it is located. See `locate-resource`.
+`locate-resource!` is provided also. If this is not specified up-front, it
+is provided in the context once it is located. See `locate-resource!`.
 
 == Resource entries
 
-=== `get-or-head!`
+=== select-representation
+
+A function that takes a context argument and returns a map corresponding to the
+selected representation's metadata.
+
+The representation should be chosen based on the `request` and `status` entries
+of the context argument. Proactive content negotiation may be employed to
+determine the representation.
+
+=== representation (optional)
+
+The representation meta-data, as a constant. If this is present, then it is
+chosen when the status is 200 (in the case of a GET).p
+
+=== `get-or-head!` (deprecated?)
 
 A function that takes the context as an argument. The function MUST call the
 `respond!` function provided in the context to return a response.
@@ -156,6 +170,19 @@ URL of the new resource.  See
 link:https://tools.ietf.org/html/rfc7231.html#section-4.3.3[Section 4.3.3 of RFC
 7231] for further details.
 
+=== `representation`
+
+A function taking in a request context (that contains `:status`) and returns a
+representation. A representation is a map containing the representation metadata
+of the representation, along with enough information for the represenation body
+to be produced in the response, if necessary.
+
+If content negotiation is required, it should be done here and the
+representation returned SHOULD contain a `content-location` entry, if there
+exists another URL which targets that representation directly. See
+https://tools.ietf.org/html/rfc7231.html#section-3.1.4.2[Section 3.1.4.2 of RFC
+7231] for further details.
+
 == Request context entries
 
 ==== `request` (provided)
@@ -172,9 +199,6 @@ https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
 
 A callback function that is used to raise any errors. See
 https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
-
-
-
 
 == License
 

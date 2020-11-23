@@ -7,7 +7,7 @@
    [juxt.spin.alpha.ctx :as ctx]
    [juxt.spin.alpha :as spin]))
 
-(stest/instrument `ctx/locate-resource)
+(stest/instrument `ctx/locate-resource!)
 
 (defn response-for
   ([ctx request]
@@ -36,7 +36,7 @@
        (request :get "/")
        [:status]))))
 
-  (testing "responds with 404 if no resource or locate-resource callback"
+  (testing "responds with 404 if no resource or locate-resource! callback"
     ;; The resource will default to {}, which has no current representation
     (is
      (=
@@ -48,38 +48,38 @@
        (request :get "/")
        [:status]))))
 
-  (testing "responds with 404 if locate-resource returns an empty resource"
+  (testing "responds with 404 if locate-resource! returns an empty resource"
     (is
      (=
       {:status 404}
       (response-for
 
-       {::spin/locate-resource
+       {::spin/locate-resource!
         (fn [_] {})}
 
        (request :get "/")
        [:status]))))
 
-  (testing "locate-resource can respond"
+  (testing "locate-resource! can respond"
     (is
      (=
       {:status 400}
       (response-for
 
-       {::spin/locate-resource
+       {::spin/locate-resource!
         (fn [{::spin/keys [respond!]}]
           (respond! {:status 400}))}
 
        (request :get "/")
        [:status]))))
 
-  (testing "resource overrides locate-resource"
+  (testing "resource overrides locate-resource!"
     (is
      (= {:status 404}
         (response-for
 
          {::spin/resource {}
-          ::spin/locate-resource
+          ::spin/locate-resource!
           (fn [{::spin/keys [respond!]}]
             (respond!
              ;; We'll return 400 so we can distinguish
@@ -94,7 +94,7 @@
       {:status 501}
       (response-for
 
-       {::spin/locate-resource (fn [_] {})}
+       {::spin/locate-resource! (fn [_] {})}
 
        (request :brew "/")
        [:status]))))
@@ -103,62 +103,32 @@
     (is
      (=
       {:status 200
-       :body "Hello World\n"}
-      (response-for
-
-       {::spin/resource
-        {::spin/get-or-head!
-         (fn [{::spin/keys [status respond!]}]
-           (is (= status 404))
-           ;; We will return a fixed message, overriding the status
-           (respond! {:status 200 :body "Hello World\n"}))}}
-
-       (request :get "/")
-       [:status :body]))))
-
-  (testing "GET with callback"
-    (is
-     (=
-      {:status 200
-       :body "Hello World!\n"}
-      (response-for
-
-       {::spin/resource
-        {::spin/get-or-head!
-         (fn [{::spin/keys [status respond!]}]
-           (is (= status 404))
-           ;; We will return a fixed message, overriding the status
-           (respond! {:status 200 :body "Hello World!\n"}))}}
-
-       (request :get "/")
-       [:status :body]))))
-
-  (testing "GET with representation"
-    (is
-     (=
-      {:status 200
+       :headers {"content-length" "13"}
        :body "Hello World!\n"}
       (response-for
 
        {::spin/resource
         {::spin/representation
-         {::spin/content "Hello World!\n"}}}
+         {::spin/content-type "text/plain"
+          ::spin/content "Hello World!\n"}}}
 
        (request :get "/")
-       [:status :body]))))
+       [:status :body "content-length"]))))
 
-  (testing "GET with representation and content-length"
+  (testing "Hello World! with select-representation callback"
     (is
      (=
       {:status 200
-       :headers {"content-length" (str (count "Hello World!\n"))}
+       :headers {"content-length" "13"}
        :body "Hello World!\n"}
       (response-for
 
        {::spin/resource
-        {::spin/representation
-         {::spin/content "Hello World!\n"
-          ::spin/content-length (count "Hello World!\n")}}}
+        {::spin/select-representation
+         (fn [{::spin/keys [status]}]
+           (is (= status 200))
+           {::spin/content-type "text/plain"
+            ::spin/content "Hello World!\n"})}}
 
        (request :get "/")
        [:status :body "content-length"]))))
@@ -168,6 +138,6 @@
      (=
       {:status 405}
       (response-for
-       #::spin{:resource {}}
+       {::spin/resource {}}
        (request :post "/")
        [:status])))))

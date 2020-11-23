@@ -38,21 +38,32 @@
   (fn [{::spin/keys [request]}] (:ring.request/method request))
   :default ::default)
 
-(defmethod http-method :get [{::spin/keys [respond! resource] :as ctx}]
-  (let [{::spin/keys [get-or-head! representation]} resource
-        status (if representation 200 404)]
-    (cond
-      get-or-head!
-      (get-or-head! (into {::spin/status status} ctx))
+(defmethod http-method :get [{::spin/keys [respond! raise! resource] :as ctx}]
+  (let [{::spin/keys [select-representation representation]} resource
+        status 200
+        ctx (into {::spin/status status} ctx)]
 
-      representation
-      (let [{::spin/keys [content content-length]} representation]
-        (respond! (cond-> {:status status}
-                    content (conj [:body content])
-                    content-length (assoc-in [:headers "content-length"] (str content-length)))))
+    (if-let [representation
+             (cond
+               representation representation
+               select-representation
+               (try
+                 (select-representation (dissoc ctx ::spin/respond! ::spin/raise))
+                 (catch Exception e
+                   (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))
+               :else nil)]
 
-      :else
-      (respond! {:status status}))))
+      (let [{::spin/keys [content content-length content-type]} representation
+            content-length (or content-length (count content))]
+
+        (respond!
+         (cond-> {:status status}
+           content (conj [:body content])
+           content-length (assoc-in [:headers "content-length"] (str content-length))
+           content-type (assoc-in [:headers "content-type"] content-type))))
+
+      ;; Respond with 404
+      (respond! {:status 404}))))
 
 (defmethod http-method :post [{::spin/keys [post! respond!] :as ctx}]
   (if post!
@@ -62,26 +73,26 @@
 (defmethod http-method ::default [{::spin/keys [respond!]}]
   (respond! {:status 501}))
 
-(defn locate-resource
-  [{::spin/keys [locate-resource resource raise] :as ctx}]
+(defn locate-resource!
+  [{::spin/keys [locate-resource! resource raise!] :as ctx}]
   (when-let
       ;; If the resource is nil, this indicates the locate-resource callback has
       ;; responded itself.
       [resource
        (cond
          resource resource
-         locate-resource (try
-                           (locate-resource ctx)
-                           (catch Exception e
-                             (raise (ex-info "Failed to locate-resource" {:ctx ctx} e))))
+         locate-resource! (try
+                            (locate-resource! ctx)
+                            (catch Exception e
+                              (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))
          :else {})]
 
       (let [ctx (conj ctx [::spin/resource resource])]
         (http-method ctx))))
 
-(s/fdef locate-resource
+(s/fdef locate-resource!
   :args (s/cat :ctx (s/keys :req []
-                            :opt [::spin/locate-resource
+                            :opt [::spin/locate-resource!
                                   ::spin/resource]))
   ;; A nil means the locate-resource chooses to respond itself
   :ret (s/nilable ::spin/resource))
@@ -94,7 +105,7 @@
 
 (defn handler [ctx]
   (-> (fn [request respond! raise!]
-        (locate-resource
+        (locate-resource!
          (conj ctx {::spin/request request
                     ::spin/respond! respond!
                     ::spin/raise! raise!})))
