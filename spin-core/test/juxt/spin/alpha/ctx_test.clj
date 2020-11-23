@@ -27,15 +27,20 @@
      (=
       {:status 404}
       (response-for
+
        #::spin{:resource {}}
+
        (request :get "/")))))
 
   (testing "responds with 404 if no resource or locate-resource callback"
+    ;; The resource will default to {}, which has no current representation
     (is
      (=
       {:status 404}
       (response-for
+
        #::spin{}
+
        (request :get "/")
        [:status]))))
 
@@ -44,8 +49,10 @@
      (=
       {:status 404}
       (response-for
+
        #::spin{:locate-resource
                (fn [_] {})}
+
        (request :get "/")
        [:status]))))
 
@@ -54,9 +61,11 @@
      (=
       {:status 400}
       (response-for
+
        #::spin{:locate-resource
                (fn [{::spin/keys [respond!]}]
                  (respond! {:status 400}))}
+
        (request :get "/")
        [:status]))))
 
@@ -64,12 +73,14 @@
     (is
      (= {:status 404}
         (response-for
+
          #::spin{:resource {}
                  :locate-resource
                  (fn [{::spin/keys [respond!]}]
                    (respond!
                     ;; We'll return 400 so we can distinguish
                     {:status 400}))}
+
          (request :get "/")))))
 
   (testing "responds 501 for unknown method"
