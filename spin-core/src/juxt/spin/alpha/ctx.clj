@@ -34,19 +34,14 @@
     ([req respond! raise!]
      (h req respond! raise!))))
 
-(defn not-found [{::spin/keys [respond!]}]
-  (respond! {:status 404}))
-
 (defmulti http-method
   (fn [{::spin/keys [request]}] (:ring.request/method request))
   :default ::default)
 
 (defmethod http-method :get [{::spin/keys [respond! resource get-or-head!] :as ctx}]
-  (if resource
-    (if get-or-head!
-      (get-or-head! ctx)
-      (respond! {:status (if (empty? resource) 404 200)}))
-    (not-found ctx)))
+  (if get-or-head!
+    (get-or-head! ctx)
+    (respond! {:status (if (empty? resource) 404 200)})))
 
 (defmethod http-method ::default [{::spin/keys [respond!]}]
   (respond! {:status 501}))
