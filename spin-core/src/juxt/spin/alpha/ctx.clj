@@ -12,9 +12,13 @@
        (this
         req
         (fn [response]
-          (deliver p response))
+          (deliver p response)
+          ;; It's crucial this returns nil, as these are semantics of the async
+          ;; version
+          nil)
         (fn [error]
-          (deliver p error)))
+          (deliver p error)
+          nil))
        (let [res (deref p 1000 ::timeout)]
          (cond
            (= res ::timeout)
@@ -41,7 +45,7 @@
   (if resource
     (if get-or-head!
       (get-or-head! ctx)
-      (respond! {:status 200}))
+      (respond! {:status (if (empty? resource) 404 200)}))
     (not-found ctx)))
 
 (defmethod http-method ::default [{::spin/keys [respond!]}]
@@ -49,21 +53,28 @@
 
 (defn locate-resource
   [{::spin/keys [locate-resource resource raise] :as ctx}]
-  (let [resource (cond
-                   resource resource
-                   locate-resource (try
-                                     (locate-resource ctx)
-                                     (catch Exception e
-                                       (raise (ex-info "Failed to locate-resource" {:ctx ctx} e))))
-                   :else {})
-        ctx (conj ctx [::spin/resource resource])]
-    (http-method ctx)))
+  (when-let
+      ;; If the resource is nil, this indicates the locate-resource callback has
+      ;; responded itself.
+      [resource
+       (cond
+         resource resource
+         locate-resource (try
+                           (locate-resource ctx)
+                           (catch Exception e
+                             (raise (ex-info "Failed to locate-resource" {:ctx ctx} e))))
+         :else {})]
+
+      (println "resource is" (pr-str resource))
+      (let [ctx (conj ctx [::spin/resource resource])]
+        (http-method ctx))))
 
 (s/fdef locate-resource
   :args (s/cat :ctx (s/keys :req []
                             :opt [::spin/locate-resource
                                   ::spin/resource]))
-  :ret ::spin/resource)
+  ;; A nil means the locate-resource chooses to respond itself
+  :ret (s/nilable ::spin/resource))
 
 (defn handler [ctx]
   (-> (fn [request respond! raise!]

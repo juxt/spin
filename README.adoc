@@ -93,7 +93,8 @@ This map contains the following entries, which are namespaced in the
 
 === `::spin/request` (provided)
 
-A map describing a Ring request, see https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md
+A map describing a Ring request, see
+https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md
 
 === `::spin/respond!` (provided)
 
@@ -108,13 +109,20 @@ https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
 === `::spin/locate-resource` (optional)
 
 A function that takes the context as an argument, and returns a map describing
-the target resource, or nil if a resource cannot be found.
+the target resource.
+
+A resource is always deemed to exist. Return an empty map (`{}`) if there are no
+current representations for the resource.
 
 If not provided, the resource defaults to an empty map.
 
 === `::spin/resource` (optional)
 
-A map describing the target resource. If this is provided, then it is used regardless of whether `::spin/locate-resource` is provided also. If this is not specified up-front, it is provided in the context once it is located. See `::spin/locate-resource`.
+A map describing the target resource.
+
+If this is provided, then it is used regardless of whether
+`::spin/locate-resource` is provided also. If this is not specified up-front, it
+is provided in the context once it is located. See `::spin/locate-resource`.
 
 === `::spin/get-or-head!`
 

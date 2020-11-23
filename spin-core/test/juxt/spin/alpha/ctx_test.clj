@@ -9,44 +9,68 @@
 
 (stest/instrument `ctx/locate-resource)
 
-(defn response-for [ctx request keyseq]
-  (select-keys
-   ((ctx/handler ctx) request)
-   keyseq))
+(defn response-for
+  ([ctx request]
+   ((ctx/handler ctx) request))
+  ([ctx request keyseq]
+   (select-keys
+    (response-for ctx request)
+    keyseq)))
 
 (defn request [method path]
   {:ring.request/method method
    :ring.request/path path})
 
 (deftest response-test
-  (testing "responds 200 if no locate-resource callback"
+  (testing "responds with 404 if resource is an empty map"
     (is
      (=
-      {:status 200}
+      {:status 404}
+      (response-for
+       #::spin{:resource {}}
+       (request :get "/")))))
+
+  (testing "responds with 404 if no resource or locate-resource callback"
+    (is
+     (=
+      {:status 404}
       (response-for
        #::spin{}
        (request :get "/")
        [:status]))))
 
-  (testing "responds 404 if locate-resource returns nil"
+  (testing "responds with 404 if locate-resource returns an empty resource"
     (is
      (=
       {:status 404}
       (response-for
        #::spin{:locate-resource
-               (fn [_] nil)}
+               (fn [_] {})}
        (request :get "/")
        [:status]))))
 
-  (testing "responds 404 if locate-resource returns nil"
+  (testing "locate-resource can respond"
     (is
      (=
-      {:status 404}
+      {:status 400}
       (response-for
        #::spin{:locate-resource
-               (fn [_] nil)}
+               (fn [{::spin/keys [respond!]}]
+                 (respond! {:status 400}))}
        (request :get "/")
        [:status]))))
+
+  (testing "resource overrides locate-resource"
+    (is
+     (= {:status 404}
+        (response-for
+         #::spin{:resource {}
+                 :locate-resource
+                 (fn [{::spin/keys [respond!]}]
+                   (respond!
+                    ;; We'll return 400 so we can distinguish
+                    {:status 400}))}
+         (request :get "/")))))
 
   (testing "responds 501 for unknown method"
     (is
