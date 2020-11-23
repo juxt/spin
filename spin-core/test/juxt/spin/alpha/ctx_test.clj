@@ -83,7 +83,7 @@
 
          (request :get "/")))))
 
-  (testing "responds 501 for unknown method"
+  (testing "responds with 501 for unknown method"
     (is
      (=
       {:status 501}
@@ -142,7 +142,7 @@
        (request :get "/")
        [:status :body]))))
 
-  (testing "responds with 405 if post but no post! callback"
+  (testing "responds with 405 (Method Not Allowed) if POST but no post! callback"
     (is
      (=
       {:status 405}
