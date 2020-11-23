@@ -41,12 +41,17 @@
 (defmethod http-method :get [{::spin/keys [respond! resource] :as ctx}]
   (let [{::spin/keys [get-or-head! representation]} resource
         status (if representation 200 404)]
-    (if get-or-head!
+    (cond
+      get-or-head!
       (get-or-head! (into {::spin/status status} ctx))
-      ;; Default GET response
+
+      representation
       (let [{::spin/keys [content]} representation]
         (respond! (cond-> {:status status}
-                      content (conj [:body content])))))))
+                    content (conj [:body content]))))
+
+      :else
+      (respond! {:status status}))))
 
 (defmethod http-method :post [{::spin/keys [post! respond!] :as ctx}]
   (if post!

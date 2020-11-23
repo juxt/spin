@@ -88,7 +88,9 @@
      (=
       {:status 501}
       (response-for
+
        #::spin{:locate-resource (fn [_] {})}
+
        (request :brew "/")
        [:status]))))
 
@@ -98,15 +100,50 @@
       {:status 200
        :body "Hello World\n"}
       (response-for
+
        #::spin
-       {:locate-resource
-        (fn [_]
-          #::spin
-          {:get-or-head!
-           (fn [{::spin/keys [status respond!]}]
-             (is (= status 404))
-             ;; We will return a fixed message, overriding the status
-             (respond! {:status 200 :body "Hello World\n"}))})}
+       {:resource
+        #::spin
+        {:get-or-head!
+         (fn [{::spin/keys [status respond!]}]
+           (is (= status 404))
+           ;; We will return a fixed message, overriding the status
+           (respond! {:status 200 :body "Hello World\n"}))}}
+
+       (request :get "/")
+       [:status :body]))))
+
+  (testing "GET with callback"
+    (is
+     (=
+      {:status 200
+       :body "Hello World!\n"}
+      (response-for
+
+       #::spin
+       {:resource
+        #::spin
+        {:get-or-head!
+         (fn [{::spin/keys [status respond!]}]
+           (is (= status 404))
+           ;; We will return a fixed message, overriding the status
+           (respond! {:status 200 :body "Hello World!\n"}))}}
+
+       (request :get "/")
+       [:status :body]))))
+
+  (testing "GET with representation"
+    (is
+     (=
+      {:status 200
+       :body "Hello World!\n"}
+      (response-for
+
+       #::spin
+       {:resource
+        #::spin
+        {:representation
+         #::spin{:content "Hello World!\n"}}}
 
        (request :get "/")
        [:status :body]))))
@@ -116,6 +153,6 @@
      (=
       {:status 405}
       (response-for
-       #::spin{:locate-resource (fn [_] {})}
+       #::spin{:resource {}}
        (request :post "/")
        [:status])))))
