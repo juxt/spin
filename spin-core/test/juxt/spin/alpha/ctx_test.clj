@@ -13,9 +13,12 @@
   ([ctx request]
    ((ctx/handler ctx) request))
   ([ctx request keyseq]
-   (select-keys
-    (response-for ctx request)
-    keyseq)))
+   (let [keyseq (cond-> keyseq (seq (filter string? keyseq)) (conj :headers))]
+     (cond-> (response-for ctx request)
+       true
+       (select-keys (filter keyword? keyseq))
+       (seq (filter string? keyseq))
+       (update :headers select-keys (filter string? keyseq))))))
 
 (defn request [method path]
   {:ring.request/method method
@@ -30,7 +33,8 @@
 
        {::spin/resource {}}
 
-       (request :get "/")))))
+       (request :get "/")
+       [:status]))))
 
   (testing "responds with 404 if no resource or locate-resource callback"
     ;; The resource will default to {}, which has no current representation
@@ -81,7 +85,8 @@
              ;; We'll return 400 so we can distinguish
              {:status 400}))}
 
-         (request :get "/")))))
+         (request :get "/")
+         [:status]))))
 
   (testing "responds with 501 for unknown method"
     (is
@@ -141,6 +146,22 @@
 
        (request :get "/")
        [:status :body]))))
+
+  (testing "GET with representation and content-length"
+    (is
+     (=
+      {:status 200
+       :headers {"content-length" (str (count "Hello World!\n"))}
+       :body "Hello World!\n"}
+      (response-for
+
+       {::spin/resource
+        {::spin/representation
+         {::spin/content "Hello World!\n"
+          ::spin/content-length (count "Hello World!\n")}}}
+
+       (request :get "/")
+       [:status :body "content-length"]))))
 
   (testing "responds with 405 (Method Not Allowed) if POST but no post! callback"
     (is

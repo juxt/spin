@@ -46,9 +46,10 @@
       (get-or-head! (into {::spin/status status} ctx))
 
       representation
-      (let [{::spin/keys [content]} representation]
+      (let [{::spin/keys [content content-length]} representation]
         (respond! (cond-> {:status status}
-                    content (conj [:body content]))))
+                    content (conj [:body content])
+                    content-length (assoc-in [:headers "content-length"] (str content-length)))))
 
       :else
       (respond! {:status status}))))
@@ -85,10 +86,17 @@
   ;; A nil means the locate-resource chooses to respond itself
   :ret (s/nilable ::spin/resource))
 
+(defn wrap-server [h]
+  (fn [req respond raise]
+    (h req (fn [response]
+             (respond (assoc-in response [:headers "server"] "Spin")))
+       raise)))
+
 (defn handler [ctx]
   (-> (fn [request respond! raise!]
         (locate-resource
          (conj ctx {::spin/request request
                     ::spin/respond! respond!
                     ::spin/raise! raise!})))
+      wrap-server
       sync-adapt))
