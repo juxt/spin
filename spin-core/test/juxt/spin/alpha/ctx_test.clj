@@ -98,11 +98,24 @@
       {:status 200
        :body "Hello World\n"}
       (response-for
-       #::spin{:locate-resource (fn [_] {})
-               :get-or-head!
-               (fn [{::spin/keys [status respond!]}]
-                 (is (= status 404))
-                 ;; We will return a fixed message, overriding the status
-                 (respond! {:status 200 :body "Hello World\n"}))}
+       #::spin
+       {:locate-resource
+        (fn [_]
+          #::spin
+          {:get-or-head!
+           (fn [{::spin/keys [status respond!]}]
+             (is (= status 404))
+             ;; We will return a fixed message, overriding the status
+             (respond! {:status 200 :body "Hello World\n"}))})}
+
        (request :get "/")
-       [:status :body])))))
+       [:status :body]))))
+
+  (testing "responds with 405 if post but no post! callback"
+    (is
+     (=
+      {:status 405}
+      (response-for
+       #::spin{:locate-resource (fn [_] {})}
+       (request :post "/")
+       [:status])))))

@@ -91,22 +91,21 @@ You create a Ring handler with `juxt.spin.alpha.ctx/handler` that takes a single
 This map contains the following entries, which are namespaced in the
 `juxt.spin.alpha` namespace (aliased below to `spin`).
 
-=== `::spin/request` (provided)
+=== Initial context entries
 
-A map describing a Ring request, see
-https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md
+The initial context should contain the resource description as a map, or a
+function for locating one from the request.
 
-=== `::spin/respond!` (provided)
+Whether you should choose a resource or a resource locator depends on your
+application. If you are using a router (Compojure, bidi, reitit, etc.), you
+might route directly to the target resource. This also makes sense for simple
+demos.
 
-A callback function that is used to return a Ring response, which is map. See
-https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
+However, the benefit of using `locate-resource` is that you can have one initial
+context defined with all your application-wide (or context-wide) configuration
+and policies.
 
-=== `::spin/raise!` (provided)
-
-A callback function that is used to raise any errors. See
-https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
-
-=== `::spin/locate-resource` (optional)
+==== `locate-resource` (optional)
 
 A function that takes the context as an argument, and returns a map describing
 the target resource.
@@ -116,7 +115,7 @@ current representations for the resource.
 
 If not provided, the resource defaults to an empty map.
 
-=== `::spin/resource` (optional)
+==== `resource` (optional)
 
 A map describing the target resource.
 
@@ -124,7 +123,9 @@ If this is provided, then it is used regardless of whether
 `::spin/locate-resource` is provided also. If this is not specified up-front, it
 is provided in the context once it is located. See `::spin/locate-resource`.
 
-=== `::spin/get-or-head!`
+== Resource entries
+
+=== `get-or-head!`
 
 A function that takes the context as an argument. The function should call the
 `::spin/respond!` function provided in the context to return a response.
@@ -136,6 +137,30 @@ content for a 404.
 While the `::spin/status` SHOULD be honored and returned, this function is the
 ultimate authority as to which status is returned and MAY choose to return a
 different status.
+
+=== `post!`
+
+A function that takes the context as an argument. The function should call the
+`::spin/respond!` function provided in the context to return a response.
+
+== Request context entries
+
+==== `request` (provided)
+
+A map describing a Ring request, see
+https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md
+
+==== `respond!` (provided)
+
+A callback function that is used to return a Ring response, which is map. See
+https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
+
+==== `raise!` (provided)
+
+A callback function that is used to raise any errors. See
+https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
+
+
 
 
 == License

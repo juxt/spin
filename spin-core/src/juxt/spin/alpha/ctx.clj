@@ -38,11 +38,20 @@
   (fn [{::spin/keys [request]}] (:ring.request/method request))
   :default ::default)
 
-(defmethod http-method :get [{::spin/keys [respond! resource get-or-head!] :as ctx}]
-  (let [status (if (empty? resource) 404 200)]
+(defmethod http-method :get [{::spin/keys [respond! resource] :as ctx}]
+  (let [{::spin/keys [get-or-head! representation]} resource
+        status (if representation 200 404)]
     (if get-or-head!
       (get-or-head! (into {::spin/status status} ctx))
-      (respond! {:status status}))))
+      ;; Default GET response
+      (let [{::spin/keys [content]} representation]
+        (respond! (cond-> {:status status}
+                      content (conj [:body content])))))))
+
+(defmethod http-method :post [{::spin/keys [post! respond!] :as ctx}]
+  (if post!
+    (post! ctx)
+    (respond! {:status 405})))
 
 (defmethod http-method ::default [{::spin/keys [respond!]}]
   (respond! {:status 501}))
@@ -61,7 +70,6 @@
                              (raise (ex-info "Failed to locate-resource" {:ctx ctx} e))))
          :else {})]
 
-      (println "resource is" (pr-str resource))
       (let [ctx (conj ctx [::spin/resource resource])]
         (http-method ctx))))
 
