@@ -34,12 +34,7 @@
     ([req respond! raise!]
      (h req respond! raise!))))
 
-(defmulti http-method
-  (fn [{::spin/keys [request]}] (:ring.request/method request))
-  :default ::default)
-
-(defn get-or-head [{::spin/keys [request resource respond! raise!] :as ctx}]
-  (prn "GET" ctx)
+(defn- get-or-head [{::spin/keys [request resource respond! raise!] :as ctx}]
   (let [{::spin/keys [select-representation representation]} resource
         status 200
         ctx (into {::spin/status status} ctx)]
@@ -77,6 +72,10 @@
 
       ;; If not representation, respond with 404
       (respond! {:status 404}))))
+
+(defmulti http-method
+  (fn [{::spin/keys [request]}] (:ring.request/method request))
+  :default ::default)
 
 (defmethod http-method :get [ctx]
   (get-or-head ctx))
