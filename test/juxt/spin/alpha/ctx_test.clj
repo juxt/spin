@@ -31,7 +31,7 @@
   {:ring.request/method method
    :ring.request/path path})
 
-(deftest response-test
+(deftest get-request-test
   (testing "responds with 404 if resource is an empty map"
     (is
      (=
@@ -222,7 +222,7 @@
        [:status])))))
 
 
-(deftest conditional-requests
+(deftest conditional-request-test
   (testing "GET with if-modified-since"
     (let [res
           {::spin/resource
