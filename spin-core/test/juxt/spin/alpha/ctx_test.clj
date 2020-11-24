@@ -5,7 +5,10 @@
    [clojure.test :refer [deftest is testing]]
    [clojure.spec.test.alpha :as stest]
    [juxt.spin.alpha.ctx :as ctx]
-   [juxt.spin.alpha :as spin]))
+   [juxt.spin.alpha :as spin]
+   [juxt.spin.alpha.util :as util]
+   [juxt.reap.alpha.decoders :as decoders]
+   [juxt.reap.alpha.regex :as re]))
 
 (stest/instrument `ctx/locate-resource!)
 
@@ -19,6 +22,10 @@
        (select-keys (filter keyword? keyseq))
        (seq (filter string? keyseq))
        (update :headers select-keys (filter string? keyseq))))))
+
+(defn header [request header value]
+  (-> request
+      (assoc-in [:headers header] value)))
 
 (defn request [method path]
   {:ring.request/method method
@@ -213,3 +220,76 @@
        {::spin/resource {}}
        (request :post "/")
        [:status])))))
+
+
+(deftest conditional-requests
+  (testing "GET with if-modified-since"
+    (let [res
+          {::spin/resource
+           {::spin/representation
+            {::spin/content-type "text/plain"
+             ::spin/content "Hello World!\n"
+             ::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")
+             ::spin/respond!
+             (fn [{::spin/keys [respond! response]}]
+               (respond! response))}}}]
+
+      (is
+       (=
+        {:status 200}
+        (response-for
+         res
+         (-> (request :get "/")
+             ;; Yes, it was modified since 8am. Let the request through.
+             (header "if-modified-since" "Tue, 24 Nov 2020 08:00:00 GMT"))
+         [:status])))
+
+      (is
+       (=
+        {:status 304}
+        (response-for
+         res
+         (-> (request :get "/")
+             ;; No, it was modified at exactly 9am. No modifications since.
+             (header "if-modified-since" "Tue, 24 Nov 2020 09:00:00 GMT"))
+         [:status])))
+
+      (is
+       (=
+        {:status 304}
+        (response-for
+         res
+         (-> (request :get "/")
+             ;; No, it hasn't been modified since 10am. That's a 304.
+             (header "if-modified-since" "Tue, 24 Nov 2020 10:00:00 GMT"))
+         [:status])))))
+
+  (testing "GET with etags"
+    (let [res
+          {::spin/resource
+           {::spin/representation
+            {::spin/content-type "text/plain"
+             ::spin/content "Hello World!\n"
+             ::spin/entity-tag "\"abc\""
+             ::spin/respond!
+             (fn [{::spin/keys [respond! response]}]
+               (respond! response))}}}]
+      (is
+       (=
+        {:status 200}
+        (response-for
+         res
+         (-> (request :get "/")
+             ;; Yes, def doesn't match abc
+             (header "if-none-match" "\"def\""))
+         [:status])))
+
+      (is
+       (=
+        {:status 304}
+        (response-for
+         res
+         (-> (request :get "/")
+             ;; No, there's a match, so we return 304.
+             (header "if-none-match" "\"abc\", \"def\""))
+         [:status]))))))
