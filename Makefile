@@ -4,13 +4,13 @@ all: 	lint2 test
 
 test:
 	echo "spin:<span foreground='#ff3'>TEST</span>" > /tmp/spin-test-status
-	cd spin-core; clojure -Atest && echo "spin:PASS" > /tmp/spin-test-status || echo "<span foreground='red'>spin:FAIL</span>" > /tmp/spin-test-status
+	clojure -Atest && echo "spin:PASS" > /tmp/spin-test-status || echo "<span foreground='red'>spin:FAIL</span>" > /tmp/spin-test-status
 
 lint:
 	clojure -Alint
 
 lint2:
-	clj-kondo --lint spin-core/src/juxt --lint spin-core/test/juxt
+	clj-kondo --lint src/juxt --lint test/juxt
 
 watch:
 	find . -name "*.clj" | entr make test
