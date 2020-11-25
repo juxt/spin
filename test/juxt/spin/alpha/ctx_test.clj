@@ -29,6 +29,18 @@
   {:ring.request/method method
    :ring.request/path path})
 
+(deftest unknown-method-test
+  (testing "responds with 501 for unknown method"
+    (is
+     (=
+      {:status 501}
+      (response-for
+
+       {::spin/locate-resource! (fn [_] {})}
+
+       (request :brew "/")
+       [:status])))))
+
 (deftest get-request-test
   (testing "responds with 404 if resource is an empty map"
     (is
@@ -93,17 +105,6 @@
          (request :get "/")
          [:status]))))
 
-  (testing "responds with 501 for unknown method"
-    (is
-     (=
-      {:status 501}
-      (response-for
-
-       {::spin/locate-resource! (fn [_] {})}
-
-       (request :brew "/")
-       [:status]))))
-
   (testing "GET on 'Hello World!'"
     (is
      (=
@@ -118,21 +119,6 @@
           ::spin/content "Hello World!\n"}}}
 
        (request :get "/")
-       [:status :body "content-length"]))))
-
-  (testing "HEAD on 'Hello World!'"
-    (is
-     (=
-      {:status 200
-       :headers {"content-length" "13"}}
-      (response-for
-
-       {::spin/resource
-        {::spin/representation
-         {::spin/content-type "text/plain"
-          ::spin/content "Hello World!\n"}}}
-
-       (request :head "/")
        [:status :body "content-length"]))))
 
   (testing "GET on 'Hello World!' with select-representation callback"
@@ -150,22 +136,6 @@
             ::spin/content "Hello World!\n"})}}
 
        (request :get "/")
-       [:status :body "content-length"]))))
-
-  (testing "HEAD on 'Hello World!' with select-representation callback"
-    (is
-     (=
-      {:status 200
-       :headers {"content-length" "13"}}
-      (response-for
-
-       {::spin/resource
-        {::spin/select-representation
-         (fn [_]
-           {::spin/content-type "text/plain"
-            ::spin/content "Hello World!\n"})}}
-
-       (request :head "/")
        [:status :body "content-length"]))))
 
   (testing "GET on 'Hello World!' with representation respond!"
@@ -189,6 +159,39 @@
                              (str (count "Hello World!\n"))))))})}}
 
        (request :get "/")
+       [:status :body "content-length"])))))
+
+(deftest head-request-test
+
+  (testing "HEAD on 'Hello World!'"
+    (is
+     (=
+      {:status 200
+       :headers {"content-length" "13"}}
+      (response-for
+
+       {::spin/resource
+        {::spin/representation
+         {::spin/content-type "text/plain"
+          ::spin/content "Hello World!\n"}}}
+
+       (request :head "/")
+       [:status :body "content-length"]))))
+
+  (testing "HEAD on 'Hello World!' with select-representation callback"
+    (is
+     (=
+      {:status 200
+       :headers {"content-length" "13"}}
+      (response-for
+
+       {::spin/resource
+        {::spin/select-representation
+         (fn [_]
+           {::spin/content-type "text/plain"
+            ::spin/content "Hello World!\n"})}}
+
+       (request :head "/")
        [:status :body "content-length"]))))
 
   (testing "HEAD on Hello World! with representation respond!"
@@ -208,8 +211,9 @@
               (respond! response))})}}
 
        (request :head "/")
-       [:status :body "content-length"]))))
+       [:status :body "content-length"])))))
 
+(deftest post-request-test
   (testing "responds with 405 (Method Not Allowed) if POST but no post! callback"
     (is
      (=
@@ -219,29 +223,28 @@
        (request :post "/")
        [:status])))))
 
+(deftest conditional-get-request-test
+  (let [res
+        {::spin/resource
+         {::spin/representation
+          {::spin/content-type "text/plain"
+           ::spin/content "Hello World!\n"
+           ::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")
+           ::spin/respond!
+           (fn [{::spin/keys [respond! response]}]
+             (respond! response))}}}]
 
-(deftest conditional-request-test
-  (testing "GET with if-modified-since"
-    (let [res
-          {::spin/resource
-           {::spin/representation
-            {::spin/content-type "text/plain"
-             ::spin/content "Hello World!\n"
-             ::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")
-             ::spin/respond!
-             (fn [{::spin/keys [respond! response]}]
-               (respond! response))}}}]
-
+    (testing "Representation was modified since 8am. Let the request through."
       (is
        (=
         {:status 200}
         (response-for
          res
          (-> (request :get "/")
-             ;; Yes, it was modified since 8am. Let the request through.
              (header "if-modified-since" "Tue, 24 Nov 2020 08:00:00 GMT"))
-         [:status])))
+         [:status]))))
 
+    (testing "Representation was modified at exactly 9am. Return 304."
       (is
        (=
         {:status 304}
@@ -250,15 +253,15 @@
          (-> (request :get "/")
              ;; No, it was modified at exactly 9am. No modifications since.
              (header "if-modified-since" "Tue, 24 Nov 2020 09:00:00 GMT"))
-         [:status])))
+         [:status]))))
 
+    (testing "Representation was not modified since 10am. Return 304."
       (is
        (=
         {:status 304}
         (response-for
          res
          (-> (request :get "/")
-             ;; No, it hasn't been modified since 10am. That's a 304.
              (header "if-modified-since" "Tue, 24 Nov 2020 10:00:00 GMT"))
          [:status])))))
 
