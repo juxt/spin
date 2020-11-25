@@ -66,10 +66,9 @@
         (not (modified-since? last-modified if-modified-since))))))
 
 (defn- get-or-head [{::spin/keys [request resource respond! raise!] :as ctx}]
-  (let [{::spin/keys [select-representation good-request! representation]} resource
-        status 200
-        ctx (into {::spin/status status} ctx)]
-
+  (let [{::spin/keys [representation select-representation good-request!]} resource
+        response {:ring.response/status 200}
+        ctx (into {::spin/response response} ctx)]
 
     (when
         ;; This guard gives us the opportunity to validate that request is
@@ -103,7 +102,7 @@
                 response
                 (let [{::spin/keys [content content-length content-type]} representation
                       content-length (or content-length (when content (count content)))]
-                  (cond-> {:ring.response/status status}
+                  (cond-> response
                     content-length
                     (assoc-in [:ring.response/headers "content-length"] (str content-length))
                     content-type
