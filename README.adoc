@@ -149,8 +149,9 @@ A function that takes the context as an argument. The function should call the
 `respond!` function provided in the context to return a response.
 
 A `post!` function is responsible for any data processing. If a new resource is
-created, it should return a 201 status and a `Location` header containing the
-URL of the new resource.  See
+created, it should respond with a 201 status and a `Location` header containing
+the URL of the new resource. A convenience function is available
+(`juxt.spin.alpha.ctx/resource-created!`) which does this. See
 link:https://tools.ietf.org/html/rfc7231.html#section-4.3.3[Section 4.3.3 of RFC
 7231] for further details.
 

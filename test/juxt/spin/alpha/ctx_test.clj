@@ -219,9 +219,26 @@
      (=
       {:status 405}
       (response-for
+
        {::spin/resource {}}
+
        (request :post "/")
-       [:status])))))
+       [:status]))))
+
+  (testing "responds with 201 when new resource created"
+    (is
+     (=
+      {:status 201 :headers {"location" "/new-resource"}}
+      (response-for
+
+       {::spin/resource
+        {::spin/post!
+         (fn [ctx]
+           ;; A real implementation would do some processing here.
+           (ctx/resource-created! ctx "/new-resource"))}}
+
+       (request :post "/")
+       [:status "location"])))))
 
 (deftest conditional-get-request-test
   (let [res

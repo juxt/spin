@@ -99,7 +99,7 @@
                   content-type
                   (assoc-in [:headers "content-type"] content-type)
                   (and (= (:ring.request/method request) :get) content)
-                  (conj [:body content])))
+                  (assoc :body content)))
 
               ctx (assoc ctx ::spin/response response)]
 
@@ -124,10 +124,16 @@
 (defmethod http-method :head [ctx]
   (get-or-head ctx))
 
-(defmethod http-method :post [{::spin/keys [post! respond!] :as ctx}]
-  (if post!
-    (post! ctx)
+(defmethod http-method :post [{::spin/keys [resource respond!] :as ctx}]
+  (if-let [method! (::spin/post! resource)]
+    (method! ctx)
     (respond! {:status 405})))
+
+(defn resource-created! [{::spin/keys [respond! response]} location]
+  (respond!
+   (into
+    {:status 201}
+    (update response :headers assoc "location" location))))
 
 (defmethod http-method ::default [{::spin/keys [respond!]}]
   (respond! {:status 501}))
@@ -146,7 +152,7 @@
                               (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))
          :else {})]
 
-      (let [ctx (conj ctx [::spin/resource resource])]
+      (let [ctx (assoc ctx ::spin/resource resource)]
         (http-method ctx))))
 
 (s/fdef locate-resource!
