@@ -66,53 +66,63 @@
         (not (modified-since? last-modified if-modified-since))))))
 
 (defn- get-or-head [{::spin/keys [request resource respond! raise!] :as ctx}]
-  (let [{::spin/keys [select-representation representation]} resource
+  (let [{::spin/keys [select-representation good-request! representation]} resource
         status 200
         ctx (into {::spin/status status} ctx)]
 
-    (if-let [representation
-             (or
-              representation
-              (when select-representation
-                (try
-                  (select-representation (dissoc ctx ::spin/respond! ::spin/raise))
-                  (catch Exception e
-                    (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))))]
 
-      ;; Now to evaluate conditional requests. Note that according to Section 5,
-      ;; RFC 7232, "redirects and failures take precedence over the evaluation
-      ;; of preconditions in conditional requests." Therefore, we don't evaluate
-      ;; whether the request is conditional until we have determined its status
-      ;; code.
-      (cond
-        (precondition-failed? request representation)
-        (respond! {:status 304})
+    (when
+        ;; This guard gives us the opportunity to validate that request is
+        ;; appropriate for the resource, allowing us to respond directly with a 400
+        ;; (or similar) and escape processing.
+        (or
+         (nil? good-request!)
+         (good-request!
+          (assoc ctx ::spin/response {:status 400})))
 
-        :else
-        (let [ctx (assoc ctx ::spin/representation representation)
-              response
-              (let [{::spin/keys [content content-length content-type]} representation
-                    content-length (or content-length (when content (count content)))]
-                (cond-> {:status status}
-                  content-length
-                  (assoc-in [:headers "content-length"] (str content-length))
-                  content-type
-                  (assoc-in [:headers "content-type"] content-type)
-                  (and (= (:ring.request/method request) :get) content)
-                  (assoc :body content)))
+        (if-let [representation
+                 (or
+                  representation
+                  (when select-representation
+                    (try
+                      (select-representation (dissoc ctx ::spin/respond! ::spin/raise))
+                      (catch Exception e
+                        (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))))]
 
-              ctx (assoc ctx ::spin/response response)]
+          ;; Now to evaluate conditional requests. Note that according to Section 5,
+          ;; RFC 7232, "redirects and failures take precedence over the evaluation
+          ;; of preconditions in conditional requests." Therefore, we don't evaluate
+          ;; whether the request is conditional until we have determined its status
+          ;; code.
+          (cond
+            (precondition-failed? request representation)
+            (respond! {:status 304})
 
-          (case (:ring.request/method request)
-            :get
-            (if-let [rep-respond! (::spin/respond! representation)]
-              (rep-respond! ctx)
-              (respond! response))
-            :head
-            (respond! response))))
+            :else
+            (let [ctx (assoc ctx ::spin/representation representation)
+                  response
+                  (let [{::spin/keys [content content-length content-type]} representation
+                        content-length (or content-length (when content (count content)))]
+                    (cond-> {:status status}
+                      content-length
+                      (assoc-in [:headers "content-length"] (str content-length))
+                      content-type
+                      (assoc-in [:headers "content-type"] content-type)
+                      (and (= (:ring.request/method request) :get) content)
+                      (assoc :body content)))
 
-      ;; If not representation, respond with 404
-      (respond! {:status 404}))))
+                  ctx (assoc ctx ::spin/response response)]
+
+              (case (:ring.request/method request)
+                :get
+                (if-let [rep-respond! (::spin/respond! representation)]
+                  (rep-respond! ctx)
+                  (respond! response))
+                :head
+                (respond! response))))
+
+          ;; If not representation, respond with 404
+          (respond! {:status 404})))))
 
 (defmulti http-method
   (fn [{::spin/keys [request]}] (:ring.request/method request))

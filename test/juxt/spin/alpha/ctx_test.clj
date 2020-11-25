@@ -159,7 +159,20 @@
                              (str (count "Hello World!\n"))))))})}}
 
        (request :get "/")
-       [:status :body "content-length"])))))
+       [:status :body "content-length"]))))
+
+  (testing "respond with 400 on a malformed GET on resource"
+    (is
+     (= {:status 400 :body "Bad request!"}
+        (response-for
+
+         {::spin/resource
+          {::spin/good-request!
+           (fn [{::spin/keys [respond! response]}]
+             (respond! (assoc response :body "Bad request!")))}}
+
+         (request :get "/")
+         [:status :body])))))
 
 (deftest head-request-test
 
