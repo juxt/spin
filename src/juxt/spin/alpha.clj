@@ -2,8 +2,7 @@
 
 (ns juxt.spin.alpha
   (:require
-   [clojure.spec.alpha :as s]
-   [clojure.spec.gen.alpha :as gen]))
+   [clojure.spec.alpha :as s]))
 
 (s/def :ring.request/method keyword?)
 (s/def :ring.request/path string?)

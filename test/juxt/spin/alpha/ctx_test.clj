@@ -6,9 +6,7 @@
    [clojure.spec.test.alpha :as stest]
    [juxt.spin.alpha.ctx :as ctx]
    [juxt.spin.alpha :as spin]
-   [juxt.spin.alpha.util :as util]
-   [juxt.reap.alpha.decoders :as decoders]
-   [juxt.reap.alpha.regex :as re]))
+   [juxt.spin.alpha.util :as util]))
 
 (stest/instrument `ctx/locate-resource!)
 
