@@ -172,6 +172,17 @@
   ;; A nil means the locate-resource chooses to respond itself
   :ret (s/nilable ::spin/resource))
 
+(defn wrap-date [h]
+  (fn [req respond raise]
+    (h req (fn [response]
+             (let [inst (java.util.Date.)]
+               (respond
+                (assoc-in
+                 response
+                 [:headers "date"]
+                 (util/format-http-date inst)))))
+       raise)))
+
 (defn wrap-server [h]
   (fn [req respond raise]
     (h req (fn [response]
@@ -184,5 +195,6 @@
          (conj ctx {::spin/request request
                     ::spin/respond! respond!
                     ::spin/raise! raise!})))
+      wrap-date
       wrap-server
       sync-adapt))

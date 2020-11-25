@@ -253,6 +253,21 @@
        (request :post "/")
        [:status "location"])))))
 
+(deftest resonse-header-date-test
+  (-> {::spin/resource
+       {::spin/representation
+        {::spin/content "Hello World!\n"}}}
+
+      (response-for
+       (request :get "/")
+       [:status "date"])
+
+      (get-in [:headers "date"])
+
+      util/parse-http-date inst? is))
+
+;; RFC 7232
+
 (deftest conditional-get-request-test
   (let [res
         {::spin/resource
