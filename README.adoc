@@ -127,9 +127,9 @@ If this is provided, then it is used regardless of whether
 `locate-resource!` is provided also. If this is not specified up-front, it
 is provided in the context once it is located. See `locate-resource!`.
 
-== Resource entries
+=== Resource entries
 
-=== good-request! (optional)
+==== good-request! (optional)
 
 A function that takes a context argument and returns truthy if the request is
 valid. The resource can be found in the `:resource` entry of the context.
@@ -139,7 +139,7 @@ directly using the function in the `:respond!` entry of the context, and for the
 response, SHOULD use the value in the `:response` entry of the context (although
 it is free to modify it as necessary).
 
-=== select-representation (optional)
+==== select-representation (optional)
 
 A function that takes a context argument and returns a map corresponding to the
 selected representation's metadata.
@@ -148,12 +148,12 @@ The representation should be chosen based on the `request` and `status` entries
 of the context argument. Proactive content negotiation may be employed to
 determine the representation.
 
-=== representation (optional)
+==== representation (optional)
 
 The representation meta-data, as a constant. If this is present, then it is
 chosen when the status is 200 (in the case of a GET).p
 
-=== `post!` (optional)
+==== `post!` (optional)
 
 A function that takes the context as an argument. The function should call the
 `respond!` function provided in the context to return a response.
@@ -165,7 +165,7 @@ the URL of the new resource. A convenience function is available
 link:https://tools.ietf.org/html/rfc7231.html#section-4.3.3[Section 4.3.3 of RFC
 7231] for further details.
 
-== Request context entries
+=== Request context entries
 
 ==== `request` (provided)
 
