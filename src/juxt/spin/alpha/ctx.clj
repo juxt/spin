@@ -49,12 +49,12 @@
 
 
     (let [last-modified (::spin/last-modified representation)
-          if-modified-since (when last-modified (some-> (get-in request [:headers "if-modified-since"]) util/parse-http-date))
+          if-modified-since (when last-modified (some-> (get-in request [:ring.response/headers "if-modified-since"]) util/parse-http-date))
 
           entity-tag (::spin/entity-tag representation)
           if-none-match (when entity-tag
                           (some->>
-                           (get-in request [:headers "if-none-match"])
+                           (get-in request [:ring.response/headers "if-none-match"])
                            util/parse-if-none-match
                            (map (comp :juxt.reap.alpha.rfc7232/opaque-tag :juxt.reap.alpha.rfc7232/entity-tag))
                            set))]
@@ -78,7 +78,7 @@
         (or
          (nil? good-request!)
          (good-request!
-          (assoc ctx ::spin/response {:status 400})))
+          (assoc ctx ::spin/response {:ring.response/status 400})))
 
         (if-let [representation
                  (or
@@ -96,20 +96,20 @@
           ;; code.
           (cond
             (precondition-failed? request representation)
-            (respond! {:status 304})
+            (respond! {:ring.response/status 304})
 
             :else
             (let [ctx (assoc ctx ::spin/representation representation)
                   response
                   (let [{::spin/keys [content content-length content-type]} representation
                         content-length (or content-length (when content (count content)))]
-                    (cond-> {:status status}
+                    (cond-> {:ring.response/status status}
                       content-length
-                      (assoc-in [:headers "content-length"] (str content-length))
+                      (assoc-in [:ring.response/headers "content-length"] (str content-length))
                       content-type
-                      (assoc-in [:headers "content-type"] content-type)
+                      (assoc-in [:ring.response/headers "content-type"] content-type)
                       (and (= (:ring.request/method request) :get) content)
-                      (assoc :body content)))
+                      (assoc :ring.response/body content)))
 
                   ctx (assoc ctx ::spin/response response)]
 
@@ -122,7 +122,7 @@
                 (respond! response))))
 
           ;; If not representation, respond with 404
-          (respond! {:status 404})))))
+          (respond! {:ring.response/status 404})))))
 
 (defmulti http-method
   (fn [{::spin/keys [request]}] (:ring.request/method request))
@@ -137,16 +137,16 @@
 (defmethod http-method :post [{::spin/keys [resource respond!] :as ctx}]
   (if-let [method! (::spin/post! resource)]
     (method! ctx)
-    (respond! {:status 405})))
+    (respond! {:ring.response/status 405})))
 
 (defn resource-created! [{::spin/keys [respond! response]} location]
   (respond!
    (into
-    {:status 201}
-    (update response :headers assoc "location" location))))
+    {:ring.response/status 201}
+    (update response :ring.response/headers assoc "location" location))))
 
 (defmethod http-method ::default [{::spin/keys [respond!]}]
-  (respond! {:status 501}))
+  (respond! {:ring.response/status 501}))
 
 (defn locate-resource!
   [{::spin/keys [locate-resource! resource raise!] :as ctx}]
@@ -179,14 +179,14 @@
                (respond
                 (assoc-in
                  response
-                 [:headers "date"]
+                 [:ring.response/headers "date"]
                  (util/format-http-date inst)))))
        raise)))
 
 (defn wrap-server [h]
   (fn [req respond raise]
     (h req (fn [response]
-             (respond (assoc-in response [:headers "server"] "Spin")))
+             (respond (assoc-in response [:ring.response/headers "server"] "Spin")))
        raise)))
 
 (defn handler [ctx]

@@ -14,16 +14,16 @@
   ([ctx request]
    ((ctx/handler ctx) request))
   ([ctx request keyseq]
-   (let [keyseq (cond-> keyseq (seq (filter string? keyseq)) (conj :headers))]
+   (let [keyseq (cond-> keyseq (seq (filter string? keyseq)) (conj :ring.response/headers))]
      (cond-> (response-for ctx request)
        true
        (select-keys (filter keyword? keyseq))
        (seq (filter string? keyseq))
-       (update :headers select-keys (filter string? keyseq))))))
+       (update :ring.response/headers select-keys (filter string? keyseq))))))
 
 (defn header [request header value]
   (-> request
-      (assoc-in [:headers header] value)))
+      (assoc-in [:ring.response/headers header] value)))
 
 (defn request [method path]
   {:ring.request/method method
@@ -33,66 +33,66 @@
   (testing "responds with 501 for unknown method"
     (is
      (=
-      {:status 501}
+      {:ring.response/status 501}
       (response-for
 
        {::spin/locate-resource! (fn [_] {})}
 
        (request :brew "/")
-       [:status])))))
+       [:ring.response/status])))))
 
 (deftest get-request-test
   (testing "responds with 404 if resource is an empty map"
     (is
      (=
-      {:status 404}
+      {:ring.response/status 404}
       (response-for
 
        {::spin/resource {}}
 
        (request :get "/")
-       [:status]))))
+       [:ring.response/status]))))
 
   (testing "responds with 404 if no resource or locate-resource! callback"
     ;; The resource will default to {}, which has no current representation
     (is
      (=
-      {:status 404}
+      {:ring.response/status 404}
       (response-for
 
        {}
 
        (request :get "/")
-       [:status]))))
+       [:ring.response/status]))))
 
   (testing "responds with 404 if locate-resource! returns an empty resource"
     (is
      (=
-      {:status 404}
+      {:ring.response/status 404}
       (response-for
 
        {::spin/locate-resource!
         (fn [_] {})}
 
        (request :get "/")
-       [:status]))))
+       [:ring.response/status]))))
 
   (testing "locate-resource! can respond"
     (is
      (=
-      {:status 400}
+      {:ring.response/status 400}
       (response-for
 
        {::spin/locate-resource!
         (fn [{::spin/keys [respond!]}]
-          (respond! {:status 400}))}
+          (respond! {:ring.response/status 400}))}
 
        (request :get "/")
-       [:status]))))
+       [:ring.response/status]))))
 
   (testing "resource overrides locate-resource!"
     (is
-     (= {:status 404}
+     (= {:ring.response/status 404}
         (response-for
 
          {::spin/resource {}
@@ -100,17 +100,17 @@
           (fn [{::spin/keys [respond!]}]
             (respond!
              ;; We'll return 400 so we can distinguish
-             {:status 400}))}
+             {:ring.response/status 400}))}
 
          (request :get "/")
-         [:status]))))
+         [:ring.response/status]))))
 
   (testing "GET on 'Hello World!'"
     (is
      (=
-      {:status 200
-       :headers {"content-length" "13"}
-       :body "Hello World!\n"}
+      {:ring.response/status 200
+       :ring.response/headers {"content-length" "13"}
+       :ring.response/body "Hello World!\n"}
       (response-for
 
        {::spin/resource
@@ -119,14 +119,14 @@
           ::spin/content "Hello World!\n"}}}
 
        (request :get "/")
-       [:status :body "content-length"]))))
+       [:ring.response/status :ring.response/body "content-length"]))))
 
   (testing "GET on 'Hello World!' with select-representation callback"
     (is
      (=
-      {:status 200
-       :headers {"content-length" "13"}
-       :body "Hello World!\n"}
+      {:ring.response/status 200
+       :ring.response/headers {"content-length" "13"}
+       :ring.response/body "Hello World!\n"}
       (response-for
 
        {::spin/resource
@@ -136,14 +136,14 @@
             ::spin/content "Hello World!\n"})}}
 
        (request :get "/")
-       [:status :body "content-length"]))))
+       [:ring.response/status :ring.response/body "content-length"]))))
 
   (testing "GET on 'Hello World!' with representation respond!"
     (is
      (=
-      {:status 200
-       :headers {"content-length" "13"}
-       :body "Hello World!\n"}
+      {:ring.response/status 200
+       :ring.response/headers {"content-length" "13"}
+       :ring.response/body "Hello World!\n"}
       (response-for
 
        {::spin/resource
@@ -154,33 +154,33 @@
             (fn [{::spin/keys [respond! response]}]
               (respond!
                (-> response
-                   (assoc :body "Hello World!\n")
-                   (assoc-in [:headers "content-length"]
+                   (assoc :ring.response/body "Hello World!\n")
+                   (assoc-in [:ring.response/headers "content-length"]
                              (str (count "Hello World!\n"))))))})}}
 
        (request :get "/")
-       [:status :body "content-length"]))))
+       [:ring.response/status :ring.response/body "content-length"]))))
 
   (testing "respond with 400 on a malformed GET on resource"
     (is
-     (= {:status 400 :body "Bad request!"}
+     (= {:ring.response/status 400 :ring.response/body "Bad request!"}
         (response-for
 
          {::spin/resource
           {::spin/good-request!
            (fn [{::spin/keys [respond! response]}]
-             (respond! (assoc response :body "Bad request!")))}}
+             (respond! (assoc response :ring.response/body "Bad request!")))}}
 
          (request :get "/")
-         [:status :body])))))
+         [:ring.response/status :ring.response/body])))))
 
 (deftest head-request-test
 
   (testing "HEAD on 'Hello World!'"
     (is
      (=
-      {:status 200
-       :headers {"content-length" "13"}}
+      {:ring.response/status 200
+       :ring.response/headers {"content-length" "13"}}
       (response-for
 
        {::spin/resource
@@ -189,13 +189,13 @@
           ::spin/content "Hello World!\n"}}}
 
        (request :head "/")
-       [:status :body "content-length"]))))
+       [:ring.response/status :ring.response/body "content-length"]))))
 
   (testing "HEAD on 'Hello World!' with select-representation callback"
     (is
      (=
-      {:status 200
-       :headers {"content-length" "13"}}
+      {:ring.response/status 200
+       :ring.response/headers {"content-length" "13"}}
       (response-for
 
        {::spin/resource
@@ -205,13 +205,13 @@
             ::spin/content "Hello World!\n"})}}
 
        (request :head "/")
-       [:status :body "content-length"]))))
+       [:ring.response/status :ring.response/body "content-length"]))))
 
   (testing "HEAD on Hello World! with representation respond!"
     (is
      (=
-      {:status 200
-       :headers {"content-length" "13"}}
+      {:ring.response/status 200
+       :ring.response/headers {"content-length" "13"}}
       (response-for
 
        {::spin/resource
@@ -224,24 +224,24 @@
               (respond! response))})}}
 
        (request :head "/")
-       [:status :body "content-length"])))))
+       [:ring.response/status :ring.response/body "content-length"])))))
 
 (deftest post-request-test
   (testing "responds with 405 (Method Not Allowed) if POST but no post! callback"
     (is
      (=
-      {:status 405}
+      {:ring.response/status 405}
       (response-for
 
        {::spin/resource {}}
 
        (request :post "/")
-       [:status]))))
+       [:ring.response/status]))))
 
   (testing "responds with 201 when new resource created"
     (is
      (=
-      {:status 201 :headers {"location" "/new-resource"}}
+      {:ring.response/status 201 :ring.response/headers {"location" "/new-resource"}}
       (response-for
 
        {::spin/resource
@@ -251,7 +251,7 @@
            (ctx/resource-created! ctx "/new-resource"))}}
 
        (request :post "/")
-       [:status "location"])))))
+       [:ring.response/status "location"])))))
 
 (deftest resonse-header-date-test
   (-> {::spin/resource
@@ -260,9 +260,9 @@
 
       (response-for
        (request :get "/")
-       [:status "date"])
+       [:ring.response/status "date"])
 
-      (get-in [:headers "date"])
+      (get-in [:ring.response/headers "date"])
 
       util/parse-http-date inst? is))
 
@@ -282,33 +282,33 @@
     (testing "Representation was modified since 8am. Let the request through."
       (is
        (=
-        {:status 200}
+        {:ring.response/status 200}
         (response-for
          res
          (-> (request :get "/")
              (header "if-modified-since" "Tue, 24 Nov 2020 08:00:00 GMT"))
-         [:status]))))
+         [:ring.response/status]))))
 
     (testing "Representation was modified at exactly 9am. Return 304."
       (is
        (=
-        {:status 304}
+        {:ring.response/status 304}
         (response-for
          res
          (-> (request :get "/")
              ;; No, it was modified at exactly 9am. No modifications since.
              (header "if-modified-since" "Tue, 24 Nov 2020 09:00:00 GMT"))
-         [:status]))))
+         [:ring.response/status]))))
 
     (testing "Representation was not modified since 10am. Return 304."
       (is
        (=
-        {:status 304}
+        {:ring.response/status 304}
         (response-for
          res
          (-> (request :get "/")
              (header "if-modified-since" "Tue, 24 Nov 2020 10:00:00 GMT"))
-         [:status])))))
+         [:ring.response/status])))))
 
   (testing "GET with etags"
     (let [res
@@ -322,20 +322,20 @@
                (respond! response))}}}]
       (is
        (=
-        {:status 200}
+        {:ring.response/status 200}
         (response-for
          res
          (-> (request :get "/")
              ;; Yes, def doesn't match abc
              (header "if-none-match" "\"def\""))
-         [:status])))
+         [:ring.response/status])))
 
       (is
        (=
-        {:status 304}
+        {:ring.response/status 304}
         (response-for
          res
          (-> (request :get "/")
              ;; No, there's a match, so we return 304.
              (header "if-none-match" "\"abc\", \"def\""))
-         [:status]))))))
+         [:ring.response/status]))))))
