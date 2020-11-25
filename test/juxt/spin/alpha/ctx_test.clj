@@ -253,7 +253,7 @@
        (request :post "/")
        [:ring.response/status "location"])))))
 
-(deftest resonse-header-date-test
+(deftest response-header-date-test
   (-> {::spin/resource
        {::spin/representation
         {::spin/content "Hello World!\n"}}}
@@ -265,6 +265,62 @@
       (get-in [:ring.response/headers "date"])
 
       util/parse-http-date inst? is))
+
+(deftest response-error-test
+  (is
+   (=
+    {:ring.response/status 500,
+     :ring.response/headers
+     {"content-length" "6",
+      "content-type" "text/plain;charset=utf-8"}
+     :ring.response/body "ERROR!",}
+
+    (-> {::spin/resource
+         ;; The representation raises an error
+         {::spin/representation
+          {::spin/respond!
+           (fn [{::spin/keys [raise!]}]
+             (raise! (ex-info "Error" {})))}}
+
+         ;; A representation is selected from the error-representation
+         ;; callback. We may not have the resource here.
+
+         ::spin/error-representation
+         (fn [{::spin/keys [_]}]
+           {::spin/content-type "text/plain;charset=utf-8"
+            ::spin/content "ERROR!"})}
+        (response-for
+         (request :get "/")
+         [:ring.response/status :ring.response/body "content-length" "content-type"]))))
+
+  (testing "An error in the representation response is handled by the respond in the error-representation"
+    (is
+     (=
+      {:ring.response/status 403,
+       :ring.response/body "Hello!",}
+      (-> {::spin/resource
+           ;; The representation raises an error
+           {::spin/representation
+            {::spin/respond!
+             (fn [{::spin/keys [raise!]}]
+               ;; TODO: Can we let the ring response body be set here?
+               (raise! (ex-info "Forbidden!" {:ring.response/status 403})))}}
+
+           ;; A representation is selected from the error-representation
+           ;; callback. We may not have the resource here.
+
+           ::spin/error-representation
+           (fn [{::spin/keys [_] :as ctx}]
+             {::spin/respond!
+              (fn [{::spin/keys [respond! response] :as ctx}]
+                (assert respond!)
+                (respond!
+                 (assoc response :ring.response/body "Hello!")))
+              ::spin/content-type "text/plain;charset=utf-8"
+              ::spin/content "Error"})}
+          (response-for
+           (request :get "/")
+           [:ring.response/status :ring.response/body]))))))
 
 ;; RFC 7232
 

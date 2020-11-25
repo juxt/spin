@@ -127,6 +127,11 @@ If this is provided, then it is used regardless of whether
 `locate-resource!` is provided also. If this is not specified up-front, it
 is provided in the context once it is located. See `locate-resource!`.
 
+==== `error-representation` (optional)
+
+A function that takes the inital context as an argument and returns a map
+corresponding to the selected representation's metadata of the error.
+
 === Resource entries
 
 ==== `good-request!` (optional)
@@ -144,9 +149,16 @@ it is free to modify it as necessary).
 A function that takes a context argument and returns a map corresponding to the
 selected representation's metadata.
 
-The representation should be chosen based on the `request` and `status` entries
-of the context argument. Proactive content negotiation may be employed to
-determine the representation.
+The representation should be chosen based on the request (the `:request` entry
+of the context) and the response (the `:response` entry of the context). Usually
+this means looking up the `:ring.response/status` of the response, since the
+desirable content type often depends on the status of the response. For
+instance, the representation of an error might only be available in English,
+regardless of the language preferences of the user agent.
+
+Proactive content negotiation may be employed to determine the representation.
+
+// TODO: Discuss reactive content negotiation here
 
 ==== `representation` (optional)
 

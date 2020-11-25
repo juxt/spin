@@ -171,15 +171,82 @@
   ;; A nil means the locate-resource chooses to respond itself
   :ret (s/nilable ::spin/resource))
 
+(defn wrap-catch-exception [h ctx]
+  ;; TODO: ctx is the 'initial context'. We should try to capture the resource,
+  ;; if it's in scope. We may be able to wrap the `raise!` callback when a
+  ;; resource is located, such that it is available to this wrapper.
+  (fn [req respond raise]
+    ;; This is duplicate logic to what happens in handler - we should maybe
+    ;; construct middleware around ctx passing?
+    (let [ctx (conj ctx {::spin/request req
+                         ::spin/respond! respond
+                         ::spin/raise! raise})]
+      (h
+       req respond
+       (fn [e]
+         (let [data (ex-data e)
+               response (into {:ring.response/status 500} data)]
+
+           (if-let [error-representation (::spin/error-representation ctx)]
+             (try
+               (let [representation (error-representation (dissoc ctx ::spin/respond! ::spin/raise))
+                     custom-respond! (::spin/respond! representation)]
+
+                 (if custom-respond!
+                   ;; Let the representation handle the response, including
+                   ;; setting all the response header fields correctly.
+                   ;; TODO: Shouldn't we help it a little, at least with content-length?
+                   (custom-respond! (assoc ctx ::spin/response response))
+
+                   ;; TODO: Try to format the content according to the representation
+                   ;; metadata. If it's a string, or byte[], then assume it's
+                   ;; encoded correctly and respond with that. Otherwise, if it's
+                   ;; a Clojure structure, convert to a string under the
+                   ;; representation metadata.
+                   (let [{::spin/keys [content content-length content-type respond!]} representation
+                         content-length (or content-length (when content (count content)))
+                         response
+                         (cond-> response
+                           content-length
+                           (assoc-in [:ring.response/headers "content-length"] (str content-length))
+                           content-type
+                           (assoc-in [:ring.response/headers "content-type"] content-type)
+                           content
+                           (assoc :ring.response/body content))]
+                     (respond response))))
+
+               (catch Exception e
+                 ;; Recover and use a plain-text representation
+
+                 (respond
+                  (into {:ring.response/headers {"content-type" "text/plain;charset=utf-8"}
+                         :ring.response/body (str "Failure when selecting representation: " (pr-str e))}
+                        response
+                        ))))
+
+             (into
+              {:ring.response/headers {"content-type" "text/plain;charset=utf-8"}
+               :ring.response/body (pr-str e)}
+              response)
+
+             )))))))
+
 (defn wrap-date [h]
   (fn [req respond raise]
     (h req (fn [response]
-             (let [inst (java.util.Date.)]
+             (let [status (get response :ring.response/status 200)
+                   inst (java.util.Date.)]
                (respond
-                (assoc-in
-                 response
-                 [:ring.response/headers "date"]
-                 (util/format-http-date inst)))))
+                (cond-> response
+                  ;; While Section 7.1.1.2 of RFC 7232 states: "An origin server
+                  ;; MAY send a Date header field if the response is in the 1xx
+                  ;; (Informational) or 5xx (Server Error) class of status
+                  ;; codes.", we choose not to, as it cannot be used for
+                  ;; cacheing.
+                  (and (>= status 200) (< status 500))
+                  (assoc-in
+                   [:ring.response/headers "date"]
+                   (util/format-http-date inst))))))
        raise)))
 
 (defn wrap-server [h]
@@ -194,6 +261,7 @@
          (conj ctx {::spin/request request
                     ::spin/respond! respond!
                     ::spin/raise! raise!})))
+      (wrap-catch-exception ctx)
       wrap-date
       wrap-server
       sync-adapt))
