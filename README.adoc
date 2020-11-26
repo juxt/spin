@@ -1,4 +1,5 @@
 = Spin
+:toc:
 
 _Far more web_ for _much less code_.
 
