@@ -168,10 +168,11 @@
       [resource
        (cond
          resource resource
-         locate-resource! (try
-                            (locate-resource! ctx)
-                            (catch Exception e
-                              (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))
+         locate-resource!
+         (try
+           (locate-resource! ctx)
+           (catch Exception e
+             (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))
          :else {})]
 
       (let [ctx (assoc ctx ::spin/resource resource)]

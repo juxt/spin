@@ -2,8 +2,7 @@
 
 (ns juxt.spin.alpha.test-util
   (:require
-   [juxt.spin.alpha.ctx :as ctx]
-   [clojure.string :as str]))
+   [juxt.spin.alpha.ctx :as ctx]))
 
 (defn response-for
   ([ctx request]
