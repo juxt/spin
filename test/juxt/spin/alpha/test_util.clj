@@ -18,7 +18,7 @@
 
 (defn header [request header value]
   (-> request
-      (assoc-in [:ring.response/headers header] value)))
+      (assoc-in [:ring.request/headers header] value)))
 
 (defn request [method reluri]
   (let [[_ path query] (re-matches #"([^\?]*)\??(.*)" reluri)]

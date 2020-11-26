@@ -49,12 +49,12 @@
 
 
     (let [last-modified (::spin/last-modified representation)
-          if-modified-since (when last-modified (some-> (get-in request [:ring.response/headers "if-modified-since"]) util/parse-http-date))
+          if-modified-since (when last-modified (some-> (get-in request [:ring.request/headers "if-modified-since"]) util/parse-http-date))
 
           entity-tag (::spin/entity-tag representation)
           if-none-match (when entity-tag
                           (some->>
-                           (get-in request [:ring.response/headers "if-none-match"])
+                           (get-in request [:ring.request/headers "if-none-match"])
                            util/parse-if-none-match
                            (map (comp :juxt.reap.alpha.rfc7232/opaque-tag :juxt.reap.alpha.rfc7232/entity-tag))
                            set))]
