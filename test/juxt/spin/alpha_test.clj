@@ -1,15 +1,14 @@
 ;; Copyright © 2020, JUXT LTD.
 
-(ns juxt.spin.alpha.ctx-test
+(ns juxt.spin.alpha-test
   (:require
    [clojure.test :refer [deftest is testing]]
    [clojure.spec.test.alpha :as stest]
-   [juxt.spin.alpha.ctx :as ctx]
    [juxt.spin.alpha :as spin]
    [juxt.spin.alpha.util :as util]
    [juxt.spin.alpha.test-util :refer [response-for request header]]))
 
-(stest/instrument `ctx/locate-resource!)
+(stest/instrument `spin/locate-resource!)
 
 (deftest unknown-method-test
   (testing "responds with 501 for unknown method"
@@ -230,7 +229,7 @@
         {::spin/post!
          (fn [ctx]
            ;; A real implementation would do some processing here.
-           (ctx/resource-created! ctx "/new-resource"))}}
+           (spin/resource-created! ctx "/new-resource"))}}
 
        (request :post "/")
        [:ring.response/status "location"])))))

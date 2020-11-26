@@ -2,11 +2,11 @@
 
 (ns juxt.spin.alpha.test-util
   (:require
-   [juxt.spin.alpha.ctx :as ctx]))
+   [juxt.spin.alpha :as spin]))
 
 (defn response-for
   ([ctx request]
-   ((ctx/handler ctx) request))
+   ((spin/handler ctx) request))
   ([ctx request keyseq]
    (let [keyseq (cond-> keyseq (seq (filter string? keyseq)) (conj :ring.response/headers))]
      (cond-> (response-for ctx request)

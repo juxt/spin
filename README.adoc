@@ -68,8 +68,6 @@ Spin is a Clojure project because that language provides a very fast design
 iteration cycle. But it's hoped that once Spin's design stabilises it can be
 copied by others, just as CGI was.
 
-== Relevant Standards
-
 == Status
 
 Spin is still under active development and is ALPHA status, meaning that the API
@@ -80,8 +78,11 @@ It is planned that Spin will be agnostic as to whether you are using Ring's sync
 
 == Documentation
 
-You create a Ring handler with `juxt.spin.alpha.ctx/handler` that takes a single
-map argument, called the *handler map*.
+Spin is based on Clojure maps, with namespaced keywords. Functions take maps
+and, usually, return other maps.
+
+For example, you create a Ring handler with `juxt.spin.alpha/handler` that takes a single
+map argument.
 
 .Hello World!
 ====
@@ -90,10 +91,9 @@ To return the message "Hello World!" from a GET request:
 [source,clojure]
 ----
 (require '[juxt.spin.alpha :as spin])
-(require '[juxt.spin.alpha.ctx :refer [handler]])
 
 (def hello
-  (handler
+  (spin/handler
     {::spin/resource
       {::spin/representation
         {::spin/content "Hello World!\n"}}}))
@@ -308,7 +308,7 @@ The function is called on a POST request.
 The `post!` function is responsible for any data processing associated with a
 POST. If a new resource is created, it should respond with a 201 status and a
 `Location` header containing the URL of the new resource. A convenience function
-is available (`juxt.spin.alpha.ctx/resource-created!`) which does this.
+is available (`juxt.spin.alpha/resource-created!`) which does this.
 
 To respond, it should call the `respond!` function provided in the context
 argument with the (Ring 2.0) response as an argument.
