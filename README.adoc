@@ -315,16 +315,31 @@ regardless of the language preferences of the user agent.
 
 Proactive content negotiation may be employed to determine the representation.
 
+// TODO: Add an example of using pick to select and return a single
+// representation map.
+
 If there are no representations, regardless of their acceptability, you MUST respond with a 404 response, calling the `:respond!` function provided in the context argument.
 
+// TODO: Add an example of a 404
+
 Otherwise, if none of the representations are acceptable, you MAY respond with a
-406 response, in which you SHOULD add a `Vary` header.
+406 response, in which you SHOULD add a `Vary` header. See
+https://tools.ietf.org/html/rfc7231.html#section-7.1.4[Section 7.1.4 of RFC
+7231] for how to construct the `Vary` header.
+
+// TODO: Add an example of a 406, with Vary header
 
 Alternatively, you may wish to return one anyway, since "sending a response that
 doesn't conform to the user agent's preferences" might be "better than sending a
-406" (see Section 3.4.1 of RFC 7231).
+406" (see https://tools.ietf.org/html/rfc7231.html#section-3.4.1[Section 3.4.1 of RFC 7231]).
 
-// TODO: Discuss reactive content negotiation here
+// TODO: Add an example of returning a single representation
+
+Finally, if you wish to use https://tools.ietf.org/html/rfc7231.html#section-3.4.2[Reactive Negotiation], respond with a 300 response
+with the response payload of your choosing. See https://tools.ietf.org/html/rfc7231.html#section-3.4.2[Section 3.4.2 of RFC 7231] for
+further details.
+
+// TODO: Add an example of Reactive Negotiation
 
 ==== `post!`
 
@@ -357,7 +372,7 @@ To respond, it should call the `respond!` function provided in the context
 argument with the (Ring 2.0) response as an argument.
 
 See
-link:https://tools.ietf.org/html/rfc7231.html#section-4.3.4[Section 4.3.4 of RFC
+https://tools.ietf.org/html/rfc7231.html#section-4.3.4[Section 4.3.4 of RFC
 7231] for further details.
 
 ==== `delete!`
