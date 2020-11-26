@@ -15,12 +15,13 @@ toc::[]
 Since the earliest web servers, dynamic behaviour in web servers has been built
 on the https://www.w3.org/CGI/[CGI: Common Gateway Interface]. CGI itself has
 been consigned to history but the model of web development that it inspired is
-still by far the dominant model used by developers of websites and web APIs.
+still by far the dominant model used by developers of dynamic websites and web
+APIs.
 
 In CGI, a web-server captures information about a web request (such as the
 request method, path, remote address, query-string, etc.) and calls a sends it
-to an external program or script, or in-process function, that generates the
-response on behalf of the web server.
+to an external program, script, plugin or in-process function, that generates
+the response on behalf of the web server.
 
 As web-servers have evolved, virtually every web library and framework has
 inherited this minimalist design: from Java's 'servlets' and Ruby's
@@ -46,26 +47,23 @@ ____
 The problem with CGI-based web libraries is that CGI is too low-level. It asks
 too much of developers who have to recreate this 'resource' abstraction in every
 handler they write. Of course this results in HTTP services that are half-baked,
-half-implemented and non-comformant with HTTP. This makes the web poorer: *less
-inter-operable*, *less dynamic* and *more expensive to create and maintain*.
+half-implemented and non-comformant with HTTP. This makes the web poorer, more
+brittle, *less inter-operable*, *less flexible*, *more expensive to create and
+maintain*.
 
 == Proposed Solution
 
-Spin defines a new _resource-oriented_ interface to replace CGI.
+This project defines a new _resource-oriented_ interface to replace CGI.
 
-Spin also provides an adapter that converts the CGI-based request-oriented
+It also provides an adapter that converts the CGI-based request-oriented
 interface of Java/Clojure web servers to this new resource-oriented interface.
 
-You provide code that satisfies Spin's Clojure protocols. In exchange, you get a
-runtime that fully conforms with HTTP.
+You provide the resource (in the form of data and functions). In exchange, you
+get a Ring 2.0 handler that fully conforms with HTTP.
 
-Spin is written in Clojure because it provides a very fast design iteration
-cycle. But it is hoped that once Spin's design stabilises it can be copied by
-others, just as CGI was.
-
-== But why is it called Spin?
-
-The name 'spin' is a deliberate pun on the word 'web'.
+Spin is a Clojure project because that language provides a very fast design
+iteration cycle. But it's hoped that once Spin's design stabilises it can be
+copied by others, just as CGI was.
 
 == Relevant Standards
 
@@ -365,6 +363,10 @@ https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
 
 A callback function that is used to raise any errors. See
 https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
+
+== But why is it called Spin?
+
+The name 'spin' is a deliberate pun on the word 'web'.
 
 == License
 
