@@ -129,6 +129,16 @@
     (method! ctx)
     (respond! {:ring.response/status 405})))
 
+(defmethod http-method :put [{::spin/keys [resource respond!] :as ctx}]
+  (if-let [method! (::spin/put! resource)]
+    (method! ctx)
+    (respond! {:ring.response/status 405})))
+
+(defmethod http-method :delete [{::spin/keys [resource respond!] :as ctx}]
+  (if-let [method! (::spin/delete! resource)]
+    (method! ctx)
+    (respond! {:ring.response/status 405})))
+
 (defn resource-created! [{::spin/keys [respond! response]} location]
   (respond!
    (into
