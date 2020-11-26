@@ -119,9 +119,9 @@ A function that takes a request context as an argument, and returns a map
 describing the target resource.
 
 A resource is always deemed to exist. Return an empty map (`{}`) if there are no
-current representations for the resource.
+current representations for the resource. Don't return nil!
 
-A `locate-resource!` function can use the `respond!` entry in the request
+The `locate-resource!` function can use the `respond!` entry in the request
 context argument in order to respond directly. This effectively returns a nil,
 which indicates a response is made directly. Therefore, it is important never to
 return nil from `locate-resource!`.
@@ -156,7 +156,89 @@ directly using the function in the `:respond!` entry of the context.
 When responding, the function SHOULD use the value in the `:response` entry of
 the context (although it is free to modify it as necessary).
 
-==== `select-representation` (optional)
+.Responding with a 400 (Bad Request)
+====
+
+Say you have a resource that requires a query parameter to be present. Requests
+without this query parameter are considered invalid and should result in a 400
+response.
+
+[source,clojure]
+----
+{::spin/resource
+  {::spin/representation {}
+   ::spin/validate-request!
+   (fn [{::spin/keys [request respond! response] :as ctx}]
+     (if (:ring.request/query request)
+       ctx
+       ;; No query string, bad request!
+       (respond!
+        (assoc
+         response
+         :ring.response/status 400
+         :ring.response/body "Bad request!"))))}}
+----
+====
+
+The `validate-request!` is also the place to authenticate the request and ensure
+it is authorized to interact with the resource.
+
+.Authorizing a request
+[source,clojure]
+====
+
+In this example, we use some custom data in our resource to map roles onto methods. We could use any arbitary authorization logic here instead.
+
+First, we need to authenticate the request. We'll assign each request a single role, using an extremely silly authentication scheme for the purposes of this explanation only.
+
+The `validate-request!` function first determines the role by authenticating the request. Normally, you wouldn't automatically trust the user agent like this, instead, you'd add some way of verifying the trust, e.g. JWT signatures, a database lookup.
+
+[source,clojure]
+----
+{::spin/resource
+   {:roles {:superuser #{:get :head :put}
+            :manager #{:get :head}}
+    ::spin/representation {::spin/content "Secret stuff!"}
+    ::spin/validate-request!
+    (fn [{::spin/keys [request respond! response resource] :as ctx}]
+      (if-let [role
+               (case (get-in request
+                             [:ring.request/headers "authorization"])
+
+                 "Terrible let-me-in;role=superuser"
+                 :superuser
+
+                 "Terrible let-me-in;role=manager"
+                 :manager
+
+                 (respond!
+                  (-> response
+                      (assoc :ring.response/status 401)
+                      (assoc-in
+                       [:ring.response/headers "www-authenticate"]
+                       "Terrible"))))]
+
+        (if (get-in resource [:roles role (:ring.request/method request)])
+          (assoc ctx :role role)
+          (respond! (assoc response :ring.response/status 403)))))}}
+----
+
+
+====
+
+
+==== `representation`
+
+The representation meta-data of the current representation of the target
+resource, as a map.
+
+If this is present, then it will determine the response for a GET request.
+
+WARNING: Don't forget to add this (or `select-representation` below). If this
+isn't provided, then you'll get a 404 response for a GET. This might be
+surprising!
+
+==== `select-representation`
 
 A function that takes a context argument and returns a map corresponding to the
 selected representation's metadata.
@@ -172,22 +254,53 @@ Proactive content negotiation may be employed to determine the representation.
 
 // TODO: Discuss reactive content negotiation here
 
-==== `representation` (optional)
+==== `post!`
 
-The representation meta-data, as a constant. If this is present, then it is
-chosen when the status is 200 (in the case of a GET).p
+A function that takes the context as an argument.
 
-==== `post!` (optional)
+The function is called on a POST request.
 
-A function that takes the context as an argument. The function should call the
-`respond!` function provided in the context to return a response.
+The `post!` function is responsible for any data processing associated with a
+POST. If a new resource is created, it should respond with a 201 status and a
+`Location` header containing the URL of the new resource. A convenience function
+is available (`juxt.spin.alpha.ctx/resource-created!`) which does this.
 
-A `post!` function is responsible for any data processing. If a new resource is
-created, it should respond with a 201 status and a `Location` header containing
-the URL of the new resource. A convenience function is available
-(`juxt.spin.alpha.ctx/resource-created!`) which does this. See
-link:https://tools.ietf.org/html/rfc7231.html#section-4.3.3[Section 4.3.3 of RFC
+To respond, it should call the `respond!` function provided in the context
+argument with the (Ring 2.0) response as an argument.
+
+See link:https://tools.ietf.org/html/rfc7231.html#section-4.3.3[Section 4.3.3 of
+RFC 7231] for further details.
+
+==== `put!`
+
+A function that takes the context as an argument.
+
+The function is called on a PUT request.
+
+Generally speaking, the `put!` function is responsible for replacing the state
+of the target resource with the representation enclosed in the request message
+payload.
+
+To respond, it should call the `respond!` function provided in the context
+argument with the (Ring 2.0) response as an argument.
+
+See
+link:https://tools.ietf.org/html/rfc7231.html#section-4.3.4[Section 4.3.4 of RFC
 7231] for further details.
+
+==== `delete!`
+
+A function that takes the context as an argument.
+
+The function is called on a DELETE request.
+
+To respond, it should call the `respond!` function provided in the context
+argument with the (Ring 2.0) response as an argument.
+
+See
+link:https://tools.ietf.org/html/rfc7231.html#section-4.3.5[Section 4.3.5 of RFC
+7231] for further details.
+
 
 === Request context entries
 
