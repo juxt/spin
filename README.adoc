@@ -141,23 +141,24 @@ A map describing the target resource.
 If `resource` is provided, then it is used regardless of whether
 `locate-resource!` is provided also. See `locate-resource!`.
 
-Many web applications write their routes into the code. You can do this, but you
-should consider whether your routes belong elsewhere, such as in config or a
-database. This might allow your web application to be more dynamic and flexible
-in the future.
+TIP: Many web programmers write their routes directly into their code. You can
+do this, but you should consider whether your routes belong elsewhere, such as
+in config or a database. This might allow your web application to be more
+dynamic and flexible in the future. A more dynamic approach is to use
+`locate-resource!`.
 
 ==== `locate-resource!`
 
-A function that takes a request context as an argument, and returns a map
-describing the target resource.
+A function that takes a request map as an argument, and returns the target
+resource (in the form of a Clojure map).
 
 A resource is always deemed to exist. Return an empty map (`{}`) if there are no
 current representations for the resource. Don't return nil!
 
-The `locate-resource!` function can use the `respond!` entry in the request
-context argument in order to respond directly. This effectively returns a nil,
-which indicates a response is made directly. Therefore, it is important never to
-return nil from `locate-resource!`.
+The `locate-resource!` function can use the `respond!` entry in the request map
+in order to respond directly. This effectively returns a nil, which indicates a
+response is made directly. Therefore, it is important never to return nil from
+`locate-resource!`.
 
 If `locate-resource!` is not provided in the initial context, the resource
 defaults to an empty map.
