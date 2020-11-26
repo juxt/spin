@@ -121,9 +121,11 @@ This map contains the following entries, which are namespaced in the
 === Handler map entries
 
 Whether you should choose a resource or a resource locator depends on your
-application. If you are using a router (Compojure, bidi, reitit, etc.), you
-might route directly to the target resource. This also makes sense for simple
-demos.
+application. If you are using a router
+(https://github.com/weavejester/compojure[Compojure],
+https://github.com/juxt/bidi[bidi], https://github.com/metosin/reitit[reitit],
+etc.), you might route directly to the target resource. This also makes sense
+for simple demos.
 
 However, the benefit of using `locate-resource!` is that you can have one initial
 context defined with all your application-wide (or context-wide) configuration
@@ -136,9 +138,13 @@ requirements:: The handler map should contain at least one of `resource` and
 
 A map describing the target resource.
 
-If this is provided, then it is used regardless of whether
-`locate-resource!` is provided also. If this is not specified up-front, it
-is provided in the context once it is located. See `locate-resource!`.
+If `resource` is provided, then it is used regardless of whether
+`locate-resource!` is provided also. See `locate-resource!`.
+
+Many web applications write their routes into the code. You can do this, but you
+should consider whether your routes belong elsewhere, such as in config or a
+database. This might allow your web application to be more dynamic and flexible
+in the future.
 
 ==== `locate-resource!`
 
