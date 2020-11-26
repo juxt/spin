@@ -89,19 +89,38 @@ Clojure routing libraries.
 
 == Reference
 
-You create a Ring handler with `juxt.spin.alpha.ctx/handler` that takes a single map argument, called the *handler map*.
+You create a Ring handler with `juxt.spin.alpha.ctx/handler` that takes a single
+map argument, called the *handler map*.
+
+.Hello World!
+====
+To return the message "Hello World!" from a GET request:
 
 [source,clojure]
 ----
-(def handler (juxt.spin.alpha.ctx/handler {…}))
+(require '[juxt.spin.alpha :as spin])
+(require '[juxt.spin.alpha.ctx :refer [handler]])
 
-(handler req) => response
+(def hello
+  (handler
+    {::spin/resource
+      {::spin/representation
+        {::spin/content "Hello World!\n"}}}))
+
+(hello req)
+=>
+{:ring.response/status 200
+ :ring.response/headers
+  {"content-length" "13"
+   "date" "Thu, 26 Nov 2020 16:53:14 GMT"}
+ :ring.response/body "Hello World!\n"}
 ----
+====
 
 This map contains the following entries, which are namespaced in the
 `juxt.spin.alpha` namespace.
 
-=== Handler entries
+=== Handler map entries
 
 Whether you should choose a resource or a resource locator depends on your
 application. If you are using a router (Compojure, bidi, reitit, etc.), you
@@ -330,7 +349,7 @@ link:https://tools.ietf.org/html/rfc7231.html#section-4.3.5[Section 4.3.5 of RFC
 7231] for further details.
 
 
-=== Request context entries
+=== Request map entries
 
 ==== `request` (provided)
 

@@ -6,6 +6,20 @@
    [juxt.spin.alpha :as spin]
    [juxt.spin.alpha.test-util :refer [response-for request header]]))
 
+(def hello-example
+  {::spin/resource
+   {::spin/representation
+    {::spin/content "Hello World!\n"}}})
+
+(deftest hello-example-test
+  (is
+   (= {:ring.response/status 200
+       :ring.response/body "Hello World!\n"}
+      (response-for
+       hello-example
+       (request :get "/")
+       [:ring.response/status :ring.response/body]))))
+
 (def bad-request-example
   {::spin/resource
    {::spin/representation {}
