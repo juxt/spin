@@ -61,13 +61,14 @@ interface of Java/Clojure web servers to this new resource-oriented interface.
 You provide the resource (in the form of data and functions). In exchange, you
 get a Ring 2.0 handler that fully conforms with HTTP.
 
+Spin's goal is to assist developers in implementing RFCs 7231-7235, and possibly
+other RFCs, as faithfully as possible.
+
 Spin is a Clojure project because that language provides a very fast design
 iteration cycle. But it's hoped that once Spin's design stabilises it can be
 copied by others, just as CGI was.
 
 == Relevant Standards
-
-Spin implements RFCs 7231-7235 as faithfully as possible.
 
 == Status
 
