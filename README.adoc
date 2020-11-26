@@ -196,21 +196,33 @@ it is authorized to interact with the resource.
 [source,clojure]
 ====
 
-In this example, we use some custom data in our resource to map roles onto methods. We could use any arbitary authorization logic here instead.
+In this example, we use the `validate-request!` function in conjunction with
+some custom data in our resource to implement restrictions to a resource.
 
-First, we need to authenticate the request. We'll assign each request a single role, using an extremely silly authentication scheme for the purposes of this explanation only.
+First, we'll need to authenticate the request. We'll assign each request a
+single role.
 
-The `validate-request!` function first determines the role by authenticating the request. Normally, you wouldn't automatically trust the user agent like this, instead, you'd add some way of verifying the trust, e.g. JWT signatures, a database lookup.
+WARNING: We'll use an extremely silly authentication scheme (called `Terrible`)
+FOR THE PURPOSES OF THIS EXPLANATION ONLY. Don't copy this!
+
+Then we'll check the role provides the entitlement to access the resource using
+the method in the requested. We could use any arbitary authorization logic here
+instead.
+
+The `validate-request!` function first determines the role by authenticating the
+request. Normally, you wouldn't automatically trust the user agent like this,
+instead, you'd add some way of verifying the trust, e.g. JWT signatures, a
+database lookup.
 
 [source,clojure]
 ----
 {::spin/resource
    {:roles {:superuser #{:get :head :put}
-            :manager #{:get :head}}
+            :manager #{:get :head}} <1>
     ::spin/representation {::spin/content "Secret stuff!"}
     ::spin/validate-request!
     (fn [{::spin/keys [request respond! response resource] :as ctx}]
-      (if-let [role
+      (if-let [role <2>
                (case (get-in request
                              [:ring.request/headers "authorization"])
 
@@ -220,19 +232,25 @@ The `validate-request!` function first determines the role by authenticating the
                  "Terrible let-me-in;role=manager"
                  :manager
 
-                 (respond!
+                 (respond! <3>
                   (-> response
                       (assoc :ring.response/status 401)
                       (assoc-in
                        [:ring.response/headers "www-authenticate"]
                        "Terrible"))))]
 
-        (if (get-in resource [:roles role (:ring.request/method request)])
-          (assoc ctx :role role)
-          (respond! (assoc response :ring.response/status 403)))))}}
+        (if (get-in resource
+              [:roles role (:ring.request/method request)]) <4>
+          (assoc ctx :role role) <5>
+          (respond! (assoc response :ring.response/status 403)) <6>
+          )))}}
 ----
-
-
+<1> some custom data in the resource map we'll use later
+<2> authenticate the request
+<3> respond with a 401 if tell the user-agent to send credentials
+<4> is the method allowed for this role?
+<5> yes? then the request can proceed, return the ctx (adding the role)
+<6> no? then the request is forbidden, return a 403
 ====
 
 
