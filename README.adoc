@@ -1,7 +1,15 @@
 = Spin
-:toc:
+:toc: macro
 
 _Far more web_ for _much less code_.
+
+Spin is a https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md[Ring
+2.0]-compatible Clojure library that helps you write HTTP endpoints that
+actually conform to HTTP.
+
+toc::[]
+
+== Introduction
 
 Since the earliest web servers, dynamic behaviour in web servers has been built
 on the https://www.w3.org/CGI/[CGI: Common Gateway Interface]. CGI itself has
