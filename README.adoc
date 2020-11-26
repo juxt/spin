@@ -79,7 +79,7 @@ Clojure routing libraries.
 
 == Reference
 
-You create a Ring handler with `juxt.spin.alpha.ctx/handler` that takes a single map argument, called the context.
+You create a Ring handler with `juxt.spin.alpha.ctx/handler` that takes a single map argument, called the *handler map*.
 
 [source,clojure]
 ----
@@ -89,12 +89,9 @@ You create a Ring handler with `juxt.spin.alpha.ctx/handler` that takes a single
 ----
 
 This map contains the following entries, which are namespaced in the
-`juxt.spin.alpha` namespace (aliased below to `spin`).
+`juxt.spin.alpha` namespace.
 
-=== Initial context entries
-
-The initial context should contain the resource description as a map, or a
-function for locating one from the request.
+=== Handler entries
 
 Whether you should choose a resource or a resource locator depends on your
 application. If you are using a router (Compojure, bidi, reitit, etc.), you
@@ -105,21 +102,10 @@ However, the benefit of using `locate-resource!` is that you can have one initia
 context defined with all your application-wide (or context-wide) configuration
 and policies.
 
-==== `locate-resource!` (optional)
+requirements:: The handler map should contain at least one of `resource` and
+`locate-resource!`.
 
-A function that takes a request context as an argument, and returns a map
-describing the target resource.
-
-A resource is always deemed to exist. Return an empty map (`{}`) if there are no
-current representations for the resource.
-
-A `locate-resource!` function can use the `respond!` entry in the request context
-argument in order to respond directly. This effectively returns a nil, which indicates a response is made directly. Therefore, it is important never to return nil from `locate-resource!`.
-
-If `locate-resource!` is not provided in the initial context, the resource
-defaults to an empty map.
-
-==== `resource` (optional)
+==== `resource`
 
 A map describing the target resource.
 
@@ -127,22 +113,48 @@ If this is provided, then it is used regardless of whether
 `locate-resource!` is provided also. If this is not specified up-front, it
 is provided in the context once it is located. See `locate-resource!`.
 
-==== `error-representation` (optional)
+==== `locate-resource!`
+
+A function that takes a request context as an argument, and returns a map
+describing the target resource.
+
+A resource is always deemed to exist. Return an empty map (`{}`) if there are no
+current representations for the resource.
+
+A `locate-resource!` function can use the `respond!` entry in the request
+context argument in order to respond directly. This effectively returns a nil,
+which indicates a response is made directly. Therefore, it is important never to
+return nil from `locate-resource!`.
+
+If `locate-resource!` is not provided in the initial context, the resource
+defaults to an empty map.
+
+==== `error-representation`
 
 A function that takes the inital context as an argument and returns a map
 corresponding to the selected representation's metadata of the error.
 
 === Resource entries
 
-==== `good-request!` (optional)
+A resource is a Clojure map that can contain any entries that assist in the
+processing of a request.
 
-A function that takes a context argument and returns truthy if the request is
-valid. The resource can be found in the `:resource` entry of the context.
+Keywords with namespaces that are prefixed with `juxt.spin` are *reserved*,
+including `juxt.spin.alpha`. These reserved entries, which are described in this
+section, form the 'interface' for interacting with the resource.
+
+==== `good-request!`
+
+A function that takes a context argument and returns it, or (optionally) a
+modified version of it, if the request is valid.
+
+The resource can be found in the `:resource` entry of the context.
 
 If the request is malformed or invalid in some way, the function MUST respond
-directly using the function in the `:respond!` entry of the context, and for the
-response, SHOULD use the value in the `:response` entry of the context (although
-it is free to modify it as necessary).
+directly using the function in the `:respond!` entry of the context.
+
+When responding, the function SHOULD use the value in the `:response` entry of
+the context (although it is free to modify it as necessary).
 
 ==== `select-representation` (optional)
 
