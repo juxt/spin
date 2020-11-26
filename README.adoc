@@ -4,8 +4,8 @@
 
 _Far more web_ for _much less code_.
 
-Spin is a https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md[Ring
-2.0]-compatible Clojure library that helps you write HTTP endpoints that
+Spin is a small, https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md[Ring
+2.0]-compatible, Clojure library that helps you write HTTP endpoints that
 actually conform to HTTP.
 
 toc::[]
@@ -77,15 +77,7 @@ should be considered unstable and likely to change.
 It is planned that Spin will be agnostic as to whether you are using Ring's sync
 (1-arity) of async (3-arity) forms and will support both.
 
-== Relationship to other Clojure libraries
-
-Spin is hoped to be an official successor to https://github.com/juxt/yada.
-
-Spin is independent of routing and treats URIs as opaque. This lets you 'bring
-your own router', and so can be used with Compojure, bidi, Reitit and other
-Clojure routing libraries.
-
-== Reference
+== Documentation
 
 You create a Ring handler with `juxt.spin.alpha.ctx/handler` that takes a single
 map argument, called the *handler map*.
@@ -370,6 +362,20 @@ https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
 
 A callback function that is used to raise any errors. See
 https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
+
+== Relationship to yada
+
+JUXT has published another older library, https://github.com/juxt/yada[_yada_],
+which shares similar goals to this project.
+
+Spin is hoped to be an official successor to https://github.com/juxt/yada.
+
+=== Async
+
+Both Spin and _yada_ support asynchronous servers. In the case of _yada_, it is bound to https://github.com/aleph-io/manifold[manifold] which is in turn bound to https://github.com/aleph-io/aleph/[aleph] and onto Netty.
+
+Spin is based the asynchronous standard defined in Ring 1.6 which was not yet
+established when _yada_ was designed.
 
 == But why is it called Spin?
 
