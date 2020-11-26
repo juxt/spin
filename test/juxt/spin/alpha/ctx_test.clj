@@ -6,28 +6,10 @@
    [clojure.spec.test.alpha :as stest]
    [juxt.spin.alpha.ctx :as ctx]
    [juxt.spin.alpha :as spin]
-   [juxt.spin.alpha.util :as util]))
+   [juxt.spin.alpha.util :as util]
+   [juxt.spin.alpha.test-util :refer [response-for request header]]))
 
 (stest/instrument `ctx/locate-resource!)
-
-(defn response-for
-  ([ctx request]
-   ((ctx/handler ctx) request))
-  ([ctx request keyseq]
-   (let [keyseq (cond-> keyseq (seq (filter string? keyseq)) (conj :ring.response/headers))]
-     (cond-> (response-for ctx request)
-       true
-       (select-keys (filter keyword? keyseq))
-       (seq (filter string? keyseq))
-       (update :ring.response/headers select-keys (filter string? keyseq))))))
-
-(defn header [request header value]
-  (-> request
-      (assoc-in [:ring.response/headers header] value)))
-
-(defn request [method path]
-  {:ring.request/method method
-   :ring.request/path path})
 
 (deftest unknown-method-test
   (testing "responds with 501 for unknown method"

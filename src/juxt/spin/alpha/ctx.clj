@@ -70,52 +70,49 @@
         response {:ring.response/status 200}
         ctx (into {::spin/response response} ctx)]
 
-    (when
+    (if-let [representation
+             (or
+              representation
+              (when select-representation
+                (try
+                  (select-representation (dissoc ctx ::spin/respond! ::spin/raise))
+                  (catch Exception e
+                    (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))))]
 
+      ;; Now to evaluate conditional requests. Note that according to Section 5,
+      ;; RFC 7232, "redirects and failures take precedence over the evaluation
+      ;; of preconditions in conditional requests." Therefore, we don't evaluate
+      ;; whether the request is conditional until we have determined its status
+      ;; code.
+      (cond
+        (precondition-failed? request representation)
+        (respond! {:ring.response/status 304})
 
-      (if-let [representation
-               (or
-                representation
-                (when select-representation
-                  (try
-                    (select-representation (dissoc ctx ::spin/respond! ::spin/raise))
-                    (catch Exception e
-                      (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))))]
+        :else
+        (let [ctx (assoc ctx ::spin/representation representation)
+              response
+              (let [{::spin/keys [content content-length content-type]} representation
+                    content-length (or content-length (when content (count content)))]
+                (cond-> response
+                  content-length
+                  (assoc-in [:ring.response/headers "content-length"] (str content-length))
+                  content-type
+                  (assoc-in [:ring.response/headers "content-type"] content-type)
+                  (and (= (:ring.request/method request) :get) content)
+                  (assoc :ring.response/body content)))
 
-        ;; Now to evaluate conditional requests. Note that according to Section 5,
-        ;; RFC 7232, "redirects and failures take precedence over the evaluation
-        ;; of preconditions in conditional requests." Therefore, we don't evaluate
-        ;; whether the request is conditional until we have determined its status
-        ;; code.
-        (cond
-          (precondition-failed? request representation)
-          (respond! {:ring.response/status 304})
+              ctx (assoc ctx ::spin/response response)]
 
-          :else
-          (let [ctx (assoc ctx ::spin/representation representation)
-                response
-                (let [{::spin/keys [content content-length content-type]} representation
-                      content-length (or content-length (when content (count content)))]
-                  (cond-> response
-                    content-length
-                    (assoc-in [:ring.response/headers "content-length"] (str content-length))
-                    content-type
-                    (assoc-in [:ring.response/headers "content-type"] content-type)
-                    (and (= (:ring.request/method request) :get) content)
-                    (assoc :ring.response/body content)))
+          (case (:ring.request/method request)
+            :get
+            (if-let [rep-respond! (::spin/respond! representation)]
+              (rep-respond! ctx)
+              (respond! response))
+            :head
+            (respond! response))))
 
-                ctx (assoc ctx ::spin/response response)]
-
-            (case (:ring.request/method request)
-              :get
-              (if-let [rep-respond! (::spin/respond! representation)]
-                (rep-respond! ctx)
-                (respond! response))
-              :head
-              (respond! response))))
-
-        ;; If not representation, respond with 404
-        (respond! {:ring.response/status 404})))))
+      ;; If not representation, respond with 404
+      (respond! {:ring.response/status 404}))))
 
 (defmulti http-method
   (fn [{::spin/keys [request]}] (:ring.request/method request))
