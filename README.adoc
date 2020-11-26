@@ -143,7 +143,7 @@ Keywords with namespaces that are prefixed with `juxt.spin` are *reserved*,
 including `juxt.spin.alpha`. These reserved entries, which are described in this
 section, form the 'interface' for interacting with the resource.
 
-==== `good-request!`
+==== `validate-request!`
 
 A function that takes a context argument and returns it, or (optionally) a
 modified version of it, if the request is valid.

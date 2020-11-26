@@ -167,7 +167,7 @@
         (response-for
 
          {::spin/resource
-          {::spin/good-request!
+          {::spin/validate-request!
            (fn [{::spin/keys [respond! response]}]
              (respond! (assoc response :ring.response/body "Bad request!")))}}
 

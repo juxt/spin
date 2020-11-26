@@ -66,7 +66,7 @@
         (not (modified-since? last-modified if-modified-since))))))
 
 (defn- get-or-head [{::spin/keys [request resource respond! raise!] :as ctx}]
-  (let [{::spin/keys [representation select-representation good-request!]} resource
+  (let [{::spin/keys [representation select-representation validate-request!]} resource
         response {:ring.response/status 200}
         ctx (into {::spin/response response} ctx)]
 
@@ -75,8 +75,8 @@
         ;; appropriate for the resource, allowing us to respond directly with a 400
         ;; (or similar) and escape processing.
         (or
-         (nil? good-request!)
-         (good-request!
+         (nil? validate-request!)
+         (validate-request!
           (assoc ctx ::spin/response {:ring.response/status 400})))
 
       (if-let [representation
