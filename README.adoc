@@ -94,8 +94,8 @@ To return the message "Hello World!" from a GET request:
 
 (def hello
   (spin/handler
-    {::spin/resource
-      {::spin/representation
+    {::spin/resource <1>
+      {::spin/representation <2>
         {::spin/content "Hello World!\n"}}}))
 
 (hello req)
@@ -106,6 +106,8 @@ To return the message "Hello World!" from a GET request:
    "date" "Thu, 26 Nov 2020 16:53:14 GMT"}
  :ring.response/body "Hello World!\n"}
 ----
+<1> See <<resource>>
+<2> See <<representation>>
 ====
 
 This map contains the following entries, which are namespaced in the
@@ -127,6 +129,7 @@ and policies.
 requirements:: The handler map should contain at least one of `resource` and
 `locate-resource!`.
 
+[[resource]]
 ==== `resource`
 
 A map describing the target resource.
@@ -272,6 +275,7 @@ database lookup.
 ====
 
 
+[[representation]]
 ==== `representation`
 
 The representation meta-data of the current representation of the target
