@@ -1,5 +1,6 @@
 = Spin
 :toc: macro
+:toclevels: 4
 
 _Far more web_ for _much less code_.
 
