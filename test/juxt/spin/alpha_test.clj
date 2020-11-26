@@ -102,7 +102,7 @@
        (request :get "/")
        [:ring.response/status :ring.response/body "content-length"]))))
 
-  (testing "GET on 'Hello World!' with select-representation callback"
+  (testing "GET on 'Hello World!' with select-representation! callback"
     (is
      (=
       {:ring.response/status 200
@@ -111,7 +111,7 @@
       (response-for
 
        {::spin/resource
-        {::spin/select-representation
+        {::spin/select-representation!
          (fn [_]
            {::spin/content-type "text/plain"
             ::spin/content "Hello World!\n"})}}
@@ -128,7 +128,7 @@
       (response-for
 
        {::spin/resource
-        {::spin/select-representation
+        {::spin/select-representation!
          (fn [_]
            {::spin/content-type "text/plain"
             ::spin/respond!
@@ -172,7 +172,7 @@
        (request :head "/")
        [:ring.response/status :ring.response/body "content-length"]))))
 
-  (testing "HEAD on 'Hello World!' with select-representation callback"
+  (testing "HEAD on 'Hello World!' with select-representation! callback"
     (is
      (=
       {:ring.response/status 200
@@ -180,7 +180,7 @@
       (response-for
 
        {::spin/resource
-        {::spin/select-representation
+        {::spin/select-representation!
          (fn [_]
            {::spin/content-type "text/plain"
             ::spin/content "Hello World!\n"})}}
@@ -196,7 +196,7 @@
       (response-for
 
        {::spin/resource
-        {::spin/select-representation
+        {::spin/select-representation!
          (fn [_]
            {::spin/content-type "text/plain"
             ::spin/content "Hello World!\n"

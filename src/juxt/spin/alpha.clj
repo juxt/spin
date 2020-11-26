@@ -79,18 +79,19 @@
         (not (modified-since? last-modified if-modified-since))))))
 
 (defn- get-or-head [{::keys [request resource respond! raise!] :as ctx}]
-  (let [{::keys [representation select-representation validate-request!]} resource
+  (let [{::keys [representation select-representation! validate-request!]} resource
         response {:ring.response/status 200}
         ctx (into {::response response} ctx)]
 
-    (if-let [representation
-             (or
-              representation
-              (when select-representation
-                (try
-                  (select-representation (dissoc ctx ::respond! ::raise))
-                  (catch Exception e
-                    (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))))]
+    (when-let [representation
+               (or
+                representation
+                (if select-representation!
+                  (try
+                    (select-representation! (dissoc ctx ::respond! ::raise))
+                    (catch Exception e
+                      (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))
+                  (respond! {:ring.response/status 404})))]
 
       ;; Now to evaluate conditional requests. Note that according to Section 5,
       ;; RFC 7232, "redirects and failures take precedence over the evaluation
@@ -122,10 +123,7 @@
               (rep-respond! ctx)
               (respond! response))
             :head
-            (respond! response))))
-
-      ;; If not representation, respond with 404
-      (respond! {:ring.response/status 404}))))
+            (respond! response)))))))
 
 (defmulti http-method
   (fn [{::keys [request]}] (:ring.request/method request))

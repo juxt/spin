@@ -297,11 +297,11 @@ resource, as a map.
 
 If this is present, then it will determine the response for a GET request.
 
-WARNING: Don't forget to add this (or `select-representation` below). If this
+WARNING: Don't forget to add this (or `select-representation!` below). If this
 isn't provided, then you'll get a 404 response for a GET. This might be
 surprising!
 
-==== `select-representation`
+==== `select-representation!`
 
 A function that takes a context argument and returns a map corresponding to the
 selected representation's metadata.
@@ -314,6 +314,15 @@ instance, the representation of an error might only be available in English,
 regardless of the language preferences of the user agent.
 
 Proactive content negotiation may be employed to determine the representation.
+
+If there are no representations, regardless of their acceptability, you MUST respond with a 404 response, calling the `:respond!` function provided in the context argument.
+
+Otherwise, if none of the representations are acceptable, you MAY respond with a
+406 response, in which you SHOULD add a `Vary` header.
+
+Alternatively, you may wish to return one anyway, since "sending a response that
+doesn't conform to the user agent's preferences" might be "better than sending a
+406" (see Section 3.4.1 of RFC 7231).
 
 // TODO: Discuss reactive content negotiation here
 
