@@ -71,13 +71,7 @@
         ctx (into {::spin/response response} ctx)]
 
     (when
-        ;; This guard gives us the opportunity to validate that request is
-        ;; appropriate for the resource, allowing us to respond directly with a 400
-        ;; (or similar) and escape processing.
-        (or
-         (nil? validate-request!)
-         (validate-request!
-          (assoc ctx ::spin/response {:ring.response/status 400})))
+
 
       (if-let [representation
                (or
@@ -147,6 +141,18 @@
 (defmethod http-method ::default [{::spin/keys [respond!]}]
   (respond! {:ring.response/status 501}))
 
+(defn validate-request!
+  "Validate the request is appropriate for the resource."
+  [{::spin/keys [resource] :as ctx}]
+  (let [{::spin/keys [validate-request!]} resource
+        ctx (if validate-request!
+              (validate-request!
+               ;; If we assoc a 400 into response, there's less chance of the
+               ;; user accidentally sending through a 200.
+               (assoc ctx ::spin/response {:ring.response/status 400}))
+              ctx)]
+    (when ctx (http-method ctx))))
+
 (defn locate-resource!
   [{::spin/keys [locate-resource! resource raise!] :as ctx}]
   (when-let
@@ -161,8 +167,8 @@
                               (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))
          :else {})]
 
-    (let [ctx (assoc ctx ::spin/resource resource)]
-      (http-method ctx))))
+      (let [ctx (assoc ctx ::spin/resource resource)]
+        (validate-request! ctx))))
 
 (s/fdef locate-resource!
   :args (s/cat :ctx (s/keys :req []
