@@ -24,12 +24,12 @@ to an external program, script, plugin or in-process function, that generates
 the response on behalf of the web server.
 
 As web-servers have evolved, virtually every web library and framework has
-inherited this minimalist design: from Java's 'servlets' and Ruby's
+inherited this primeval design: from Java's 'servlets' and Ruby's
 https://www.rubyguides.com/2018/09/rack-middleware/[Rack] and PHP to Node.js
 Express, Erlang's https://www.phoenixframework.org/[Phoenix], Clojure's
 https://github.com/ring-clojure/ring[Ring] and hundreds more.
 
-== Problem Statement
+=== Problem Statement
 
 The problem at the heart of CGI, and everything based on it, is that it is an
 interface based on a web _request_ rather than a web _resource_. It was designed
@@ -51,7 +51,7 @@ half-implemented and non-comformant with HTTP. This makes the web poorer, more
 brittle, *less inter-operable*, *less flexible*, *more expensive to create and
 maintain*.
 
-== Proposed Solution
+=== Proposed Solution
 
 This project defines a new _resource-oriented_ interface to replace CGI.
 
@@ -68,7 +68,7 @@ Spin is a Clojure project because that language provides a very fast design
 iteration cycle. But it's hoped that once Spin's design stabilises it can be
 copied by others, just as CGI was.
 
-== Status
+=== Status
 
 Spin is still under active development and is ALPHA status, meaning that the API
 should be considered unstable and likely to change.
@@ -76,7 +76,11 @@ should be considered unstable and likely to change.
 It is planned that Spin will be agnostic as to whether you are using Ring's sync
 (1-arity) of async (3-arity) forms and will support both.
 
-== Documentation
+=== Naming
+
+The name 'spin' is a deliberate pun on the word 'web'.
+
+== Technical Guide
 
 Spin is based on Clojure maps, with namespaced keywords. Functions take maps
 and, usually, return other maps.
@@ -110,10 +114,14 @@ To return the message "Hello World!" from a GET request:
 <2> See <<representation>>
 ====
 
-This map contains the following entries, which are namespaced in the
-`juxt.spin.alpha` namespace.
+This map can contain any number of entries. However, the ones in the
+`juxt.spin.alpha` namespace are reserved, and form declarations which drive
+Spin's request processing. These are each described in the following section.
 
 === Handler map entries
+
+The first task of the Ring handler is to locate the target resource given the
+URL. You may have a single target resource per handler (use `:resource`), or use a single handler to manage a set of resources (use `:locate-resource!`).
 
 Whether you should choose a resource or a resource locator depends on your
 application. If you are using a router
@@ -122,9 +130,10 @@ https://github.com/juxt/bidi[bidi], https://github.com/metosin/reitit[reitit],
 etc.), you might route directly to the target resource. This also makes sense
 for simple demos.
 
-However, the benefit of using `locate-resource!` is that you can have one initial
-context defined with all your application-wide (or context-wide) configuration
-and policies.
+However, the benefit of using `locate-resource!` is that you can have one
+initial context defined with all your application-wide (or context-wide)
+configuration and policies. And since resources are (mostly) data, you may want
+to store them in a database rather than a codebase
 
 requirements:: The handler map should contain at least one of `resource` and
 `locate-resource!`.
@@ -148,13 +157,18 @@ dynamic and flexible in the future. A more dynamic approach is to use
 A function that takes a request map as an argument, and returns the target
 resource (in the form of a Clojure map).
 
-A resource is always deemed to exist. Return an empty map (`{}`) if there are no
-current representations for the resource. Don't return nil!
+If there are no current representations for the resource, return an empty map
+(`{}`).
+
+[WARNING]
+--
+Unless you are taking charge of the response directly, you MUST NOT return nil from this function!
 
 The `locate-resource!` function can use the `respond!` entry in the request map
 in order to respond directly. This effectively returns a nil, which indicates a
 response is made directly. Therefore, it is important never to return nil from
 `locate-resource!`.
+--
 
 If `locate-resource!` is not provided in the initial context, the resource
 defaults to an empty map.
@@ -164,7 +178,7 @@ defaults to an empty map.
 A function that takes the inital context as an argument and returns a map
 corresponding to the selected representation's metadata of the error.
 
-=== Resource entries
+=== Resource map entries
 
 A resource is a Clojure map that can contain any entries that assist in the
 processing of a request.
@@ -368,24 +382,92 @@ https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
 A callback function that is used to raise any errors. See
 https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
 
-== Relationship to yada
+[appendix]
+== Comparison to _yada_
 
-JUXT has published another older library, https://github.com/juxt/yada[_yada_],
-which shares similar goals to this project.
-
-Spin is hoped to be an official successor to https://github.com/juxt/yada.
+JUXT publish another library, https://github.com/juxt/yada[_yada_], which shares
+similar goals to this project. Spin in a much younger project, and is hoped to
+be an official successor to _yada_. They do have simiarities but Spin is
+smaller, with fewer dependencies, and a significantly different design. In
+comparison, Spin can be considered less opinionated and more modular than
+_yada_. But at the present time, it doesn't quite have as much funcionality
+built-in. This may change over time, of course.
 
 === Async
 
-Both Spin and _yada_ support asynchronous servers. In the case of _yada_, it is bound to https://github.com/aleph-io/manifold[manifold] which is in turn bound to https://github.com/aleph-io/aleph/[aleph] and onto Netty.
+Both Spin and _yada_ support asynchronous servers. In the case of _yada_, it is
+bound to https://github.com/aleph-io/manifold[manifold] which is in turn bound
+to https://github.com/aleph-io/aleph/[aleph] and onto Netty.
 
-Spin is based the asynchronous standard defined in Ring 1.6 which was not yet
-established when _yada_ was designed.
+Spin is built on the asynchronous standard defined in Ring 1.6 which was not yet
+established when _yada_ was designed. This provides independence from the
+underlying server, and full compatibility with Ring middleware.
 
-== But why is it called Spin?
+However, _yada_'s dependence on Aleph does offer easy access to asynchronous
+response streams, making it easy (for example) to create streams of server-sent
+events. Work is underway on a comparable set of functionality for Spin based on
+https://vertx.io/[Vert.x], via our https://github.com/juxt/vext[Vext] project,
+although this is some way from feature parity.
 
-The name 'spin' is a deliberate pun on the word 'web'.
+In _Yada_, blocking operations can be wrapped in asynchronous chains using
+Manifold's `chain` function. In Spin, the `respond!` function can be passed
+around between threads and invoked in a different thread from the request
+thread, which can prevent blocking the request thread during the request
+processing. For non-blocking steaming of response payloads (which might be
+standardised in a future Ring 2.1), there is some work underway within Vext on
+adopting the Java interfaces defined by
+http://www.reactive-streams.org/[Reactive Streams].
 
+=== Resource map validation
+
+_yada_ uses https://github.com/plumatic/schema[Primatic Schema] for validation
+of its resource maps. Spin uses Clojure's now built-in
+https://clojure.org/guides/spec[spec].
+
+=== Responses
+
+Sometimes you need to take over request processing from a library and send your
+own response. In _yada_,
+https://www.juxt.land/yada/manual/index.html#explicit-responses[explicit
+responses] are provided. In Spin, care has been taken to allow for the calling
+of the `respond!` callback. This allows implementations direct control of the
+response.
+
+=== OpenAPI
+
+_yada_ supports the definition, via Prismatic Schema, of parameters to
+facilitate the generation of OpenAPI (Swagger) descriptions.
+
+Spin is agnostic to OpenAPI, and does not involve itself in the specification of
+the types of parameters, request and response bodies. However, it is designed to
+complement other projects that may seek to add these facilities to Spin. One
+example is our https://github.com/juxt/apex[Apex] project, which aims to process
+parameters according to their definitions in OpenAPI documents. The
+https://www.openapis.org/blog/2020/06/18/openapi-3-1-0-rc0-its-here[reconvergence]
+of OpenAPI 3.1.0 with JSON Schema hasn't escaped our notice, and we hope this
+will allow direct use of JSON Schema, possibly supported by our
+https://github.com/juxt/apex[jinx] library.
+
+=== Content Negotiation
+
+_yada_ supports a limited form of content negotiation, but is unable to use the
+response status code in its determination of available variants. In Spin, the
+status code is computed earlier, and can be used in content negotiation. This is
+particularly relevant to OpenAPI, which allows for different status codes their
+own variants.
+
+Spin aligns directly with OpenAPI's declaration hierarchy: paths -> operations
+-> statuses -> content-types. In comparison, in _yada_, the available
+content-types for a given resource are usually declared statically, without
+taking the response status code into consideration. Error representations, in
+particular, are fixed, whereas in Spin all representations are computed
+dynamically, and can be determined by the response's status code.
+
+For proactive (server-driven) content negotiation, Spin is designed to
+interoperate with external algorithms, in particular, with
+https://github.com/juxt/pick[pick].
+
+[appendix]
 == License
 
 The MIT License (MIT)
