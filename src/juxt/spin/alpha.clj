@@ -179,8 +179,8 @@
   (let [{::keys [validate-request!]} resource
         ctx (if validate-request!
               (validate-request!
-               ;; If we assoc a 400 into response, there's less chance of the
-               ;; user accidentally sending through a 200.
+               ;; If we assoc a 400 into the response, there's less chance of
+               ;; the user accidentally sending through a 200.
                (assoc ctx ::response {:ring.response/status 400}))
               ctx)]
     (when ctx (http-method ctx))))
