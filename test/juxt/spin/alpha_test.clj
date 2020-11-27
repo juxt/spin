@@ -207,8 +207,20 @@
        (request :head "/")
        [:ring.response/status :ring.response/body "content-length"])))))
 
+(deftest allow-test
+  (is
+   (=
+    {:ring.response/status 405
+     :ring.response/headers {"allow" "GET, HEAD"}}
+    (response-for
+
+     {::spin/resource {}}
+
+     (request :post "/")
+     [:ring.response/status "allow"]))))
+
 (deftest post-request-test
-  (testing "responds with 405 (Method Not Allowed) if POST but no post! callback"
+  (testing "responds with 405 (Method Not Allowed) if POST but no post callback"
     (is
      (=
       {:ring.response/status 405}
@@ -226,10 +238,11 @@
       (response-for
 
        {::spin/resource
-        {::spin/post!
-         (fn [ctx]
-           ;; A real implementation would do some processing here.
-           (spin/resource-created! ctx "/new-resource"))}}
+        {::spin/methods
+         {:post
+          (fn [ctx]
+            ;; A real implementation would do some processing here.
+            (spin/resource-created! ctx "/new-resource"))}}}
 
        (request :post "/")
        [:ring.response/status "location"])))))

@@ -341,13 +341,34 @@ further details.
 
 // TODO: Add an example of Reactive Negotiation
 
-==== `post!`
+==== `methods`
+
+A map that maps method keywords to their implementations.
+
+.Declaring methods on a resource
+====
+To indicate the methods on a resource, add a `::spin/methods` entry.
+
+[source,clojure]
+----
+{::spin/resource
+  {::spin/methods
+    {:post
+      (fn [ctx]
+        ;; Insert new record into database
+        (spin/resource-created! ctx "/new-resource"))}}}
+----
+====
+
+The implementations are as follows.
+
+===== `post`
 
 A function that takes the context as an argument.
 
 The function is called on a POST request.
 
-The `post!` function is responsible for any data processing associated with a
+The `post` function is responsible for any data processing associated with a
 POST. If a new resource is created, it should respond with a 201 status and a
 `Location` header containing the URL of the new resource. A convenience function
 is available (`juxt.spin.alpha/resource-created!`) which does this.
@@ -358,13 +379,13 @@ argument with the (Ring 2.0) response as an argument.
 See link:https://tools.ietf.org/html/rfc7231.html#section-4.3.3[Section 4.3.3 of
 RFC 7231] for further details.
 
-==== `put!`
+===== `put`
 
 A function that takes the context as an argument.
 
 The function is called on a PUT request.
 
-Generally speaking, the `put!` function is responsible for replacing the state
+Generally speaking, the `put` function is responsible for replacing the state
 of the target resource with the representation enclosed in the request message
 payload.
 
@@ -375,7 +396,7 @@ See
 https://tools.ietf.org/html/rfc7231.html#section-4.3.4[Section 4.3.4 of RFC
 7231] for further details.
 
-==== `delete!`
+===== `delete`
 
 A function that takes the context as an argument.
 

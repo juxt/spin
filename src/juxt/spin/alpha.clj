@@ -2,6 +2,7 @@
 
 (ns juxt.spin.alpha
   (:require
+   [clojure.string :as str]
    [clojure.spec.alpha :as s]
    [juxt.spin.alpha.util :as util])
   (:import
@@ -125,6 +126,19 @@
             :head
             (respond! response)))))))
 
+(defn method-not-allowed [{::keys [respond! resource] :as ctx}]
+  (respond!
+   {:ring.response/status 405
+    :ring.response/headers
+    {"allow"
+     (str/join
+      ", "
+      (map
+       (comp str/upper-case name)
+       (into
+        [:get :head]
+        (keys (::methods resource)))))}}))
+
 (defmulti http-method
   (fn [{::keys [request]}] (:ring.request/method request))
   :default ::default)
@@ -135,20 +149,20 @@
 (defmethod http-method :head [ctx]
   (get-or-head ctx))
 
-(defmethod http-method :post [{::keys [resource respond!] :as ctx}]
-  (if-let [method! (::post! resource)]
+(defmethod http-method :post [{::keys [resource] :as ctx}]
+  (if-let [method! (get-in resource [::methods :post])]
     (method! ctx)
-    (respond! {:ring.response/status 405})))
+    (method-not-allowed ctx)))
 
-(defmethod http-method :put [{::keys [resource respond!] :as ctx}]
-  (if-let [method! (::put! resource)]
+(defmethod http-method :put [{::keys [resource] :as ctx}]
+  (if-let [method! (get-in resource [::methods :put])]
     (method! ctx)
-    (respond! {:ring.response/status 405})))
+    (method-not-allowed ctx)))
 
 (defmethod http-method :delete [{::keys [resource respond!] :as ctx}]
-  (if-let [method! (::delete! resource)]
+  (if-let [method! (get-in resource [::methods :delete])]
     (method! ctx)
-    (respond! {:ring.response/status 405})))
+    (method-not-allowed ctx)))
 
 (defn resource-created! [{::keys [respond! response]} location]
   (respond!
