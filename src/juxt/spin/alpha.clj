@@ -10,7 +10,7 @@
 (defn modified-since? [^Date this ^Date other]
   (.isAfter (.toInstant this) (.toInstant other)))
 
-(defn precondition-failed? [request representation]
+(defn not-modified? [request representation]
   ;; "… a server MUST ignore the conditional request header fields … when
   ;; received with a request method that does not involve the selection or
   ;; modification of a selected representation, such as CONNECT, OPTIONS, or
@@ -60,7 +60,7 @@
       ;; whether the request is conditional until we have determined its status
       ;; code.
       (cond
-        (precondition-failed? request representation)
+        (not-modified? request representation)
         (respond! {:ring.response/status 304})
 
         :else
