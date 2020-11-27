@@ -219,42 +219,63 @@
            [:ring.response/status :ring.response/body]))))))
 
 (deftest options-test
-  (is (= {:ring.response/status 200,
-          :ring.response/headers {"allow" "DELETE, OPTIONS"}}
-         (-> {::spin/representation
-              {::spin/content "Hello World!\n"}
-              ::spin/methods
-              {:delete (fn [_] (throw (ex-info "" {})))}}
-             (response-for
-              (request :options "/")
-              [:ring.response/status "allow"]))))
+  (testing "Default Allow header includes GET, HEAD and OPTIONS"
+    (is (= {:ring.response/status 200,
+            :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}}
+           (-> {::spin/representation
+                {::spin/content "Hello World!\n"}}
+               (response-for
+                (request :options "/")
+                [:ring.response/status "allow"])))))
 
-  (is (= {:ring.response/status 200,
-          :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}}
-         (-> {::spin/representation
-              {::spin/content "Hello World!\n"}}
-             (response-for
-              (request :options "/")
-              [:ring.response/status "allow"]))))
+  (testing "Allow header reveals declared methods"
+    (is (= {:ring.response/status 200,
+            :ring.response/headers {"allow" "DELETE, OPTIONS"}}
+           (-> {::spin/representation
+                {::spin/content "Hello World!\n"}
+                ::spin/methods
+                {:delete (fn [_] (throw (ex-info "" {})))}}
+               (response-for
+                (request :options "/")
+                [:ring.response/status "allow"])))))
 
-  (is (= {:ring.response/status 200,
-          :ring.response/headers {"allow" "GET, HEAD, PUT, OPTIONS"}}
-         (-> {::spin/representation
-              {::spin/content "Hello World!\n"}
-              ::spin/methods
-              {:get (fn [_] (throw (ex-info "" {})))
-               :put (fn [_] (throw (ex-info "" {})))}}
-             (response-for
-              (request :options "/")
-              [:ring.response/status "allow"]))))
+  (testing "Allow header includes HEAD when GET declared"
+    (is (= {:ring.response/status 200,
+            :ring.response/headers {"allow" "GET, HEAD, PUT, OPTIONS"}}
+           (-> {::spin/representation
+                {::spin/content "Hello World!\n"}
+                ::spin/methods
+                {:get (fn [_] (throw (ex-info "" {})))
+                 :put (fn [_] (throw (ex-info "" {})))}}
+               (response-for
+                (request :options "/")
+                [:ring.response/status "allow"])))))
 
-  (is (= {:ring.response/status 200,
-          :ring.response/headers {"content-length" "0"}}
-         (-> {::spin/representation
-              {::spin/content "Hello World!\n"}}
-             (response-for
-              (request :options "/")
-              [:ring.response/status "content-length"])))))
+  (testing "Content-Length set to 0 when no payload"
+    (is (= {:ring.response/status 200,
+            :ring.response/headers {"content-length" "0"}}
+           (-> {::spin/representation
+                {::spin/content "Hello World!\n"}}
+               (response-for
+                (request :options "/")
+                [:ring.response/status "content-length"])))))
+
+  (testing "OPTIONS can be overridden with a custom implementation"
+    ;; The default OPTIONS implementation doesn't support extensions. Therefore,
+    ;; its implementation can be easily overridden.
+    (is (= {:ring.response/status 200,
+            :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}
+            :ring.response/body "Custom options"}
+           (-> {::spin/representation
+                {::spin/content "Hello World!\n"}
+                ::spin/methods
+                {:options
+                 (fn [{::spin/keys [respond!]}]
+                   (respond! {:ring.response/status 200
+                              :ring.response/body "Custom options"}))}}
+               (response-for
+                (request :options "/")
+                [:ring.response/status "allow" :ring.response/body]))))))
 
 ;; RFC 7232
 (deftest conditional-get-request-test

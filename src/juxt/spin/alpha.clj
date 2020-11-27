@@ -92,11 +92,14 @@
 
 (defn allow-header [resource]
   (->>
-   (if-let [methods (::methods resource)]
-     (concat (keys methods) [:options])
+   (if (and
+        (::methods resource)
+        (seq (dissoc (::methods resource) :get :head :options)))
+     (concat (keys (::methods resource)) [:options])
      [:get :options])
    ;; if GET is included, so is HEAD
    (mapcat (fn [method] (if (= :get method) [:get :head] [method])))
+   distinct
    (map (comp str/upper-case name))
    (str/join ", ")))
 
@@ -111,12 +114,25 @@
     (method! ctx)
     (method-not-allowed ctx)))
 
-(defn options [{::keys [respond! resource]}]
-  (respond!
-   {:ring.response/status 200
-    :ring.response/headers
-    {"allow" (allow-header resource)
-     "content-length" "0"}}))
+(defn options [{::keys [respond! resource] :as ctx}]
+  (let [allow (allow-header resource)]
+    (if-let [method! (get-in resource [::methods :options])]
+      (method!
+       (assoc
+        ctx
+        ::respond!
+        ;; We add the Allow header to custom implementations so they don't have
+        ;; to recompute it.
+        (fn [response]
+          (respond!
+           (assoc-in response [:ring.response/headers "allow"] allow)))
+        ;; But we allow direct access to respond! as well (TODO: document this)
+        ::raw-respond! respond!))
+      (respond!
+       {:ring.response/status 200
+        :ring.response/headers
+        {"allow" (allow-header resource)
+         "content-length" "0"}}))))
 
 (defmethod http-method :get [ctx] (get-or-head ctx))
 (defmethod http-method :head [ctx] (get-or-head ctx))
