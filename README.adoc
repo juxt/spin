@@ -282,7 +282,7 @@ further details.
 
 A map that maps method keywords to their implementations.
 
-.Declaring methods on a resource
+.Declaring methods
 ====
 To indicate the methods on a resource, add a `::spin/methods` entry.
 
@@ -324,6 +324,11 @@ The function is called on a PUT request.
 Generally speaking, the `put` function is responsible for replacing the state
 of the target resource with the representation enclosed in the request message
 payload.
+
+Like the `post` method, a PUT should respond with a 201 status is the target
+resource doesn't have a representation until the PUT successfully creates
+one. Otherwise, it should respond with a 200 (or 204) to indicate successful
+modification of an existing representation.
 
 To respond, it should call the `respond!` function provided in the context
 argument with the (Ring 2.0) response as an argument.
