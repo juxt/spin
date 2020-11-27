@@ -16,18 +16,22 @@
   ;; modification of a selected representation, such as CONNECT, OPTIONS, or
   ;; TRACE." -- Section 5, RFC 7232
   (when (not (#{:connect :options :trace} (:ring.request/method request)))
-
-
     (let [last-modified (::last-modified representation)
-          if-modified-since (when last-modified (some-> (get-in request [:ring.request/headers "if-modified-since"]) util/parse-http-date))
+
+          if-modified-since
+          (when last-modified
+            (some-> (get-in request [:ring.request/headers "if-modified-since"])
+                    util/parse-http-date))
 
           entity-tag (::entity-tag representation)
-          if-none-match (when entity-tag
-                          (some->>
-                           (get-in request [:ring.request/headers "if-none-match"])
-                           util/parse-if-none-match
-                           (map (comp :juxt.reap.alpha.rfc7232/opaque-tag :juxt.reap.alpha.rfc7232/entity-tag))
-                           set))]
+
+          if-none-match
+          (when entity-tag
+            (some->>
+             (get-in request [:ring.request/headers "if-none-match"])
+             util/parse-if-none-match
+             (map (comp :juxt.reap.alpha.rfc7232/opaque-tag :juxt.reap.alpha.rfc7232/entity-tag))
+             set))]
       (cond
         (and (seq if-none-match) entity-tag)
         (if-none-match entity-tag)
@@ -131,7 +135,7 @@
               ctx)]
     (when ctx (http-method ctx))))
 
-(defn process-request! [{::keys [respond! resource] :as ctx}]
+(defn handle-errors! [{::keys [respond! resource] :as ctx}]
   (let [raise!
         (fn [e]
           (let [data (ex-data e)
@@ -226,7 +230,7 @@
 (defn handler [resource]
   (->
    (fn [request respond! raise!]
-     (process-request!
+     (handle-errors!
       {::resource resource
        ::request request
        ::respond! respond!
