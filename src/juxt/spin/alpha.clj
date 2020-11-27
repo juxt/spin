@@ -90,29 +90,42 @@
   (fn [{::keys [request]}] (:ring.request/method request))
   :default ::default)
 
+(defn allow-header [resource]
+  (->>
+   (if-let [methods (::methods resource)]
+     (concat (keys methods) [:options])
+     [:get :options])
+   ;; if GET is included, so is HEAD
+   (mapcat (fn [method] (if (= :get method) [:get :head] [method])))
+   (map (comp str/upper-case name))
+   (str/join ", ")))
+
 (defn method-not-allowed [{::keys [respond! resource]}]
   (respond!
    {:ring.response/status 405
     :ring.response/headers
-    {"allow"
-     (str/join
-      ", "
-      (map
-       (comp str/upper-case name)
-       (into
-        [:get :head]
-        (keys (::methods resource)))))}}))
+    {"allow" (allow-header resource)}}))
 
 (defn common-method [{::keys [request resource] :as ctx}]
   (if-let [method! (get-in resource [::methods (:ring.request/method request)])]
     (method! ctx)
     (method-not-allowed ctx)))
 
+(defn options [{::keys [respond! resource]}]
+  (respond!
+   {:ring.response/status 200
+    :ring.response/headers
+    {"allow" (allow-header resource)
+     "content-length" "0"}}))
+
 (defmethod http-method :get [ctx] (get-or-head ctx))
 (defmethod http-method :head [ctx] (get-or-head ctx))
 (defmethod http-method :post [ctx] (common-method ctx))
 (defmethod http-method :put [ctx] (common-method ctx))
 (defmethod http-method :delete [ctx] (common-method ctx))
+(defmethod http-method :connect [ctx] (method-not-allowed ctx))
+(defmethod http-method :options [ctx] (options ctx))
+(defmethod http-method :trace [ctx] (method-not-allowed ctx))
 
 (defn resource-created! [{::keys [respond! response]} location]
   (respond!

@@ -131,7 +131,7 @@
   (is
    (=
     {:ring.response/status 405
-     :ring.response/headers {"allow" "GET, HEAD"}}
+     :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}}
     (response-for
      {}
      (request :post "/")
@@ -218,8 +218,45 @@
            (request :get "/")
            [:ring.response/status :ring.response/body]))))))
 
-;; RFC 7232
+(deftest options-test
+  (is (= {:ring.response/status 200,
+          :ring.response/headers {"allow" "DELETE, OPTIONS"}}
+         (-> {::spin/representation
+              {::spin/content "Hello World!\n"}
+              ::spin/methods
+              {:delete (fn [_] (throw (ex-info "" {})))}}
+             (response-for
+              (request :options "/")
+              [:ring.response/status "allow"]))))
 
+  (is (= {:ring.response/status 200,
+          :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}}
+         (-> {::spin/representation
+              {::spin/content "Hello World!\n"}}
+             (response-for
+              (request :options "/")
+              [:ring.response/status "allow"]))))
+
+  (is (= {:ring.response/status 200,
+          :ring.response/headers {"allow" "GET, HEAD, PUT, OPTIONS"}}
+         (-> {::spin/representation
+              {::spin/content "Hello World!\n"}
+              ::spin/methods
+              {:get (fn [_] (throw (ex-info "" {})))
+               :put (fn [_] (throw (ex-info "" {})))}}
+             (response-for
+              (request :options "/")
+              [:ring.response/status "allow"]))))
+
+  (is (= {:ring.response/status 200,
+          :ring.response/headers {"content-length" "0"}}
+         (-> {::spin/representation
+              {::spin/content "Hello World!\n"}}
+             (response-for
+              (request :options "/")
+              [:ring.response/status "content-length"])))))
+
+;; RFC 7232
 (deftest conditional-get-request-test
   (let [res
         {::spin/representation
