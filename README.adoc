@@ -347,17 +347,17 @@ link:https://tools.ietf.org/html/rfc7231.html#section-4.3.5[Section 4.3.5 of RFC
 
 === Request map entries
 
-==== `request` (provided)
+==== `request`
 
 A map describing a Ring request, see
 https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md
 
-==== `respond!` (provided)
+==== `respond!`
 
 A callback function that is used to return a Ring response, which is map. See
 https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
 
-==== `raise!` (provided)
+==== `raise!`
 
 A callback function that is used to raise any errors. See
 https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
