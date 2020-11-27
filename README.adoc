@@ -228,14 +228,14 @@ database lookup.
 [[representation]]
 ==== `representation`
 
-The representation meta-data of the current representation of the target
+The representation metadata of the current representation of the target
 resource, as a map.
 
 If this is present, then it will determine the response for a GET request.
 
-WARNING: Don't forget to add this (or `select-representation!` below). If this
-isn't provided, then you'll get a 404 response for a GET. This might be
-surprising!
+WARNING: Don't forget to add this (or
+<<select-representation,`select-representation!`>> below). If this isn't
+provided, then you'll get a 404 response for a GET. This might be surprising!
 
 [[select-representation]]
 ==== `select-representation!`
@@ -255,7 +255,9 @@ Proactive content negotiation may be employed to determine the representation.
 // TODO: Add an example of using pick to select and return a single
 // representation map.
 
-If there are no representations, regardless of their acceptability, you MUST respond with a 404 response, calling the `:respond!` function provided in the context argument.
+If there are no representations, regardless of their acceptability, you MUST
+respond with a 404 response, calling the `:respond!` function provided in the
+context argument.
 
 // TODO: Add an example of a 404
 
@@ -272,9 +274,11 @@ doesn't conform to the user agent's preferences" might be "better than sending a
 
 // TODO: Add an example of returning a single representation
 
-Finally, if you wish to use https://tools.ietf.org/html/rfc7231.html#section-3.4.2[Reactive Negotiation], respond with a 300 response
-with the response payload of your choosing. See https://tools.ietf.org/html/rfc7231.html#section-3.4.2[Section 3.4.2 of RFC 7231] for
-further details.
+Finally, if you wish to use
+https://tools.ietf.org/html/rfc7231.html#section-3.4.2[Reactive Negotiation],
+respond with a 300 response with the response payload of your choosing. See
+https://tools.ietf.org/html/rfc7231.html#section-3.4.2[Section 3.4.2 of RFC
+7231] for further details.
 
 // TODO: Add an example of Reactive Negotiation
 
@@ -350,6 +354,50 @@ See
 link:https://tools.ietf.org/html/rfc7231.html#section-4.3.5[Section 4.3.5 of RFC
 7231] for further details.
 
+=== Representations
+
+Both <<representation,`representation`>> and
+<<select-representation,`select-representation!`>> return representation
+metadata. This is a Clojure map which can contain any data, but entries with
+keywords in the `juxt.spin.alpha` are meaningful to Spin.
+
+==== `respond!`
+
+A representation can declare a single-arity function which will generate the
+actual Ring response.
+
+If this is not provided, then Spin will do its best to return a representation
+defined by the representation metadata in the map.
+
+==== `content`
+
+The representation's content, the body of a GET response, as a string.
+
+==== `content-type`
+
+The media-type of the representation.
+
+==== `content-encoding`
+
+How the representation's content is encoded.
+
+==== `content-language`
+
+How natural language (or languages) of the representation.
+
+// TODO: How are multiple languages to be specified? See pick
+
+==== `content-language`
+
+The URL of the content, if different to the URL of the resource.
+
+==== `content-length`
+
+The length, in bytes, of the representation's content.
+
+==== `content-range`
+
+The partial byte-range of the representation.
 
 === Request context
 
@@ -374,6 +422,16 @@ https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
 ==== `resource`
 
 The target resource, as a map. See <<resource-map>>.
+
+=== Keyword naming
+
+Keywords are all in the `juxt.spin.alpha` namespace, unless otherwise stated.
+
+Keywords that end in a `!` indicate functions that can directly produce a Ring
+response via the `respond!` callback provided in the first parameter of the
+function. Sending a response back to the user agent is certainly a side-effect,
+so the Clojure convention is adopted of marking functions that potentially cause
+side-effects.
 
 [appendix]
 == Comparison to _yada_
