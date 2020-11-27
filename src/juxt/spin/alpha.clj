@@ -153,12 +153,20 @@
   (common-method ctx))
 
 (defmethod http-method :get [ctx] (GET ctx))
+
+;; This is NOT a typo, a HEAD purposely calls into the GET method
 (defmethod http-method :head [ctx] (GET ctx))
+
 (defmethod http-method :post [ctx] (POST ctx))
+
 (defmethod http-method :put [ctx] (PUT ctx))
+
 (defmethod http-method :delete [ctx] (DELETE ctx))
+
 (defmethod http-method :connect [ctx] (method-not-allowed ctx))
+
 (defmethod http-method :options [ctx] (OPTIONS ctx))
+
 (defmethod http-method :trace [ctx] (method-not-allowed ctx))
 
 (defn resource-created! [{::keys [respond! response]} location]
