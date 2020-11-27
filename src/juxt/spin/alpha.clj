@@ -58,7 +58,7 @@
     :ring.response/headers
     {"allow" (allow-header resource)}}))
 
-(defn- get-or-head [{::keys [request resource respond! raise!] :as ctx}]
+(defn GET [{::keys [request resource respond! raise!] :as ctx}]
   (if (::methods resource)
     (if-let [get! (get-in resource [::methods :get])]
       (get! ctx)
@@ -123,7 +123,7 @@
     (method! ctx)
     (method-not-allowed ctx)))
 
-(defn options [{::keys [respond! resource] :as ctx}]
+(defn OPTIONS [{::keys [respond! resource] :as ctx}]
   (let [allow (allow-header resource)]
     (if-let [method! (get-in resource [::methods :options])]
       (method!
@@ -143,13 +143,13 @@
         {"allow" (allow-header resource)
          "content-length" "0"}}))))
 
-(defmethod http-method :get [ctx] (get-or-head ctx))
-(defmethod http-method :head [ctx] (get-or-head ctx))
+(defmethod http-method :get [ctx] (GET ctx))
+(defmethod http-method :head [ctx] (GET ctx))
 (defmethod http-method :post [ctx] (common-method ctx))
 (defmethod http-method :put [ctx] (common-method ctx))
 (defmethod http-method :delete [ctx] (common-method ctx))
 (defmethod http-method :connect [ctx] (method-not-allowed ctx))
-(defmethod http-method :options [ctx] (options ctx))
+(defmethod http-method :options [ctx] (OPTIONS ctx))
 (defmethod http-method :trace [ctx] (method-not-allowed ctx))
 
 (defn resource-created! [{::keys [respond! response]} location]
