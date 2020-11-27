@@ -39,57 +39,6 @@
         (and if-modified-since last-modified)
         (not (modified-since? last-modified if-modified-since))))))
 
-(defn- get-or-head [{::keys [request resource respond! raise!] :as ctx}]
-  (let [{::keys [representation select-representation!]} resource
-        response {:ring.response/status 200}
-        ctx (into {::response response} ctx)]
-
-    (when-let [representation
-               (or
-                representation
-                (if select-representation!
-                  (try
-                    (select-representation! (dissoc ctx ::respond! ::raise))
-                    (catch Exception e
-                      (raise! (ex-info "Failed to select a representation" {:ctx ctx} e))))
-                  (respond! {:ring.response/status 404})))]
-
-      ;; Now to evaluate conditional requests. Note that according to Section 5,
-      ;; RFC 7232, "redirects and failures take precedence over the evaluation
-      ;; of preconditions in conditional requests." Therefore, we don't evaluate
-      ;; whether the request is conditional until we have determined its status
-      ;; code.
-      (cond
-        (not-modified? request representation)
-        (respond! {:ring.response/status 304})
-
-        :else
-        (let [ctx (assoc ctx ::representation representation)
-              response
-              (let [{::keys [content content-length content-type]} representation
-                    content-length (or content-length (when content (count content)))]
-                (cond-> response
-                  content-length
-                  (assoc-in [:ring.response/headers "content-length"] (str content-length))
-                  content-type
-                  (assoc-in [:ring.response/headers "content-type"] content-type)
-                  (and (= (:ring.request/method request) :get) content)
-                  (assoc :ring.response/body content)))
-
-              ctx (assoc ctx ::response response)]
-
-          (case (:ring.request/method request)
-            :get
-            (if-let [rep-respond! (::respond! representation)]
-              (rep-respond! ctx)
-              (respond! response))
-            :head
-            (respond! response)))))))
-
-(defmulti http-method
-  (fn [{::keys [request]}] (:ring.request/method request))
-  :default ::default)
-
 (defn allow-header [resource]
   (->>
    (if (and
@@ -108,6 +57,66 @@
    {:ring.response/status 405
     :ring.response/headers
     {"allow" (allow-header resource)}}))
+
+(defn- get-or-head [{::keys [request resource respond! raise!] :as ctx}]
+  (if (::methods resource)
+    (if-let [get! (get-in resource [::methods :get])]
+      (get! ctx)
+      (method-not-allowed ctx))
+
+    (let [{::keys [representation select-representation!]} resource
+          response {:ring.response/status 200}
+          ctx (into {::response response} ctx)]
+
+      ;; This is a 'when' not an 'ifi. It does not need an else clause, since
+      ;; the case where representation is nil (if representation is nil and
+      ;; select-representation! returns nil), the respond! callback is called to
+      ;; elicit a 404 response.
+      (when-let [representation
+                 (or
+                  representation
+                  (when select-representation!
+                    (try
+                      (select-representation! (dissoc ctx ::respond! ::raise))
+                      (catch Exception e
+                        (raise! (ex-info "Failed to select a representation" {:ctx ctx} e)))))
+                  (respond! {:ring.response/status 404}))]
+
+        ;; Now to evaluate conditional requests. Note that according to Section 5,
+        ;; RFC 7232, "redirects and failures take precedence over the evaluation
+        ;; of preconditions in conditional requests." Therefore, we don't evaluate
+        ;; whether the request is conditional until we have determined its status
+        ;; code.
+        (cond
+          (not-modified? request representation)
+          (respond! {:ring.response/status 304})
+
+          :else
+          (let [ctx (assoc ctx ::representation representation)
+                response
+                (let [{::keys [content content-length content-type]} representation
+                      content-length (or content-length (when content (count content)))]
+                  (cond-> response
+                    content-length
+                    (assoc-in [:ring.response/headers "content-length"] (str content-length))
+                    content-type
+                    (assoc-in [:ring.response/headers "content-type"] content-type)
+                    (and (= (:ring.request/method request) :get) content)
+                    (assoc :ring.response/body content)))
+
+                ctx (assoc ctx ::response response)]
+
+            (case (:ring.request/method request)
+              :get
+              (if-let [rep-respond! (::respond! representation)]
+                (rep-respond! ctx)
+                (respond! response))
+              :head
+              (respond! response))))))))
+
+(defmulti http-method
+  (fn [{::keys [request]}] (:ring.request/method request))
+  :default ::default)
 
 (defn common-method [{::keys [request resource] :as ctx}]
   (if-let [method! (get-in resource [::methods (:ring.request/method request)])]
