@@ -135,6 +135,26 @@
               ctx)]
     (when ctx (http-method ctx))))
 
+(defn add-date! [{::keys [respond!] :as ctx}]
+  (validate-request!
+   (assoc
+    ctx
+    ::respond!
+    (fn [response]
+      (let [status (get response :ring.response/status 200)
+            inst (java.util.Date.)]
+        (respond!
+         (cond-> response
+           ;; While Section 7.1.1.2 of RFC 7232 states: "An origin server
+           ;; MAY send a Date header field if the response is in the 1xx
+           ;; (Informational) or 5xx (Server Error) class of status
+           ;; codes.", we choose not to, as it cannot be used for
+           ;; cacheing.
+           (and (>= status 200) (< status 500))
+           (assoc-in
+            [:ring.response/headers "date"]
+            (util/format-http-date inst)))))))))
+
 (defn handle-errors! [{::keys [respond! resource] :as ctx}]
   (let [raise!
         (fn [e]
@@ -196,30 +216,12 @@
                 response)))))]
 
     (try
-      (validate-request!
+      (add-date!
        (assoc ctx ::raise! raise!))
       ;; Also, catch any exceptions that are thrown by this calling thread which
       ;; slip through uncaught.
       (catch Exception e
         (raise! e)))))
-
-(defn wrap-date [h]
-  (fn [req respond raise]
-    (h req (fn [response]
-             (let [status (get response :ring.response/status 200)
-                   inst (java.util.Date.)]
-               (respond
-                (cond-> response
-                  ;; While Section 7.1.1.2 of RFC 7232 states: "An origin server
-                  ;; MAY send a Date header field if the response is in the 1xx
-                  ;; (Informational) or 5xx (Server Error) class of status
-                  ;; codes.", we choose not to, as it cannot be used for
-                  ;; cacheing.
-                  (and (>= status 200) (< status 500))
-                  (assoc-in
-                   [:ring.response/headers "date"]
-                   (util/format-http-date inst))))))
-       raise)))
 
 (defn wrap-server [h]
   (fn [req respond raise]
@@ -235,6 +237,5 @@
        ::request request
        ::respond! respond!
        ::raise! raise!}))
-   wrap-date
    wrap-server
    util/sync-adapt))
