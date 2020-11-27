@@ -91,7 +91,7 @@
                   (try
                     (select-representation! (dissoc ctx ::respond! ::raise))
                     (catch Exception e
-                      (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))
+                      (raise! (ex-info "Failed to select a representation" {:ctx ctx} e))))
                   (respond! {:ring.response/status 404})))]
 
       ;; Now to evaluate conditional requests. Note that according to Section 5,
@@ -185,90 +185,73 @@
               ctx)]
     (when ctx (http-method ctx))))
 
-(defn locate-resource!
-  [{::keys [locate-resource! resource raise!] :as ctx}]
-  (when-let
-      ;; If the resource is nil, this indicates the locate-resource callback has
-      ;; responded itself.
-      [resource
-       (cond
-         resource resource
-         locate-resource!
-         (try
-           (locate-resource! ctx)
-           (catch Exception e
-             (raise! (ex-info "Failed to locate-resource" {:ctx ctx} e))))
-         :else {})]
+(defn process-request! [{::keys [respond! resource] :as ctx}]
+  (let [raise!
+        (fn [e]
+          (let [data (ex-data e)
+                response (into {:ring.response/status 500} data)]
 
-      (let [ctx (assoc ctx ::resource resource)]
-        (validate-request! ctx))))
+            (if-let [select-representation! (::select-representation! resource)]
+              (try
+                (let [representation
+                      (try
+                        (select-representation!
+                         (assoc ctx ::response response))
+                        (catch Exception e
+                          (respond! {:ring.response/status 500
+                                     ;; Only in dev mode!
+                                     :ring.response/body
+                                     (pr-str
+                                      (ex-info
+                                       "Failed to select a representation for cause"
+                                       {:underlying-error e}))})))
+                      custom-respond! (::respond! representation)]
 
-(s/fdef locate-resource!
-  :args (s/cat :ctx (s/keys :req []
-                            :opt [::locate-resource!
-                                  ::resource]))
-  ;; A nil means the locate-resource chooses to respond itself
-  :ret (s/nilable ::resource))
+                  (if custom-respond!
+                    ;; Let the representation handle the response, including
+                    ;; setting all the response header fields correctly.
+                    ;; TODO: Shouldn't we help it a little, at least with content-length?
+                    (custom-respond! (assoc ctx ::response response))
 
-(defn wrap-catch-exception [h ctx]
-  ;; TODO: ctx is the 'initial context'. We should try to capture the resource,
-  ;; if it's in scope. We may be able to wrap the `raise!` callback when a
-  ;; resource is located, such that it is available to this wrapper.
-  (fn [req respond raise]
-    ;; This is duplicate logic to what happens in handler - we should maybe
-    ;; construct middleware around ctx passing?
-    (let [ctx (conj ctx {::request req
-                         ::respond! respond
-                         ::raise! raise})]
-      (h
-       req respond
-       (fn [e]
-         (let [data (ex-data e)
-               response (into {:ring.response/status 500} data)]
+                    ;; TODO: Try to format the content according to the representation
+                    ;; metadata. If it's a string, or byte[], then assume it's
+                    ;; encoded correctly and respond with that. Otherwise, if it's
+                    ;; a Clojure structure, convert to a string under the
+                    ;; representation metadata.
+                    (let [{::keys [content content-length content-type]} representation
+                          content-length (or content-length (when content (count content)))
+                          response
+                          (cond-> response
+                            content-length
+                            (assoc-in [:ring.response/headers "content-length"] (str content-length))
+                            content-type
+                            (assoc-in [:ring.response/headers "content-type"] content-type)
+                            content
+                            (assoc :ring.response/body content))]
+                      (assert respond!)
+                      (respond! response))))
 
-           (if-let [error-representation (::error-representation ctx)]
-             (try
-               (let [representation (error-representation (dissoc ctx ::respond! ::raise))
-                     custom-respond! (::respond! representation)]
+                (catch Exception e
+                  ;; Recover and use a plain-text representation
 
-                 (if custom-respond!
-                   ;; Let the representation handle the response, including
-                   ;; setting all the response header fields correctly.
-                   ;; TODO: Shouldn't we help it a little, at least with content-length?
-                   (custom-respond! (assoc ctx ::response response))
+                  (respond!
+                   (into {:ring.response/headers {"content-type" "text/plain;charset=utf-8"}
+                          :ring.response/body (str "Failure when selecting representation: " (pr-str e))}
+                         response))))
+              ;; otherwise, if no select-representation!
+              (respond!
+               (into
+                {:ring.response/headers {"content-type" "text/plain;charset=utf-8"}
+                 :ring.response/body (pr-str e)}
+                response)))))]
 
-                   ;; TODO: Try to format the content according to the representation
-                   ;; metadata. If it's a string, or byte[], then assume it's
-                   ;; encoded correctly and respond with that. Otherwise, if it's
-                   ;; a Clojure structure, convert to a string under the
-                   ;; representation metadata.
-                   (let [{::keys [content content-length content-type respond!]} representation
-                         content-length (or content-length (when content (count content)))
-                         response
-                         (cond-> response
-                           content-length
-                           (assoc-in [:ring.response/headers "content-length"] (str content-length))
-                           content-type
-                           (assoc-in [:ring.response/headers "content-type"] content-type)
-                           content
-                           (assoc :ring.response/body content))]
-                     (respond response))))
-
-               (catch Exception e
-                 ;; Recover and use a plain-text representation
-
-                 (respond
-                  (into {:ring.response/headers {"content-type" "text/plain;charset=utf-8"}
-                         :ring.response/body (str "Failure when selecting representation: " (pr-str e))}
-                        response
-                        ))))
-
-             (into
-              {:ring.response/headers {"content-type" "text/plain;charset=utf-8"}
-               :ring.response/body (pr-str e)}
-              response)
-
-             )))))))
+    (try
+      (validate-request!
+       (assoc ctx ::raise! raise!))
+      ;; Also, catch any exceptions that are thrown by this calling thread which
+      ;; slip through uncaught.
+      (catch Exception e
+        (raise! e)))))
 
 (defn wrap-date [h]
   (fn [req respond raise]
@@ -294,13 +277,14 @@
              (respond (assoc-in response [:ring.response/headers "server"] "Spin")))
        raise)))
 
-(defn handler [ctx]
-  (-> (fn [request respond! raise!]
-        (locate-resource!
-         (conj ctx {::request request
-                    ::respond! respond!
-                    ::raise! raise!})))
-      (wrap-catch-exception ctx)
-      wrap-date
-      wrap-server
-      sync-adapt))
+(defn handler [resource]
+  (->
+   (fn [request respond! raise!]
+     (process-request!
+      {::request request
+       ::respond! respond!
+       ::raise! raise!
+       ::resource resource}))
+   wrap-date
+   wrap-server
+   sync-adapt))

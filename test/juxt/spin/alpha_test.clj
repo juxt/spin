@@ -3,12 +3,9 @@
 (ns juxt.spin.alpha-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [clojure.spec.test.alpha :as stest]
    [juxt.spin.alpha :as spin]
    [juxt.spin.alpha.util :as util]
    [juxt.spin.alpha.test-util :refer [response-for request header]]))
-
-(stest/instrument `spin/locate-resource!)
 
 (deftest unknown-method-test
   (testing "responds with 501 for unknown method"
@@ -16,9 +13,7 @@
      (=
       {:ring.response/status 501}
       (response-for
-
-       {::spin/locate-resource! (fn [_] {})}
-
+       {}
        (request :brew "/")
        [:ring.response/status])))))
 
@@ -28,63 +23,9 @@
      (=
       {:ring.response/status 404}
       (response-for
-
-       {::spin/resource {}}
-
-       (request :get "/")
-       [:ring.response/status]))))
-
-  (testing "responds with 404 if no resource or locate-resource! callback"
-    ;; The resource will default to {}, which has no current representation
-    (is
-     (=
-      {:ring.response/status 404}
-      (response-for
-
        {}
-
        (request :get "/")
        [:ring.response/status]))))
-
-  (testing "responds with 404 if locate-resource! returns an empty resource"
-    (is
-     (=
-      {:ring.response/status 404}
-      (response-for
-
-       {::spin/locate-resource!
-        (fn [_] {})}
-
-       (request :get "/")
-       [:ring.response/status]))))
-
-  (testing "locate-resource! can respond"
-    (is
-     (=
-      {:ring.response/status 400}
-      (response-for
-
-       {::spin/locate-resource!
-        (fn [{::spin/keys [respond!]}]
-          (respond! {:ring.response/status 400}))}
-
-       (request :get "/")
-       [:ring.response/status]))))
-
-  (testing "resource overrides locate-resource!"
-    (is
-     (= {:ring.response/status 404}
-        (response-for
-
-         {::spin/resource {}
-          ::spin/locate-resource!
-          (fn [{::spin/keys [respond!]}]
-            (respond!
-             ;; We'll return 400 so we can distinguish
-             {:ring.response/status 400}))}
-
-         (request :get "/")
-         [:ring.response/status]))))
 
   (testing "GET on 'Hello World!'"
     (is
@@ -93,12 +34,9 @@
        :ring.response/headers {"content-length" "13"}
        :ring.response/body "Hello World!\n"}
       (response-for
-
-       {::spin/resource
-        {::spin/representation
-         {::spin/content-type "text/plain"
-          ::spin/content "Hello World!\n"}}}
-
+       {::spin/representation
+        {::spin/content-type "text/plain"
+         ::spin/content "Hello World!\n"}}
        (request :get "/")
        [:ring.response/status :ring.response/body "content-length"]))))
 
@@ -109,13 +47,10 @@
        :ring.response/headers {"content-length" "13"}
        :ring.response/body "Hello World!\n"}
       (response-for
-
-       {::spin/resource
-        {::spin/select-representation!
-         (fn [_]
-           {::spin/content-type "text/plain"
-            ::spin/content "Hello World!\n"})}}
-
+       {::spin/select-representation!
+        (fn [_]
+          {::spin/content-type "text/plain"
+           ::spin/content "Hello World!\n"})}
        (request :get "/")
        [:ring.response/status :ring.response/body "content-length"]))))
 
@@ -126,19 +61,16 @@
        :ring.response/headers {"content-length" "13"}
        :ring.response/body "Hello World!\n"}
       (response-for
-
-       {::spin/resource
-        {::spin/select-representation!
-         (fn [_]
-           {::spin/content-type "text/plain"
-            ::spin/respond!
-            (fn [{::spin/keys [respond! response]}]
-              (respond!
-               (-> response
-                   (assoc :ring.response/body "Hello World!\n")
-                   (assoc-in [:ring.response/headers "content-length"]
-                             (str (count "Hello World!\n"))))))})}}
-
+       {::spin/select-representation!
+        (fn [_]
+          {::spin/content-type "text/plain"
+           ::spin/respond!
+           (fn [{::spin/keys [respond! response]}]
+             (respond!
+              (-> response
+                  (assoc :ring.response/body "Hello World!\n")
+                  (assoc-in [:ring.response/headers "content-length"]
+                            (str (count "Hello World!\n"))))))})}
        (request :get "/")
        [:ring.response/status :ring.response/body "content-length"]))))
 
@@ -146,29 +78,22 @@
     (is
      (= {:ring.response/status 400 :ring.response/body "Bad request!"}
         (response-for
-
-         {::spin/resource
-          {::spin/validate-request!
-           (fn [{::spin/keys [respond! response]}]
-             (respond! (assoc response :ring.response/body "Bad request!")))}}
-
+         {::spin/validate-request!
+          (fn [{::spin/keys [respond! response]}]
+            (respond! (assoc response :ring.response/body "Bad request!")))}
          (request :get "/")
          [:ring.response/status :ring.response/body])))))
 
 (deftest head-request-test
-
   (testing "HEAD on 'Hello World!'"
     (is
      (=
       {:ring.response/status 200
        :ring.response/headers {"content-length" "13"}}
       (response-for
-
-       {::spin/resource
-        {::spin/representation
-         {::spin/content-type "text/plain"
-          ::spin/content "Hello World!\n"}}}
-
+       {::spin/representation
+        {::spin/content-type "text/plain"
+         ::spin/content "Hello World!\n"}}
        (request :head "/")
        [:ring.response/status :ring.response/body "content-length"]))))
 
@@ -178,12 +103,10 @@
       {:ring.response/status 200
        :ring.response/headers {"content-length" "13"}}
       (response-for
-
-       {::spin/resource
-        {::spin/select-representation!
-         (fn [_]
-           {::spin/content-type "text/plain"
-            ::spin/content "Hello World!\n"})}}
+       {::spin/select-representation!
+        (fn [_]
+          {::spin/content-type "text/plain"
+           ::spin/content "Hello World!\n"})}
 
        (request :head "/")
        [:ring.response/status :ring.response/body "content-length"]))))
@@ -194,16 +117,13 @@
       {:ring.response/status 200
        :ring.response/headers {"content-length" "13"}}
       (response-for
-
-       {::spin/resource
-        {::spin/select-representation!
-         (fn [_]
-           {::spin/content-type "text/plain"
-            ::spin/content "Hello World!\n"
-            ::spin/respond!
-            (fn [{::spin/keys [respond! response]}]
-              (respond! response))})}}
-
+       {::spin/select-representation!
+        (fn [_]
+          {::spin/content-type "text/plain"
+           ::spin/content "Hello World!\n"
+           ::spin/respond!
+           (fn [{::spin/keys [respond! response]}]
+             (respond! response))})}
        (request :head "/")
        [:ring.response/status :ring.response/body "content-length"])))))
 
@@ -213,9 +133,7 @@
     {:ring.response/status 405
      :ring.response/headers {"allow" "GET, HEAD"}}
     (response-for
-
-     {::spin/resource {}}
-
+     {}
      (request :post "/")
      [:ring.response/status "allow"]))))
 
@@ -225,9 +143,7 @@
      (=
       {:ring.response/status 405}
       (response-for
-
-       {::spin/resource {}}
-
+       {}
        (request :post "/")
        [:ring.response/status]))))
 
@@ -236,28 +152,19 @@
      (=
       {:ring.response/status 201 :ring.response/headers {"location" "/new-resource"}}
       (response-for
-
-       {::spin/resource
-        {::spin/methods
-         {:post
-          (fn [ctx]
-            ;; A real implementation would do some processing here.
-            (spin/resource-created! ctx "/new-resource"))}}}
-
+       {::spin/methods
+        {:post
+         (fn [ctx]
+           ;; A real implementation would do some processing here.
+           (spin/resource-created! ctx "/new-resource"))}}
        (request :post "/")
        [:ring.response/status "location"])))))
 
 (deftest response-header-date-test
-  (-> {::spin/resource
-       {::spin/representation
-        {::spin/content "Hello World!\n"}}}
-
-      (response-for
-       (request :get "/")
-       [:ring.response/status "date"])
-
+  (-> {::spin/representation
+       {::spin/content "Hello World!\n"}}
+      (response-for (request :get "/") [:ring.response/status "date"])
       (get-in [:ring.response/headers "date"])
-
       util/parse-http-date inst? is))
 
 (deftest response-error-test
@@ -269,47 +176,42 @@
       "content-type" "text/plain;charset=utf-8"}
      :ring.response/body "ERROR!",}
 
-    (-> {::spin/resource
-         ;; The representation raises an error
-         {::spin/representation
-          {::spin/respond!
-           (fn [{::spin/keys [raise!]}]
-             (raise! (ex-info "Error" {})))}}
+    (->
+     {::spin/representation
+      {::spin/respond!
+       (fn [{::spin/keys [raise!]}]
+         (raise! (ex-info "Error" {})))}
+      ::spin/select-representation!
+      (fn [{::spin/keys [response]}]
+        (if (= (:ring.response/status response) 500)
+          {::spin/content-type "text/plain;charset=utf-8"
+           ::spin/content "ERROR!"}
+          {::spin/content-type "text/plain;charset=utf-8"
+           ::spin/content "Not 500 - test should fail"}))}
+     (response-for
+      (request :get "/")
+      [:ring.response/status :ring.response/body "content-length" "content-type"]))))
 
-         ;; A representation is selected from the error-representation
-         ;; callback. We may not have the resource here.
-
-         ::spin/error-representation
-         (fn [{::spin/keys [_]}]
-           {::spin/content-type "text/plain;charset=utf-8"
-            ::spin/content "ERROR!"})}
-        (response-for
-         (request :get "/")
-         [:ring.response/status :ring.response/body "content-length" "content-type"]))))
-
-  (testing "An error in the representation response is handled by the respond in the error-representation"
+  (testing "Custom response! in representation"
     (is
      (=
       {:ring.response/status 403,
-       :ring.response/body "Hello!",}
-      (-> {::spin/resource
-           ;; The representation raises an error
-           {::spin/representation
-            {::spin/respond!
-             (fn [{::spin/keys [raise!]}]
-               ;; TODO: Can we let the ring response body be set here?
-               (raise! (ex-info "Forbidden!" {:ring.response/status 403})))}}
+       :ring.response/body "Custom message: Something went wrong!"}
+      (-> {::spin/representation
+           {::spin/respond!
+            (fn [{::spin/keys [raise!]}]
+              ;; TODO: Can we let the ring response body be set here?
+              (raise! (ex-info "Forbidden!" {:ring.response/status 403})))}
 
-           ;; A representation is selected from the error-representation
-           ;; callback. We may not have the resource here.
-
-           ::spin/error-representation
-           (fn [{::spin/keys [_] :as ctx}]
+           ::spin/select-representation!
+           (fn [_]
              {::spin/respond!
-              (fn [{::spin/keys [respond! response] :as ctx}]
+              (fn [{::spin/keys [respond! response]}]
                 (assert respond!)
                 (respond!
-                 (assoc response :ring.response/body "Hello!")))
+                 (assoc
+                  response
+                  :ring.response/body "Custom message: Something went wrong!")))
               ::spin/content-type "text/plain;charset=utf-8"
               ::spin/content "Error"})}
           (response-for
@@ -320,14 +222,13 @@
 
 (deftest conditional-get-request-test
   (let [res
-        {::spin/resource
-         {::spin/representation
-          {::spin/content-type "text/plain"
-           ::spin/content "Hello World!\n"
-           ::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")
-           ::spin/respond!
-           (fn [{::spin/keys [respond! response]}]
-             (respond! response))}}}]
+        {::spin/representation
+         {::spin/content-type "text/plain"
+          ::spin/content "Hello World!\n"
+          ::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")
+          ::spin/respond!
+          (fn [{::spin/keys [respond! response]}]
+            (respond! response))}}]
 
     (testing "Representation was modified since 8am. Let the request through."
       (is
@@ -362,14 +263,13 @@
 
   (testing "GET with etags"
     (let [res
-          {::spin/resource
-           {::spin/representation
-            {::spin/content-type "text/plain"
-             ::spin/content "Hello World!\n"
-             ::spin/entity-tag "\"abc\""
-             ::spin/respond!
-             (fn [{::spin/keys [respond! response]}]
-               (respond! response))}}}]
+          {::spin/representation
+           {::spin/content-type "text/plain"
+            ::spin/content "Hello World!\n"
+            ::spin/entity-tag "\"abc\""
+            ::spin/respond!
+            (fn [{::spin/keys [respond! response]}]
+              (respond! response))}}]
       (is
        (=
         {:ring.response/status 200}

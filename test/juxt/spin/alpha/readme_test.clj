@@ -7,9 +7,8 @@
    [juxt.spin.alpha.test-util :refer [response-for request header]]))
 
 (def hello-example
-  {::spin/resource
-   {::spin/representation
-    {::spin/content "Hello World!\n"}}})
+  {::spin/representation
+   {::spin/content "Hello World!\n"}})
 
 (deftest hello-example-test
   (is
@@ -21,18 +20,17 @@
        [:ring.response/status :ring.response/body]))))
 
 (def bad-request-example
-  {::spin/resource
-   {::spin/representation {}
-    ::spin/validate-request!
-    (fn [{::spin/keys [request respond! response] :as ctx}]
-      (if (:ring.request/query request)
-        ctx
-        ;; No query string, bad request!
-        (respond!
-         (assoc
-          response
-          :ring.response/status 400
-          :ring.response/body "Bad request!"))))}})
+  {::spin/representation {}
+   ::spin/validate-request!
+   (fn [{::spin/keys [request respond! response] :as ctx}]
+     (if (:ring.request/query request)
+       ctx
+       ;; No query string, bad request!
+       (respond!
+        (assoc
+         response
+         :ring.response/status 400
+         :ring.response/body "Bad request!"))))})
 
 (deftest bad-request-example-test
   (testing "respond with 400 on a malformed GET on resource"
@@ -51,32 +49,31 @@
          [:ring.response/status])))))
 
 (def authorization-example
-  {::spin/resource
-   {:roles {:superuser #{:get :head :put}
-            :manager #{:get :head}}
-    ::spin/representation {::spin/content "Secret stuff!"}
-    ::spin/validate-request!
-    (fn [{::spin/keys [request respond! response resource] :as ctx}]
-      (if-let [role
-               (case (get-in request
-                             [:ring.request/headers "authorization"])
+  {:roles {:superuser #{:get :head :put}
+           :manager #{:get :head}}
+   ::spin/representation {::spin/content "Secret stuff!"}
+   ::spin/validate-request!
+   (fn [{::spin/keys [request respond! response resource] :as ctx}]
+     (when-let [role
+                (case (get-in request
+                              [:ring.request/headers "authorization"])
 
-                 "Terrible let-me-in;role=superuser"
-                 :superuser
+                  "Terrible let-me-in;role=superuser"
+                  :superuser
 
-                 "Terrible let-me-in;role=manager"
-                 :manager
+                  "Terrible let-me-in;role=manager"
+                  :manager
 
-                 (respond!
-                  (-> response
-                      (assoc :ring.response/status 401)
-                      (assoc-in
-                       [:ring.response/headers "www-authenticate"]
-                       "Terrible"))))]
+                  (respond!
+                   (-> response
+                       (assoc :ring.response/status 401)
+                       (assoc-in
+                        [:ring.response/headers "www-authenticate"]
+                        "Terrible"))))]
 
-        (if (get-in resource [:roles role (:ring.request/method request)])
-          (assoc ctx :role role)
-          (respond! (assoc response :ring.response/status 403)))))}})
+       (if (get-in resource [:roles role (:ring.request/method request)])
+         (assoc ctx :role role)
+         (respond! (assoc response :ring.response/status 403)))))})
 
 (deftest authorization-example-test
   (testing "unauthenticated request requires authentication"

@@ -5,11 +5,11 @@
    [juxt.spin.alpha :as spin]))
 
 (defn response-for
-  ([ctx request]
-   ((spin/handler ctx) request))
-  ([ctx request keyseq]
+  ([resource request]
+   ((spin/handler resource) request))
+  ([resource request keyseq]
    (let [keyseq (cond-> keyseq (seq (filter string? keyseq)) (conj :ring.response/headers))]
-     (cond-> (response-for ctx request)
+     (cond-> (response-for resource request)
        true
        (select-keys (filter keyword? keyseq))
        (seq (filter string? keyseq))
