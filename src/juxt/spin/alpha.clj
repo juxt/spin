@@ -155,6 +155,14 @@
             [:ring.response/headers "date"]
             (util/format-http-date inst)))))))))
 
+(defn add-server! [{::keys [respond!] :as ctx}]
+  (add-date!
+   (assoc
+    ctx
+    ::respond!
+    (fn [response]
+      (respond! (assoc-in response [:ring.response/headers "server"] "Spin"))))))
+
 (defn handle-errors! [{::keys [respond! resource] :as ctx}]
   (let [raise!
         (fn [e]
@@ -216,18 +224,12 @@
                 response)))))]
 
     (try
-      (add-date!
+      (add-server!
        (assoc ctx ::raise! raise!))
       ;; Also, catch any exceptions that are thrown by this calling thread which
       ;; slip through uncaught.
       (catch Exception e
         (raise! e)))))
-
-(defn wrap-server [h]
-  (fn [req respond raise]
-    (h req (fn [response]
-             (respond (assoc-in response [:ring.response/headers "server"] "Spin")))
-       raise)))
 
 (defn handler [resource]
   (->
@@ -237,5 +239,4 @@
        ::request request
        ::respond! respond!
        ::raise! raise!}))
-   wrap-server
    util/sync-adapt))
