@@ -85,23 +85,25 @@ The name 'spin' is a deliberate pun on the word 'web'.
 Spin is based on Clojure maps, with namespaced keywords. Functions take maps
 and, usually, return other maps.
 
-For example, you create a Ring handler with `juxt.spin.alpha/handler` that takes a single
-map argument.
+You create a Ring handler with `juxt.spin.alpha/handler` that takes a single
+argument, the *resource*.
 
 .Hello World!
 ====
-To return the message "Hello World!" from a GET request:
+For examplel, to return the message "Hello World!" from a GET request:
 
 [source,clojure]
 ----
 (require '[juxt.spin.alpha :as spin])
 
-(def hello
-  (spin/handler
-    {::spin/representation <1>
-      {::spin/content "Hello World!\n"}}))
+(def hello-resource
+  {::spin/representation
+    {::spin/content "Hello World!\n"}})
 
-(hello req)
+(def hello
+  (spin/handler hello-resource))
+
+(hello {:ring.request/method :get})
 =>
 {:ring.response/status 200
  :ring.response/headers
@@ -109,22 +111,21 @@ To return the message "Hello World!" from a GET request:
    "date" "Thu, 26 Nov 2020 16:53:14 GMT"}
  :ring.response/body "Hello World!\n"}
 ----
-<1> See <<representation>>
 ====
 
-This map can contain any number of entries. However, the ones in the
-`juxt.spin.alpha` namespace are reserved, and form declarations which drive
-Spin's request processing. These are each described in the following section.
+[[resource-map]]
+=== Resources
 
-=== Resource map entries
+The *resource* is a Clojure map.
 
-A resource is a Clojure map that can contain any entries that assist in the
-processing of a request.
+It can contain any entries you like, to describe what you want.
 
-Keywords with namespaces that are prefixed with `juxt.spin` are *reserved*,
-including `juxt.spin.alpha`. These reserved entries, which are described in this
-section, form the 'interface' for interacting with the resource.
+But the ones with keywords in the `juxt.spin.alpha` namespace are reserved. They
+are the declarations that Spin uses to process a request properly.
 
+Each resource entry is described below.
+
+[[validate-request]]
 ==== `validate-request!`
 
 A function that takes a context argument and returns it, or (optionally) a
@@ -224,7 +225,6 @@ database lookup.
 <6> no? then the request is forbidden, return a 403
 ====
 
-
 [[representation]]
 ==== `representation`
 
@@ -237,6 +237,7 @@ WARNING: Don't forget to add this (or `select-representation!` below). If this
 isn't provided, then you'll get a 404 response for a GET. This might be
 surprising!
 
+[[select-representation]]
 ==== `select-representation!`
 
 A function that takes a context argument and returns a map corresponding to the
@@ -345,7 +346,10 @@ link:https://tools.ietf.org/html/rfc7231.html#section-4.3.5[Section 4.3.5 of RFC
 7231] for further details.
 
 
-=== Request map entries
+=== Request context
+
+On each request, a *request context* is created. This is a map with the
+following entries:
 
 ==== `request`
 
@@ -361,6 +365,10 @@ https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
 
 A callback function that is used to raise any errors. See
 https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
+
+==== `resource`
+
+The target resource, as a map. See <<resource-map>>.
 
 [appendix]
 == Comparison to _yada_
