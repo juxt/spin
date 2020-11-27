@@ -7,35 +7,6 @@
   (:import
    (java.util Date)))
 
-(defn sync-adapt [h]
-  (fn this
-    ([req]
-     (let [p (promise)]
-       (this
-        req
-        (fn [response]
-          (deliver p response)
-          ;; It's crucial this returns nil, as these are semantics of the async
-          ;; version
-          nil)
-        (fn [error]
-          (deliver p error)
-          nil))
-       (let [res (deref p 1000 ::timeout)]
-         (cond
-           (= res ::timeout)
-           (throw
-            (ex-info
-             "Timeout occured waiting for handler"
-             {:handler h
-              :request req}))
-           (instance? Throwable res)
-           (throw res)
-           :else
-           res))))
-    ([req respond! raise!]
-     (h req respond! raise!))))
-
 (defn modified-since? [^Date this ^Date other]
   (.isAfter (.toInstant this) (.toInstant other)))
 
@@ -111,6 +82,10 @@
             :head
             (respond! response)))))))
 
+(defmulti http-method
+  (fn [{::keys [request]}] (:ring.request/method request))
+  :default ::default)
+
 (defn method-not-allowed [{::keys [respond! resource]}]
   (respond!
    {:ring.response/status 405
@@ -124,30 +99,16 @@
         [:get :head]
         (keys (::methods resource)))))}}))
 
-(defmulti http-method
-  (fn [{::keys [request]}] (:ring.request/method request))
-  :default ::default)
-
-(defmethod http-method :get [ctx]
-  (get-or-head ctx))
-
-(defmethod http-method :head [ctx]
-  (get-or-head ctx))
-
-(defmethod http-method :post [{::keys [resource] :as ctx}]
-  (if-let [method! (get-in resource [::methods :post])]
+(defn common-method [{::keys [request resource] :as ctx}]
+  (if-let [method! (get-in resource [::methods (:ring.request/method request)])]
     (method! ctx)
     (method-not-allowed ctx)))
 
-(defmethod http-method :put [{::keys [resource] :as ctx}]
-  (if-let [method! (get-in resource [::methods :put])]
-    (method! ctx)
-    (method-not-allowed ctx)))
-
-(defmethod http-method :delete [{::keys [resource] :as ctx}]
-  (if-let [method! (get-in resource [::methods :delete])]
-    (method! ctx)
-    (method-not-allowed ctx)))
+(defmethod http-method :get [ctx] (get-or-head ctx))
+(defmethod http-method :head [ctx] (get-or-head ctx))
+(defmethod http-method :post [ctx] (common-method ctx))
+(defmethod http-method :put [ctx] (common-method ctx))
+(defmethod http-method :delete [ctx] (common-method ctx))
 
 (defn resource-created! [{::keys [respond! response]} location]
   (respond!
@@ -272,4 +233,4 @@
        ::raise! raise!}))
    wrap-date
    wrap-server
-   sync-adapt))
+   util/sync-adapt))
