@@ -286,6 +286,9 @@ https://tools.ietf.org/html/rfc7231.html#section-3.4.2[Section 3.4.2 of RFC
 
 A map that maps method keywords to their implementations.
 
+If this entry is not provided, the resource will have default implementations of
+GET, HEAD and OPTIONS.
+
 .Declaring methods
 ====
 To indicate the methods on a resource, add a `::spin/methods` entry.
@@ -302,16 +305,24 @@ To indicate the methods on a resource, add a `::spin/methods` entry.
 
 The implementations are as follows.
 
-===== `post`
+===== `get`
 
 A function that takes the context as an argument.
 
 The function is called on a POST request.
 
-The `post` function is responsible for any data processing associated with a
-POST. If a new resource is created, it should respond with a 201 status and a
-`Location` header containing the URL of the new resource. A convenience function
-is available (`juxt.spin.alpha/resource-created!`) which does this.
+The `get` method should respond with a Ring response containing the selected
+representation.
+
+===== `post`
+
+A function that takes the context as an argument.
+
+The function is called on a POST request. It is responsible for any data
+processing associated with a POST. If a new resource is created, it should
+respond with a 201 status and a `Location` header containing the URL of the new
+resource. A convenience function is available
+(`juxt.spin.alpha/resource-created!`) which does this.
 
 To respond, it should call the `respond!` function provided in the context
 argument with the (Ring 2.0) response as an argument.
