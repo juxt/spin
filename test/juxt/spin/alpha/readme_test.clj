@@ -2,7 +2,7 @@
 
 (ns juxt.spin.alpha.readme-test
   (:require
-   [clojure.test :refer [deftest is are testing]]
+   [clojure.test :refer [deftest is testing]]
    [juxt.spin.alpha :as spin]
    [juxt.spin.alpha.test-util :refer [response-for request header]]))
 

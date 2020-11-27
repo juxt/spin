@@ -80,7 +80,7 @@
         (not (modified-since? last-modified if-modified-since))))))
 
 (defn- get-or-head [{::keys [request resource respond! raise!] :as ctx}]
-  (let [{::keys [representation select-representation! validate-request!]} resource
+  (let [{::keys [representation select-representation!]} resource
         response {:ring.response/status 200}
         ctx (into {::response response} ctx)]
 
@@ -126,7 +126,7 @@
             :head
             (respond! response)))))))
 
-(defn method-not-allowed [{::keys [respond! resource] :as ctx}]
+(defn method-not-allowed [{::keys [respond! resource]}]
   (respond!
    {:ring.response/status 405
     :ring.response/headers
@@ -159,7 +159,7 @@
     (method! ctx)
     (method-not-allowed ctx)))
 
-(defmethod http-method :delete [{::keys [resource respond!] :as ctx}]
+(defmethod http-method :delete [{::keys [resource] :as ctx}]
   (if-let [method! (get-in resource [::methods :delete])]
     (method! ctx)
     (method-not-allowed ctx)))
@@ -281,10 +281,10 @@
   (->
    (fn [request respond! raise!]
      (process-request!
-      {::request request
+      {::resource resource
+       ::request request
        ::respond! respond!
-       ::raise! raise!
-       ::resource resource}))
+       ::raise! raise!}))
    wrap-date
    wrap-server
    sync-adapt))
