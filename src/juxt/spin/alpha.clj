@@ -58,6 +58,13 @@
     :ring.response/headers
     {"allow" (allow-header resource)}}))
 
+(defmulti http-method
+  (fn [{::keys [request]}] (:ring.request/method request))
+  :default ::default)
+
+(defmethod http-method ::default [{::keys [respond!]}]
+  (respond! {:ring.response/status 501}))
+
 (defn GET [{::keys [request resource respond! raise!] :as ctx}]
   (if (::methods resource)
     (if-let [get! (get-in resource [::methods :get])]
@@ -114,24 +121,33 @@
               :head
               (respond! response))))))))
 
-(defmulti http-method
-  (fn [{::keys [request]}] (:ring.request/method request))
-  :default ::default)
+(defmethod http-method :get [ctx] (GET ctx))
+
+;; This is NOT a typo, a HEAD purposely calls into the GET method
+(defmethod http-method :head [ctx] (GET ctx))
 
 (defn POST [{::keys [resource] :as ctx}]
   (if-let [method! (get-in resource [::methods :post])]
     (method! ctx)
     (method-not-allowed ctx)))
 
+(defmethod http-method :post [ctx] (POST ctx))
+
 (defn PUT [{::keys [resource] :as ctx}]
   (if-let [method! (get-in resource [::methods :put])]
     (method! ctx)
     (method-not-allowed ctx)))
 
+(defmethod http-method :put [ctx] (PUT ctx))
+
 (defn DELETE [{::keys [resource] :as ctx}]
   (if-let [method! (get-in resource [::methods :delete])]
     (method! ctx)
     (method-not-allowed ctx)))
+
+(defmethod http-method :delete [ctx] (DELETE ctx))
+
+(defmethod http-method :connect [ctx] (method-not-allowed ctx))
 
 (defn OPTIONS [{::keys [respond! resource] :as ctx}]
   (let [allow (allow-header resource)]
@@ -153,31 +169,17 @@
         {"allow" (allow-header resource)
          "content-length" "0"}}))))
 
-(defmethod http-method :get [ctx] (GET ctx))
-
-;; This is NOT a typo, a HEAD purposely calls into the GET method
-(defmethod http-method :head [ctx] (GET ctx))
-
-(defmethod http-method :post [ctx] (POST ctx))
-
-(defmethod http-method :put [ctx] (PUT ctx))
-
-(defmethod http-method :delete [ctx] (DELETE ctx))
-
-(defmethod http-method :connect [ctx] (method-not-allowed ctx))
-
 (defmethod http-method :options [ctx] (OPTIONS ctx))
 
 (defmethod http-method :trace [ctx] (method-not-allowed ctx))
 
-(defn resource-created! [{::keys [respond! response]} location]
+(defn resource-created!
+  "Convenience function for returning a 201 with a Location header."
+  [{::keys [respond! response]} location]
   (respond!
    (into
     {:ring.response/status 201}
     (update response :ring.response/headers assoc "location" location))))
-
-(defmethod http-method ::default [{::keys [respond!]}]
-  (respond! {:ring.response/status 501}))
 
 (defn validate-request!
   "Validate the request is appropriate for the resource."
