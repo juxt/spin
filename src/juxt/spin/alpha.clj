@@ -118,8 +118,18 @@
   (fn [{::keys [request]}] (:ring.request/method request))
   :default ::default)
 
-(defn common-method [{::keys [request resource] :as ctx}]
-  (if-let [method! (get-in resource [::methods (:ring.request/method request)])]
+(defn POST [{::keys [resource] :as ctx}]
+  (if-let [method! (get-in resource [::methods :post])]
+    (method! ctx)
+    (method-not-allowed ctx)))
+
+(defn PUT [{::keys [resource] :as ctx}]
+  (if-let [method! (get-in resource [::methods :put])]
+    (method! ctx)
+    (method-not-allowed ctx)))
+
+(defn DELETE [{::keys [resource] :as ctx}]
+  (if-let [method! (get-in resource [::methods :delete])]
     (method! ctx)
     (method-not-allowed ctx)))
 
@@ -142,15 +152,6 @@
         :ring.response/headers
         {"allow" (allow-header resource)
          "content-length" "0"}}))))
-
-(defn POST [ctx]
-  (common-method ctx))
-
-(defn PUT [ctx]
-  (common-method ctx))
-
-(defn DELETE [ctx]
-  (common-method ctx))
 
 (defmethod http-method :get [ctx] (GET ctx))
 
