@@ -3,14 +3,13 @@
 (ns juxt.spin.alpha
   (:require
    [clojure.string :as str]
-   [juxt.spin.alpha.util :as util])
-  (:import
-   (java.util Date)))
+   [juxt.spin.alpha.util :as util]))
 
-(defn modified-since? [^Date this ^Date other]
-  (.isAfter (.toInstant this) (.toInstant other)))
-
-(defn not-modified? [request representation]
+(defn not-modified?
+  "Return true if the given representation's validators report that it has not
+  been modified with respect to the given request. This allows a 304 response to
+  be returned."
+  [request representation]
   ;; "… a server MUST ignore the conditional request header fields … when
   ;; received with a request method that does not involve the selection or
   ;; modification of a selected representation, such as CONNECT, OPTIONS, or
@@ -37,9 +36,11 @@
         (if-none-match entity-tag)
 
         (and if-modified-since last-modified)
-        (not (modified-since? last-modified if-modified-since))))))
+        (not (.isAfter (.toInstant last-modified) (.toInstant if-modified-since)))))))
 
-(defn allow-header [resource]
+(defn allow-header
+  "Produce a value for the Allow response header."
+  [resource]
   (->>
    (if (and
         (::methods resource)
@@ -52,7 +53,10 @@
    (map (comp str/upper-case name))
    (str/join ", ")))
 
-(defn method-not-allowed [{::keys [respond! resource]}]
+(defn method-not-allowed
+  "Respond with a 405 to indicated that the resource does not support the method
+  in the request."
+  [{::keys [respond! resource]}]
   (respond!
    {:ring.response/status 405
     :ring.response/headers
@@ -193,7 +197,9 @@
               ctx)]
     (when ctx (http-method ctx))))
 
-(defn add-date! [{::keys [respond!] :as ctx}]
+(defn add-date!
+  "Compute and add a Date header to the response."
+  [{::keys [respond!] :as ctx}]
   (validate-request!
    (assoc
     ctx
@@ -213,7 +219,9 @@
             [:ring.response/headers "date"]
             (util/format-http-date inst)))))))))
 
-(defn handle-errors! [{::keys [respond! resource] :as ctx}]
+(defn handle-errors!
+  "Process request but catch and deal with any errors that may occur."
+  [{::keys [respond! resource] :as ctx}]
   (let [raise!
         (fn [e]
           (let [data (ex-data e)
@@ -272,7 +280,6 @@
                 {:ring.response/headers {"content-type" "text/plain;charset=utf-8"}
                  :ring.response/body (pr-str e)}
                 response)))))]
-
     (try
       (add-date!
        (assoc ctx ::raise! raise!))
@@ -281,7 +288,11 @@
       (catch Exception e
         (raise! e)))))
 
-(defn handler [resource]
+(defn handler
+  "Return a Ring 2.0 handler that allows requests to interact with the given
+  resource. The handler suppports asynchronous and synchronous (via the
+  sync-adapt wrapper) forms."
+  [resource]
   (->
    (fn [request respond! raise!]
      (handle-errors!
