@@ -103,9 +103,11 @@
                              content-type content-encoding
                              content-language content-location
                              content-length content-range
-                             last-modified entity-tag]} representation
+                             last-modified entity-tag]}
+                    representation
                     content-length
-                    (or content-length (when content (count content)))]
+                    (or content-length (when content (count content)))
+                    ]
 
                 (cond-> response
 
