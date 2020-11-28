@@ -100,13 +100,54 @@
         :else
         (let [ctx (assoc ctx ::representation representation)
               response
-              (let [{::keys [content content-length content-type]} representation
-                    content-length (or content-length (when content (count content)))]
+              (let [{::keys [content
+                             content-type content-encoding
+                             content-language content-location
+                             content-length content-range
+                             last-modified entity-tag]} representation
+                    content-length
+                    (or content-length (when content (count content)))]
+
                 (cond-> response
-                  content-length
-                  (assoc-in [:ring.response/headers "content-length"] (str content-length))
+
                   content-type
-                  (assoc-in [:ring.response/headers "content-type"] content-type)
+                  (assoc-in
+                   [:ring.response/headers "content-type"]
+                   content-type)
+
+                  content-encoding
+                  (assoc-in
+                   [:ring.response/headers "content-encoding"]
+                   content-encoding)
+
+                  content-language
+                  (assoc-in
+                   [:ring.response/headers "content-language"]
+                   content-language)
+
+                  content-location
+                  (assoc-in
+                   [:ring.response/headers "content-location"]
+                   content-location)
+
+                  content-length
+                  (assoc-in
+                   [:ring.response/headers "content-length"]
+                   (str content-length))
+
+                  content-range
+                  (assoc-in
+                   [:ring.response/headers "content-range"]
+                   content-range)
+
+                  last-modified
+                  (assoc-in
+                   [:ring.response/headers "last-modified"]
+                   (util/format-http-date last-modified))
+
+                  entity-tag
+                  (assoc-in [:ring.response/headers "etag"] entity-tag)
+
                   (and (= (:ring.request/method request) :get) content)
                   (assoc :ring.response/body content)))
 

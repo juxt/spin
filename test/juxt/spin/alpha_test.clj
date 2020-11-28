@@ -291,12 +291,13 @@
     (testing "Representation was modified since 8am. Let the request through."
       (is
        (=
-        {:ring.response/status 200}
+        {:ring.response/status 200
+         :ring.response/headers {"last-modified" "Tue, 24 Nov 2020 09:00:00 GMT"}}
         (response-for
          res
          (-> (request :get "/")
              (header "if-modified-since" "Tue, 24 Nov 2020 08:00:00 GMT"))
-         [:ring.response/status]))))
+         [:ring.response/status "last-modified"]))))
 
     (testing "Representation was modified at exactly 9am. Return 304."
       (is
@@ -330,13 +331,14 @@
               (respond! response))}}]
       (is
        (=
-        {:ring.response/status 200}
+        {:ring.response/status 200
+         :ring.response/headers {"etag" "\"abc\""}}
         (response-for
          res
          (-> (request :get "/")
              ;; Yes, def doesn't match abc
              (header "if-none-match" "\"def\""))
-         [:ring.response/status])))
+         [:ring.response/status "etag"])))
 
       (is
        (=

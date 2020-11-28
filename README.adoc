@@ -398,10 +398,6 @@ How natural language (or languages) of the representation.
 
 // TODO: How are multiple languages to be specified? See pick
 
-==== `content-language`
-
-The URL of the content, if different to the URL of the resource.
-
 ==== `content-length`
 
 The length, in bytes, of the representation's content.
@@ -409,10 +405,6 @@ The length, in bytes, of the representation's content.
 ==== `content-range`
 
 The partial byte-range of the representation.
-
-==== `last-modified`
-
-The instant (a `java.util.Date`) that the representation was last modified.
 
 ==== `last-modified`
 
