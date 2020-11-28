@@ -198,7 +198,7 @@
       (respond!
        {:ring.response/status 200
         :ring.response/headers
-        {"allow" (allow-header resource)
+        {"allow" allow
          "content-length" "0"}}))))
 
 (defmethod http-method :trace [ctx] (method-not-allowed ctx))
