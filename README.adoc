@@ -410,6 +410,25 @@ The length, in bytes, of the representation's content.
 
 The partial byte-range of the representation.
 
+==== `last-modified`
+
+The instant (a `java.util.Date`) that the representation was last modified.
+
+==== `last-modified`
+
+The instant (a `java.util.Date`) that the representation was last modified.
+
+==== `entity-tag`
+
+The entity tag. Must be a string delimited with double-quotes.
+
+====
+[source,clojure]
+----
+{::spin/entity-tag "\"a6es7q53s\""}
+----
+====
+
 === Request context
 
 On each request, a *request context* is created. This is a map with the
