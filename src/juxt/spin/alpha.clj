@@ -82,7 +82,7 @@
                (or
                 (when select-representation!
                   (try
-                    (select-representation! (dissoc ctx ::respond! ::raise))
+                    (select-representation! ctx)
                     (catch Exception e
                       (raise! (ex-info "Failed to select a representation" {:ctx ctx} e)))))
                 (respond! {:ring.response/status 404}))]
