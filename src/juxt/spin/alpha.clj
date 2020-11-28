@@ -127,33 +127,19 @@
       (method-not-allowed ctx))
     (GET ctx)))
 
+(defn common-method [{::keys [request resource] :as ctx}]
+  (if-let [method! (get-in resource [::methods (:ring.request/method request)])]
+    (method! ctx)
+    (method-not-allowed ctx)))
+
 ;; This is NOT a typo, a HEAD purposely calls into the GET method
 (defmethod http-method :head [ctx] (GET ctx))
-
-(defn POST [{::keys [resource] :as ctx}]
-  (if-let [method! (get-in resource [::methods :post])]
-    (method! ctx)
-    (method-not-allowed ctx)))
-
-(defmethod http-method :post [ctx] (POST ctx))
-
-(defn PUT [{::keys [resource] :as ctx}]
-  (if-let [method! (get-in resource [::methods :put])]
-    (method! ctx)
-    (method-not-allowed ctx)))
-
-(defmethod http-method :put [ctx] (PUT ctx))
-
-(defn DELETE [{::keys [resource] :as ctx}]
-  (if-let [method! (get-in resource [::methods :delete])]
-    (method! ctx)
-    (method-not-allowed ctx)))
-
-(defmethod http-method :delete [ctx] (DELETE ctx))
-
+(defmethod http-method :post [ctx] (common-method ctx))
+(defmethod http-method :put [ctx] (common-method ctx))
+(defmethod http-method :delete [ctx] (common-method ctx))
 (defmethod http-method :connect [ctx] (method-not-allowed ctx))
 
-(defn OPTIONS [{::keys [respond! resource] :as ctx}]
+(defmethod http-method :options [{::keys [respond! resource] :as ctx}]
   (let [allow (allow-header resource)]
     (if-let [method! (get-in resource [::methods :options])]
       (method!
@@ -172,8 +158,6 @@
         :ring.response/headers
         {"allow" (allow-header resource)
          "content-length" "0"}}))))
-
-(defmethod http-method :options [ctx] (OPTIONS ctx))
 
 (defmethod http-method :trace [ctx] (method-not-allowed ctx))
 
