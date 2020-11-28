@@ -34,9 +34,10 @@
        :ring.response/headers {"content-length" "13"}
        :ring.response/body "Hello World!\n"}
       (response-for
-       {::spin/representation
-        {::spin/content-type "text/plain"
-         ::spin/content "Hello World!\n"}}
+       {::spin/select-representation!
+        (fn [_]
+          {::spin/content-type "text/plain"
+           ::spin/content "Hello World!\n"})}
        (request :get "/")
        [:ring.response/status :ring.response/body "content-length"]))))
 
@@ -54,26 +55,6 @@
        (request :get "/")
        [:ring.response/status :ring.response/body "content-length"]))))
 
-  (testing "GET on 'Hello World!' with representation respond!"
-    (is
-     (=
-      {:ring.response/status 200
-       :ring.response/headers {"content-length" "13"}
-       :ring.response/body "Hello World!\n"}
-      (response-for
-       {::spin/select-representation!
-        (fn [_]
-          {::spin/content-type "text/plain"
-           ::spin/respond!
-           (fn [{::spin/keys [respond! response]}]
-             (respond!
-              (-> response
-                  (assoc :ring.response/body "Hello World!\n")
-                  (assoc-in [:ring.response/headers "content-length"]
-                            (str (count "Hello World!\n"))))))})}
-       (request :get "/")
-       [:ring.response/status :ring.response/body "content-length"]))))
-
   (testing "respond with 400 on a malformed GET on resource"
     (is
      (= {:ring.response/status 400 :ring.response/body "Bad request!"}
@@ -86,18 +67,6 @@
 
 (deftest head-request-test
   (testing "HEAD on 'Hello World!'"
-    (is
-     (=
-      {:ring.response/status 200
-       :ring.response/headers {"content-length" "13"}}
-      (response-for
-       {::spin/representation
-        {::spin/content-type "text/plain"
-         ::spin/content "Hello World!\n"}}
-       (request :head "/")
-       [:ring.response/status :ring.response/body "content-length"]))))
-
-  (testing "HEAD on 'Hello World!' with select-representation! callback"
     (is
      (=
       {:ring.response/status 200
@@ -150,7 +119,8 @@
   (testing "responds with 201 when new resource created"
     (is
      (=
-      {:ring.response/status 201 :ring.response/headers {"location" "/new-resource"}}
+      {:ring.response/status 201
+       :ring.response/headers {"location" "/new-resource"}}
       (response-for
        {::spin/methods
         {:post
@@ -159,6 +129,34 @@
            (spin/created! ctx "/new-resource"))}}
        (request :post "/")
        [:ring.response/status "location"])))))
+
+;; TODO:
+;; Expose last-modified and etag as response headers - test for this
+;; Put with body, set representation
+;; Test If-Match to avoid conflicts, produce 409
+
+#_(response-for
+ {::spin/representation
+  {::spin/content "Hello World!"
+   ::spin/entity-tag "\"abc\""}
+  ::spin/methods
+  {:get spin/GET
+   :put
+   (fn [ctx]
+     ;; A real implementation would do some processing here.
+     (spin/created! ctx "/new-resource"))}}
+ (request :get "/"))
+
+#_(response-for
+ {::spin/select-representation!
+  (fn [{::spin/keys [respond!]}]
+    {::spin/content "foo"
+     ::spin/last-modified (util/parse-http-date "Sat, 28 Nov 2020 00:57:49 GMT")})
+  }
+ (->
+  (request :put "/")
+  (header "if-modified-since" "Sat, 28 Nov 2020 00:57:49 GMT")
+  ))
 
 (deftest response-header-date-test
   (-> {::spin/representation
@@ -177,17 +175,18 @@
      :ring.response/body "ERROR!",}
 
     (->
-     {::spin/representation
-      {::spin/respond!
-       (fn [{::spin/keys [raise!]}]
-         (raise! (ex-info "Error" {})))}
-      ::spin/select-representation!
+     {::spin/select-representation!
       (fn [{::spin/keys [response]}]
-        (if (= (:ring.response/status response) 500)
-          {::spin/content-type "text/plain;charset=utf-8"
-           ::spin/content "ERROR!"}
+        (case (:ring.response/status response)
+          200 {::spin/respond!
+               (fn [{::spin/keys [raise!]}]
+                 (raise! (ex-info "Error" {})))}
+          500 {::spin/content-type "text/plain;charset=utf-8"
+               ::spin/content "ERROR!"}
+
           {::spin/content-type "text/plain;charset=utf-8"
            ::spin/content "Not 500 - test should fail"}))}
+
      (response-for
       (request :get "/")
       [:ring.response/status :ring.response/body "content-length" "content-type"]))))
@@ -197,23 +196,22 @@
      (=
       {:ring.response/status 403,
        :ring.response/body "Custom message: Something went wrong!"}
-      (-> {::spin/representation
-           {::spin/respond!
-            (fn [{::spin/keys [raise!]}]
-              ;; TODO: Can we let the ring response body be set here?
-              (raise! (ex-info "Forbidden!" {:ring.response/status 403})))}
-
-           ::spin/select-representation!
-           (fn [_]
-             {::spin/respond!
-              (fn [{::spin/keys [respond! response]}]
-                (assert respond!)
-                (respond!
-                 (assoc
-                  response
-                  :ring.response/body "Custom message: Something went wrong!")))
-              ::spin/content-type "text/plain;charset=utf-8"
-              ::spin/content "Error"})}
+      (-> {::spin/select-representation!
+           (fn [{::spin/keys [response]}]
+             (case (:ring.response/status response)
+               200 {::spin/respond!
+                    (fn [{::spin/keys [raise!]}]
+                      ;; TODO: Can we let the ring response body be set here?
+                      (raise! (ex-info "Forbidden!" {:ring.response/status 403})))}
+               403 {::spin/respond!
+                    (fn [{::spin/keys [respond! response]}]
+                      (assert respond!)
+                      (respond!
+                       (assoc
+                        response
+                        :ring.response/body "Custom message: Something went wrong!")))
+                    ::spin/content-type "text/plain;charset=utf-8"
+                    ::spin/content "Error"}))}
           (response-for
            (request :get "/")
            [:ring.response/status :ring.response/body]))))))
@@ -222,8 +220,9 @@
   (testing "Default Allow header includes GET, HEAD and OPTIONS"
     (is (= {:ring.response/status 200,
             :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}}
-           (-> {::spin/representation
-                {::spin/content "Hello World!\n"}}
+           (-> {::spin/select-representation!
+                (fn [_]
+                  {::spin/content "Hello World!\n"})}
                (response-for
                 (request :options "/")
                 [:ring.response/status "allow"])))))
@@ -231,8 +230,9 @@
   (testing "Allow header reveals declared methods"
     (is (= {:ring.response/status 200,
             :ring.response/headers {"allow" "DELETE, OPTIONS"}}
-           (-> {::spin/representation
-                {::spin/content "Hello World!\n"}
+           (-> {::spin/select-representation!
+                (fn [_]
+                  {::spin/content "Hello World!\n"})
                 ::spin/methods
                 {:delete (fn [_] (throw (ex-info "" {})))}}
                (response-for
@@ -242,8 +242,9 @@
   (testing "Allow header includes HEAD when GET declared"
     (is (= {:ring.response/status 200,
             :ring.response/headers {"allow" "GET, HEAD, PUT, OPTIONS"}}
-           (-> {::spin/representation
-                {::spin/content "Hello World!\n"}
+           (-> {::spin/select-representation!
+                (fn [_]
+                  {::spin/content "Hello World!\n"})
                 ::spin/methods
                 {:get (fn [_] (throw (ex-info "" {})))
                  :put (fn [_] (throw (ex-info "" {})))}}
@@ -254,8 +255,9 @@
   (testing "Content-Length set to 0 when no payload"
     (is (= {:ring.response/status 200,
             :ring.response/headers {"content-length" "0"}}
-           (-> {::spin/representation
-                {::spin/content "Hello World!\n"}}
+           (-> {::spin/select-representation!
+                (fn [_]
+                  {::spin/content "Hello World!\n"})}
                (response-for
                 (request :options "/")
                 [:ring.response/status "content-length"])))))
@@ -266,8 +268,9 @@
     (is (= {:ring.response/status 200,
             :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}
             :ring.response/body "Custom options"}
-           (-> {::spin/representation
-                {::spin/content "Hello World!\n"}
+           (-> {::spin/select-representation!
+                (fn [_]
+                  {::spin/content "Hello World!\n"})
                 ::spin/methods
                 {:options
                  (fn [{::spin/keys [respond!]}]
@@ -280,13 +283,14 @@
 ;; RFC 7232
 (deftest conditional-get-request-test
   (let [res
-        {::spin/representation
-         {::spin/content-type "text/plain"
-          ::spin/content "Hello World!\n"
-          ::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")
-          ::spin/respond!
-          (fn [{::spin/keys [respond! response]}]
-            (respond! response))}}]
+        {::spin/select-representation!
+         (fn [_]
+           {::spin/content-type "text/plain"
+            ::spin/content "Hello World!\n"
+            ::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")
+            ::spin/respond!
+            (fn [{::spin/keys [respond! response]}]
+              (respond! response))})}]
 
     (testing "Representation was modified since 8am. Let the request through."
       (is
@@ -322,13 +326,14 @@
 
   (testing "GET with etags"
     (let [res
-          {::spin/representation
-           {::spin/content-type "text/plain"
-            ::spin/content "Hello World!\n"
-            ::spin/entity-tag "\"abc\""
-            ::spin/respond!
-            (fn [{::spin/keys [respond! response]}]
-              (respond! response))}}]
+          {::spin/select-representation!
+           (fn [_]
+             {::spin/content-type "text/plain"
+              ::spin/content "Hello World!\n"
+              ::spin/entity-tag "\"abc\""
+              ::spin/respond!
+              (fn [{::spin/keys [respond! response]}]
+                (respond! response))})}]
       (is
        (=
         {:ring.response/status 200

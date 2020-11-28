@@ -70,7 +70,7 @@
   (respond! {:ring.response/status 501}))
 
 (defn GET [{::keys [request resource respond! raise!] :as ctx}]
-  (let [{::keys [representation select-representation!]} resource
+  (let [{::keys [select-representation!]} resource
         response {:ring.response/status 200}
         ctx (into {::response response} ctx)]
 
@@ -80,7 +80,6 @@
     ;; elicit a 404 response.
     (when-let [representation
                (or
-                representation
                 (when select-representation!
                   (try
                     (select-representation! (dissoc ctx ::respond! ::raise))

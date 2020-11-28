@@ -7,8 +7,8 @@
    [juxt.spin.alpha.test-util :refer [response-for request header]]))
 
 (def hello-example
-  {::spin/representation
-   {::spin/content "Hello World!\n"}})
+  {::spin/select-representation!
+   (fn [_] {::spin/content "Hello World!\n"})})
 
 (deftest hello-example-test
   (is
@@ -20,7 +20,7 @@
        [:ring.response/status :ring.response/body]))))
 
 (def bad-request-example
-  {::spin/representation {}
+  {::spin/select-representation! (fn [_] {})
    ::spin/validate-request!
    (fn [{::spin/keys [request respond! response] :as ctx}]
      (if (:ring.request/query request)
@@ -51,7 +51,8 @@
 (def authorization-example
   {:roles {:superuser #{:get :head :put}
            :manager #{:get :head}}
-   ::spin/representation {::spin/content "Secret stuff!"}
+   ::spin/select-representation!
+   (fn [_] {::spin/content "Secret stuff!"})
    ::spin/validate-request!
    (fn [{::spin/keys [request respond! response resource] :as ctx}]
      (when-let [role
