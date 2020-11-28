@@ -161,7 +161,7 @@
 
 (defmethod http-method :trace [ctx] (method-not-allowed ctx))
 
-(defn resource-created!
+(defn created!
   "Convenience function for returning a 201 with a Location header."
   [{::keys [respond! response]} location]
   (respond!

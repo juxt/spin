@@ -156,7 +156,7 @@
         {:post
          (fn [ctx]
            ;; A real implementation would do some processing here.
-           (spin/resource-created! ctx "/new-resource"))}}
+           (spin/created! ctx "/new-resource"))}}
        (request :post "/")
        [:ring.response/status "location"])))))
 
