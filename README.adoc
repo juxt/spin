@@ -90,7 +90,7 @@ argument, the *resource*.
 
 .Hello World!
 ====
-For examplel, to return the message "Hello World!" from a GET request:
+For example, to return the message "Hello World!" from a GET request:
 
 [source,clojure]
 ----
