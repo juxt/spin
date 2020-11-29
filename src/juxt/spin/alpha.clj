@@ -74,7 +74,7 @@
         response {:ring.response/status 200}
         ctx (into {::response response} ctx)]
 
-    ;; This is a 'when' not an 'ifi. It does not need an else clause, since
+    ;; This is a 'when' not an 'if'. It does not need an else clause, since
     ;; the case where representation is nil (if representation is nil and
     ;; select-representation! returns nil), the respond! callback is called to
     ;; elicit a 404 response.
@@ -198,7 +198,7 @@
       (respond!
        {:ring.response/status 200
         :ring.response/headers
-        {"allow" (allow-header resource)
+        {"allow" allow
          "content-length" "0"}}))))
 
 (defmethod http-method :trace [ctx] (method-not-allowed ctx))
