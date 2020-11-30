@@ -268,7 +268,6 @@
                                        {:underlying-error e}))})))
                       custom-respond! (::respond! representation)]
 
-                  (prn "error rep" representation)
                   (if custom-respond!
                     ;; Let the representation handle the response, including
                     ;; setting all the response header fields correctly.
