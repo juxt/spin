@@ -240,6 +240,53 @@
           response
           (throw e))))))
 
+(defn make-handler**
+  [methods]
+  (fn [req]
+    (let [method (:ring.request/method req)]
+      (complete-response
+        (try
+          (if-let [handler (if (= :head method)
+                             (or (:head methods) (:get methods))
+                             (get methods method))]
+            (merge-with merge
+              (when (= :options method)
+                {:ring.response/headers {"allow" (allow-header {::methods methods})}})
+              (handler req))
+            ;; TODO: A user will want to represent these somehow
+            (case method
+
+              (:get :head :put :trace :delete :connect)
+              {:ring.response/status 405
+               :ring.response/headers {"allow" (allow-header {::methods methods})}}
+
+              {:ring.response/status 501}))
+          (catch Exception e
+            (if-let [response (::response (ex-data e))]
+              response
+              (throw e))))))))
+
+(def handler
+  (make-handler**
+    {:get (fn [req]
+            (let [role (case (get-in req [:ring.request/headers "authorization"])
+
+                         "Terrible let-me-in;role=superuser"
+                         :superuser
+
+                         "Terrible let-me-in;role=manager"
+                         :manager
+
+                         (throw
+                           {::response
+                            {:ring.response/status 401
+                             :ring.response/headers {"www-authenticate" "Terrible"}}}))]
+              (if
+                (not (#{:superuser :manager} role))
+                {:ring.response/status 403}
+
+                (rep->response req {::content "Secret stuff!"}))))}))
+
 ;; Only the authorizing request example, for loc comparison
 (defn handler
   [req]
