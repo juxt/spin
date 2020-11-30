@@ -69,6 +69,33 @@
 (defmethod http-method ::default [_ respond! _]
   (respond! {:ring.response/status 501}))
 
+(defn rep->response
+  ([request representation] (rep->response request representation {}))
+  ([request representation response]
+   (cond
+     (not representation) {:ring.response/status 404}
+     ;; Now to evaluate conditional requests. Note that according to Section 5,
+     ;; RFC 7232, "redirects and failures take precedence over the evaluation of
+     ;; preconditions in conditional requests." Therefore, we don't evaluate
+     ;; whether the request is conditional until we have determined its status
+     ;; code.
+     (not-modified? request representation) {:ring.response/status 304}
+     :else
+     (let [{::keys [content content-type content-encoding content-language content-location content-length
+                    content-range last-modified entity-tag]}
+           representation
+           content-length (or content-length (when content (count content)))]
+       (cond-> response
+         content-type (assoc-in [:ring.response/headers "content-type"] content-type)
+         content-encoding (assoc-in [:ring.response/headers "content-encoding"] content-encoding)
+         content-language (assoc-in [:ring.response/headers "content-language"] content-language)
+         content-location (assoc-in [:ring.response/headers "content-location"] content-location)
+         content-length (assoc-in [:ring.response/headers "content-length"] (str content-length))
+         content-range (assoc-in [:ring.response/headers "content-range"] content-range)
+         last-modified (assoc-in [:ring.response/headers "last-modified"] (util/format-http-date last-modified))
+         entity-tag (assoc-in [:ring.response/headers "etag"] entity-tag)
+         (and (= (:ring.request/method request) :get) content) (assoc :ring.response/body content))))))
+
 (defn GET [request respond! raise!]
   (let [{::keys [select-representation!]} request
         request (assoc request :ring.response/status 200)]
@@ -81,82 +108,13 @@
                (or
                 (when select-representation!
                   (try
-                    (select-representation! request respond! raise!)
+                    (doto (select-representation! request respond! raise!) prn)
                     (catch Exception e
+                      (println "Raising")
                       (raise! (ex-info "Failed to select a representation" {:request request} e)))))
                 (respond! {:ring.response/status 404}))]
-
-      ;; Now to evaluate conditional requests. Note that according to Section 5,
-      ;; RFC 7232, "redirects and failures take precedence over the evaluation
-      ;; of preconditions in conditional requests." Therefore, we don't evaluate
-      ;; whether the request is conditional until we have determined its status
-      ;; code.
-      (cond
-        (not-modified? request representation)
-        (respond! {:ring.response/status 304})
-
-        :else
-        (let [request (assoc request ::representation representation)
-              request
-              (let [{::keys [content
-                             content-type content-encoding
-                             content-language content-location
-                             content-length content-range
-                             last-modified entity-tag]}
-                    representation
-                    content-length
-                    (or content-length (when content (count content)))]
-
-                (cond-> request
-
-                  content-type
-                  (assoc-in
-                   [:ring.response/headers "content-type"]
-                   content-type)
-
-                  content-encoding
-                  (assoc-in
-                   [:ring.response/headers "content-encoding"]
-                   content-encoding)
-
-                  content-language
-                  (assoc-in
-                   [:ring.response/headers "content-language"]
-                   content-language)
-
-                  content-location
-                  (assoc-in
-                   [:ring.response/headers "content-location"]
-                   content-location)
-
-                  content-length
-                  (assoc-in
-                   [:ring.response/headers "content-length"]
-                   (str content-length))
-
-                  content-range
-                  (assoc-in
-                   [:ring.response/headers "content-range"]
-                   content-range)
-
-                  last-modified
-                  (assoc-in
-                   [:ring.response/headers "last-modified"]
-                   (util/format-http-date last-modified))
-
-                  entity-tag
-                  (assoc-in [:ring.response/headers "etag"] entity-tag)
-
-                  (and (= (:ring.request/method request) :get) content)
-                  (assoc :ring.response/body content)))]
-
-          (case (:ring.request/method request)
-            :get
-            (if-let [rep-respond! (::respond! representation)]
-              (rep-respond! request respond! raise!)
-              (respond! request))
-            :head
-            (respond! request)))))))
+      (let [rep-respond! (::respond! representation respond!)]
+        (rep-respond! (rep->response request representation request) respond! raise!)))))
 
 (defmethod http-method :get [{::keys [resource] :as request} respond! raise!]
   (if (::methods resource)
@@ -223,25 +181,107 @@
                   request)]
     (when request (http-method request respond! raise!))))
 
+(defn complete-response
+  [response]
+  (let [status (get response :ring.response/status 200)
+        inst (java.util.Date.)]
+    (cond-> response
+      ;; While Section 7.1.1.2 of RFC 7232 states: "An origin server
+      ;; MAY send a Date header field if the response is in the 1xx
+      ;; (Informational) or 5xx (Server Error) class of status
+      ;; codes.", we choose not to, as it cannot be used for
+      ;; cacheing.
+      (and (>= status 200) (< status 500))
+      (assoc-in
+        [:ring.response/headers "date"]
+        (util/format-http-date inst)))))
+
+;; Mushed together query-string validation & authorized request
+(defn handler
+  [req]
+  (complete-response
+    (try
+      ;; Method dispatch
+      (case (:ring.response/method req)
+        (:get :head)
+        ;; validate-request!
+        (let [role (case (get-in req [:ring.request/headers "authorization"])
+
+                     "Terrible let-me-in;role=superuser"
+                     :superuser
+
+                     "Terrible let-me-in;role=manager"
+                     :manager
+
+                     (throw
+                       {::response
+                        {:ring.response/status 401
+                         :ring.response/headers {"www-authenticate" "Terrible"}}}))]
+          (cond
+            (not (:ring.request/query req))
+            {:ring.response/status 400
+             :ring.response/body "Bad request!"}
+
+            (not (#{:superuser :manager} role))
+            {:ring.response/status 403}
+
+            ;; TODO: I can look at head/get and decide for myself whether to
+            ;; add content.
+            :else (rep->response req {::content "Secret stuff!"})))
+
+        (:put :trace :delete :connect :options)
+        {:ring.response/status 405
+         :ring.response/headers {"allow" (allow-header {::methods (zipmap [:head :get] (repeat 1))})}}
+
+        :else
+        {:ring.response/status 501})
+      (catch Exception e
+        (if-let [response (::response (ex-data e))]
+          response
+          (throw e))))))
+
+;; Only the authorizing request example, for loc comparison
+(defn handler
+  [req]
+  (complete-response
+    (try
+      (case (:ring.request/method req)
+        (:get :head)
+        (let [role (case (get-in req [:ring.request/headers "authorization"])
+
+                     "Terrible let-me-in;role=superuser"
+                     :superuser
+
+                     "Terrible let-me-in;role=manager"
+                     :manager
+
+                     (throw
+                       {::response
+                        {:ring.response/status 401
+                         :ring.response/headers {"www-authenticate" "Terrible"}}}))]
+          (if
+            (not (#{:superuser :manager} role))
+            {:ring.response/status 403}
+
+            (rep->response req {::content "Secret stuff!"})))
+
+        (:put :trace :delete :connect :options)
+        {:ring.response/status 405
+         :ring.response/headers {"allow" (allow-header {::methods (zipmap [:head :get] (repeat 1))})}}
+
+        :else
+        {:ring.response/status 501})
+      (catch Exception e
+        (if-let [response (::response (ex-data e))]
+          response
+          (throw e))))))
+
 (defn add-date!
   "Compute and add a Date header to the response."
   [request respond! raise!]
   (validate-request!
    request
-   (fn [response]
-     (let [status (get response :ring.response/status 200)
-           inst (java.util.Date.)]
-       (respond!
-        (cond-> response
-          ;; While Section 7.1.1.2 of RFC 7232 states: "An origin server
-          ;; MAY send a Date header field if the response is in the 1xx
-          ;; (Informational) or 5xx (Server Error) class of status
-          ;; codes.", we choose not to, as it cannot be used for
-          ;; cacheing.
-          (and (>= status 200) (< status 500))
-          (assoc-in
-           [:ring.response/headers "date"]
-           (util/format-http-date inst))))))
+   #(respond! (complete-response %))
    raise!))
 
 (defn handle-errors!
