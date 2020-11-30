@@ -35,7 +35,7 @@
        :ring.response/body "Hello World!\n"}
       (response-for
        {::spin/select-representation!
-        (fn [_]
+        (fn [_ _ _]
           {::spin/content-type "text/plain"
            ::spin/content "Hello World!\n"})}
        (request :get "/")
@@ -49,7 +49,7 @@
        :ring.response/body "Hello World!\n"}
       (response-for
        {::spin/select-representation!
-        (fn [_]
+        (fn [_ _ _]
           {::spin/content-type "text/plain"
            ::spin/content "Hello World!\n"})}
        (request :get "/")
@@ -60,8 +60,8 @@
      (= {:ring.response/status 400 :ring.response/body "Bad request!"}
         (response-for
          {::spin/validate-request!
-          (fn [{::spin/keys [respond! response]}]
-            (respond! (assoc response :ring.response/body "Bad request!")))}
+          (fn [request respond! _]
+            (respond! (assoc request :ring.response/body "Bad request!")))}
          (request :get "/")
          [:ring.response/status :ring.response/body])))))
 
@@ -73,7 +73,7 @@
        :ring.response/headers {"content-length" "13"}}
       (response-for
        {::spin/select-representation!
-        (fn [_]
+        (fn [_ _ _]
           {::spin/content-type "text/plain"
            ::spin/content "Hello World!\n"})}
 
@@ -87,12 +87,12 @@
        :ring.response/headers {"content-length" "13"}}
       (response-for
        {::spin/select-representation!
-        (fn [_]
+        (fn [_ _ _]
           {::spin/content-type "text/plain"
            ::spin/content "Hello World!\n"
            ::spin/respond!
-           (fn [{::spin/keys [respond! response]}]
-             (respond! response))})}
+           (fn [request respond! _]
+             (respond! request))})}
        (request :head "/")
        [:ring.response/status :ring.response/body "content-length"])))))
 
@@ -124,9 +124,9 @@
       (response-for
        {::spin/methods
         {:post
-         (fn [ctx]
+         (fn [request respond! raise!]
            ;; A real implementation would do some processing here.
-           (spin/created! ctx "/new-resource"))}}
+           (spin/created! "/new-resource" request respond! raise!))}}
        (request :post "/")
        [:ring.response/status "location"])))))
 
@@ -159,37 +159,39 @@
   ))
 
 (deftest response-header-date-test
-  (-> {::spin/representation
-       {::spin/content "Hello World!\n"}}
+  (-> {::spin/select-representation!
+       (fn [_ _ _]
+         {::spin/content "Hello World!\n"})}
       (response-for (request :get "/") [:ring.response/status "date"])
       (get-in [:ring.response/headers "date"])
       util/parse-http-date inst? is))
 
 (deftest response-error-test
-  (is
-   (=
-    {:ring.response/status 500,
-     :ring.response/headers
-     {"content-length" "6",
-      "content-type" "text/plain;charset=utf-8"}
-     :ring.response/body "ERROR!",}
+  (testing "An error that occurs in a custom response! is handled"
+    (is
+     (=
+      {:ring.response/status 500
+       :ring.response/headers
+       {"content-length" "6"
+        "content-type" "text/plain;charset=utf-8"}
+       :ring.response/body "ERROR!"}
 
-    (->
-     {::spin/select-representation!
-      (fn [{::spin/keys [response]}]
-        (case (:ring.response/status response)
-          200 {::spin/respond!
-               (fn [{::spin/keys [raise!]}]
-                 (raise! (ex-info "Error" {})))}
-          500 {::spin/content-type "text/plain;charset=utf-8"
-               ::spin/content "ERROR!"}
+      (->
+       {::spin/select-representation!
+        (fn [request _ _]
+          (case (:ring.response/status request)
+            200 {::spin/respond!
+                 (fn [_ _ raise!]
+                   (raise! (ex-info "Error" {})))}
+            500 {::spin/content-type "text/plain;charset=utf-8"
+                 ::spin/content "ERROR!"}
 
-          {::spin/content-type "text/plain;charset=utf-8"
-           ::spin/content "Not 500 - test should fail"}))}
+            {::spin/content-type "text/plain;charset=utf-8"
+             ::spin/content "Not 500 - test should fail"}))}
 
-     (response-for
-      (request :get "/")
-      [:ring.response/status :ring.response/body "content-length" "content-type"]))))
+       (response-for
+        (request :get "/")
+        [:ring.response/status :ring.response/body "content-length" "content-type"])))))
 
   (testing "Custom response! in representation"
     (is
@@ -197,18 +199,17 @@
       {:ring.response/status 403,
        :ring.response/body "Custom message: Something went wrong!"}
       (-> {::spin/select-representation!
-           (fn [{::spin/keys [response]}]
-             (case (:ring.response/status response)
+           (fn [request _ _]
+             (case (:ring.response/status request)
                200 {::spin/respond!
-                    (fn [{::spin/keys [raise!]}]
+                    (fn [_ _ raise!]
                       ;; TODO: Can we let the ring response body be set here?
                       (raise! (ex-info "Forbidden!" {:ring.response/status 403})))}
                403 {::spin/respond!
-                    (fn [{::spin/keys [respond! response]}]
-                      (assert respond!)
+                    (fn [request respond! _]
                       (respond!
                        (assoc
-                        response
+                        request
                         :ring.response/body "Custom message: Something went wrong!")))
                     ::spin/content-type "text/plain;charset=utf-8"
                     ::spin/content "Error"}))}
@@ -221,7 +222,7 @@
     (is (= {:ring.response/status 200,
             :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}}
            (-> {::spin/select-representation!
-                (fn [_]
+                (fn [_ _ _]
                   {::spin/content "Hello World!\n"})}
                (response-for
                 (request :options "/")
@@ -231,10 +232,10 @@
     (is (= {:ring.response/status 200,
             :ring.response/headers {"allow" "DELETE, OPTIONS"}}
            (-> {::spin/select-representation!
-                (fn [_]
+                (fn [_ _ _]
                   {::spin/content "Hello World!\n"})
                 ::spin/methods
-                {:delete (fn [_] (throw (ex-info "" {})))}}
+                {:delete (fn [_ _ _] (throw (ex-info "" {})))}}
                (response-for
                 (request :options "/")
                 [:ring.response/status "allow"])))))
@@ -243,11 +244,11 @@
     (is (= {:ring.response/status 200,
             :ring.response/headers {"allow" "GET, HEAD, PUT, OPTIONS"}}
            (-> {::spin/select-representation!
-                (fn [_]
+                (fn [_ _ _]
                   {::spin/content "Hello World!\n"})
                 ::spin/methods
-                {:get (fn [_] (throw (ex-info "" {})))
-                 :put (fn [_] (throw (ex-info "" {})))}}
+                {:get (fn [_ _ _] (throw (ex-info "" {})))
+                 :put (fn [_ _ _] (throw (ex-info "" {})))}}
                (response-for
                 (request :options "/")
                 [:ring.response/status "allow"])))))
@@ -256,7 +257,7 @@
     (is (= {:ring.response/status 200,
             :ring.response/headers {"content-length" "0"}}
            (-> {::spin/select-representation!
-                (fn [_]
+                (fn [_ _ _]
                   {::spin/content "Hello World!\n"})}
                (response-for
                 (request :options "/")
@@ -269,7 +270,7 @@
             :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}
             :ring.response/body "Custom options"}
            (-> {::spin/select-representation!
-                (fn [_]
+                (fn [_ _ _]
                   {::spin/content "Hello World!\n"})
                 ::spin/methods
                 {:options
@@ -284,13 +285,13 @@
 (deftest conditional-get-request-test
   (let [res
         {::spin/select-representation!
-         (fn [_]
+         (fn [_ _ _]
            {::spin/content-type "text/plain"
             ::spin/content "Hello World!\n"
             ::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")
             ::spin/respond!
-            (fn [{::spin/keys [respond! response]}]
-              (respond! response))})}]
+            (fn [request respond! _]
+              (respond! request))})}]
 
     (testing "Representation was modified since 8am. Let the request through."
       (is
@@ -327,13 +328,13 @@
   (testing "GET with etags"
     (let [res
           {::spin/select-representation!
-           (fn [_]
+           (fn [_ _ _]
              {::spin/content-type "text/plain"
               ::spin/content "Hello World!\n"
               ::spin/entity-tag "\"abc\""
               ::spin/respond!
-              (fn [{::spin/keys [respond! response]}]
-                (respond! response))})}]
+              (fn [request respond! _]
+                (respond! request))})}]
       (is
        (=
         {:ring.response/status 200

@@ -8,7 +8,7 @@
 
 (def hello-example
   {::spin/select-representation!
-   (fn [_] {::spin/content "Hello World!\n"})})
+   (fn [_ _ _] {::spin/content "Hello World!\n"})})
 
 (deftest hello-example-test
   (is
@@ -20,15 +20,15 @@
        [:ring.response/status :ring.response/body]))))
 
 (def bad-request-example
-  {::spin/select-representation! (fn [_] {})
+  {::spin/select-representation! (fn [_ _ _] {})
    ::spin/validate-request!
-   (fn [{::spin/keys [request respond! response] :as ctx}]
+   (fn [request respond! _]
      (if (:ring.request/query request)
-       ctx
+       request
        ;; No query string, bad request!
        (respond!
         (assoc
-         response
+         request
          :ring.response/status 400
          :ring.response/body "Bad request!"))))})
 
@@ -52,9 +52,9 @@
   {:roles {:superuser #{:get :head :put}
            :manager #{:get :head}}
    ::spin/select-representation!
-   (fn [_] {::spin/content "Secret stuff!"})
+   (fn [_ _ _] {::spin/content "Secret stuff!"})
    ::spin/validate-request!
-   (fn [{::spin/keys [request respond! response resource] :as ctx}]
+   (fn [request respond! raise!]
      (when-let [role
                 (case (get-in request
                               [:ring.request/headers "authorization"])
@@ -66,15 +66,15 @@
                   :manager
 
                   (respond!
-                   (-> response
+                   (-> request
                        (assoc :ring.response/status 401)
                        (assoc-in
                         [:ring.response/headers "www-authenticate"]
                         "Terrible"))))]
 
-       (if (get-in resource [:roles role (:ring.request/method request)])
-         (assoc ctx :role role)
-         (respond! (assoc response :ring.response/status 403)))))})
+       (if (get-in request [:roles role (:ring.request/method request)])
+         (assoc request :role role)
+         (respond! (assoc request :ring.response/status 403)))))})
 
 (deftest authorization-example-test
   (testing "unauthenticated request requires authentication"

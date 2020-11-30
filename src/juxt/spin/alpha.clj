@@ -40,12 +40,12 @@
 
 (defn allow-header
   "Produce a value for the Allow response header."
-  [resource]
+  [{::keys [methods]}]
   (->>
    (if (and
-        (::methods resource)
-        (seq (dissoc (::methods resource) :get :head :options)))
-     (concat (keys (::methods resource)) [:options])
+        methods
+        (seq (dissoc methods :get :head :options)))
+     (concat (keys methods) [:options])
      [:get :options])
    ;; if GET is included, so is HEAD
    (mapcat (fn [method] (if (= :get method) [:get :head] [method])))
@@ -56,35 +56,34 @@
 (defn method-not-allowed
   "Respond with a 405 to indicated that the resource does not support the method
   in the request."
-  [{::keys [respond! resource]}]
+  [request respond! _]
   (respond!
    {:ring.response/status 405
     :ring.response/headers
-    {"allow" (allow-header resource)}}))
+    {"allow" (allow-header request)}}))
 
 (defmulti http-method
-  (fn [{::keys [request]}] (:ring.request/method request))
+  (fn [request _ _] (:ring.request/method request))
   :default ::default)
 
-(defmethod http-method ::default [{::keys [respond!]}]
+(defmethod http-method ::default [_ respond! _]
   (respond! {:ring.response/status 501}))
 
-(defn GET [{::keys [request resource respond! raise!] :as ctx}]
-  (let [{::keys [select-representation!]} resource
-        response {:ring.response/status 200}
-        ctx (into {::response response} ctx)]
+(defn GET [request respond! raise!]
+  (let [{::keys [select-representation!]} request
+        request (assoc request :ring.response/status 200)]
 
-    ;; This is a 'when' not an 'ifi. It does not need an else clause, since
-    ;; the case where representation is nil (if representation is nil and
+    ;; This is a 'when' not an 'if'. It does not need an else clause, since the
+    ;; case where representation is nil (if representation is nil and
     ;; select-representation! returns nil), the respond! callback is called to
     ;; elicit a 404 response.
     (when-let [representation
                (or
                 (when select-representation!
                   (try
-                    (select-representation! ctx)
+                    (select-representation! request respond! raise!)
                     (catch Exception e
-                      (raise! (ex-info "Failed to select a representation" {:ctx ctx} e)))))
+                      (raise! (ex-info "Failed to select a representation" {:request request} e)))))
                 (respond! {:ring.response/status 404}))]
 
       ;; Now to evaluate conditional requests. Note that according to Section 5,
@@ -97,8 +96,8 @@
         (respond! {:ring.response/status 304})
 
         :else
-        (let [ctx (assoc ctx ::representation representation)
-              response
+        (let [request (assoc request ::representation representation)
+              request
               (let [{::keys [content
                              content-type content-encoding
                              content-language content-location
@@ -106,10 +105,9 @@
                              last-modified entity-tag]}
                     representation
                     content-length
-                    (or content-length (when content (count content)))
-                    ]
+                    (or content-length (when content (count content)))]
 
-                (cond-> response
+                (cond-> request
 
                   content-type
                   (assoc-in
@@ -150,43 +148,50 @@
                   (assoc-in [:ring.response/headers "etag"] entity-tag)
 
                   (and (= (:ring.request/method request) :get) content)
-                  (assoc :ring.response/body content)))
-
-              ctx (assoc ctx ::response response)]
+                  (assoc :ring.response/body content)))]
 
           (case (:ring.request/method request)
             :get
             (if-let [rep-respond! (::respond! representation)]
-              (rep-respond! ctx)
-              (respond! response))
+              (rep-respond! request respond! raise!)
+              (respond! request))
             :head
-            (respond! response)))))))
+            (respond! request)))))))
 
-(defmethod http-method :get [{::keys [resource] :as ctx}]
+(defmethod http-method :get [{::keys [resource] :as request} respond! raise!]
   (if (::methods resource)
     (if-let [get! (get-in resource [::methods :get])]
-      (get! ctx)
-      (method-not-allowed ctx))
-    (GET ctx)))
+      (get! request respond! raise!)
+      (method-not-allowed request respond! raise!))
+    (GET request respond! raise!)))
 
-(defn common-method [{::keys [request resource] :as ctx}]
-  (if-let [method! (get-in resource [::methods (:ring.request/method request)])]
-    (method! ctx)
-    (method-not-allowed ctx)))
+(defn common-method [request respond! raise!]
+  (if-let [method! (get-in request [::methods (:ring.request/method request)])]
+    (method! request respond! raise!)
+    (method-not-allowed request respond! raise!)))
 
 ;; This is NOT a typo, a HEAD purposely calls into the GET method
-(defmethod http-method :head [ctx] (GET ctx))
-(defmethod http-method :post [ctx] (common-method ctx))
-(defmethod http-method :put [ctx] (common-method ctx))
-(defmethod http-method :delete [ctx] (common-method ctx))
-(defmethod http-method :connect [ctx] (method-not-allowed ctx))
+(defmethod http-method :head [request respond! raise!]
+  (GET request respond! raise!))
 
-(defmethod http-method :options [{::keys [respond! resource] :as ctx}]
-  (let [allow (allow-header resource)]
-    (if-let [method! (get-in resource [::methods :options])]
+(defmethod http-method :post [request respond! raise!]
+  (common-method request respond! raise!))
+
+(defmethod http-method :put [request respond! raise!]
+  (common-method request respond! raise!))
+
+(defmethod http-method :delete [request respond! raise!]
+  (common-method request respond! raise!))
+
+(defmethod http-method :connect [request respond! raise!]
+  (method-not-allowed request respond! raise!))
+
+(defmethod http-method :options [request respond! _]
+  (let [allow (allow-header request)]
+    (if-let [method! (get-in request [::methods :options])]
       (method!
        (assoc
-        ctx
+        request
         ::respond!
         ;; We add the Allow header to custom implementations so they don't have
         ;; to recompute it.
@@ -198,67 +203,61 @@
       (respond!
        {:ring.response/status 200
         :ring.response/headers
-        {"allow" (allow-header resource)
+        {"allow" allow
          "content-length" "0"}}))))
 
-(defmethod http-method :trace [ctx] (method-not-allowed ctx))
-
-(defn created!
-  "Convenience function for returning a 201 with a Location header."
-  [{::keys [respond! response]} location]
-  (respond!
-   (into
-    {:ring.response/status 201}
-    (update response :ring.response/headers assoc "location" location))))
+(defmethod http-method :trace [request respond! raise!]
+  (method-not-allowed request respond! raise!))
 
 (defn validate-request!
   "Validate the request is appropriate for the resource."
-  [{::keys [resource] :as ctx}]
-  (let [{::keys [validate-request!]} resource
-        ctx (if validate-request!
-              (validate-request!
-               ;; If we assoc a 400 into the response, there's less chance of
-               ;; the user accidentally sending through a 200.
-               (assoc ctx ::response {:ring.response/status 400}))
-              ctx)]
-    (when ctx (http-method ctx))))
+  [request respond! raise!]
+  (let [{::keys [validate-request!]} request
+        request (if validate-request!
+                  (validate-request!
+                   ;; If we assoc a status of 400, there's less chance of the
+                   ;; user accidentally sending through a 200.
+                   (assoc request :ring.response/status 400)
+                   respond!
+                   raise!)
+                  request)]
+    (when request (http-method request respond! raise!))))
 
 (defn add-date!
   "Compute and add a Date header to the response."
-  [{::keys [respond!] :as ctx}]
+  [request respond! raise!]
   (validate-request!
-   (assoc
-    ctx
-    ::respond!
-    (fn [response]
-      (let [status (get response :ring.response/status 200)
-            inst (java.util.Date.)]
-        (respond!
-         (cond-> response
-           ;; While Section 7.1.1.2 of RFC 7232 states: "An origin server
-           ;; MAY send a Date header field if the response is in the 1xx
-           ;; (Informational) or 5xx (Server Error) class of status
-           ;; codes.", we choose not to, as it cannot be used for
-           ;; cacheing.
-           (and (>= status 200) (< status 500))
-           (assoc-in
-            [:ring.response/headers "date"]
-            (util/format-http-date inst)))))))))
+   request
+   (fn [response]
+     (let [status (get response :ring.response/status 200)
+           inst (java.util.Date.)]
+       (respond!
+        (cond-> response
+          ;; While Section 7.1.1.2 of RFC 7232 states: "An origin server
+          ;; MAY send a Date header field if the response is in the 1xx
+          ;; (Informational) or 5xx (Server Error) class of status
+          ;; codes.", we choose not to, as it cannot be used for
+          ;; cacheing.
+          (and (>= status 200) (< status 500))
+          (assoc-in
+           [:ring.response/headers "date"]
+           (util/format-http-date inst))))))
+   raise!))
 
 (defn handle-errors!
   "Process request but catch and deal with any errors that may occur."
-  [{::keys [respond! resource] :as ctx}]
+  [request respond! raise!]
   (let [raise!
         (fn [e]
           (let [data (ex-data e)
-                response (into {:ring.response/status 500} data)]
+                request (merge request {:ring.response/status 500} data)]
 
-            (if-let [select-representation! (::select-representation! resource)]
+            (if-let [select-representation! (::select-representation! request)]
               (try
                 (let [representation
                       (try
                         (select-representation!
-                         (assoc ctx ::response response))
+                         request respond! raise!)
                         (catch Exception e
                           (respond! {:ring.response/status 500
                                      ;; Only in dev mode!
@@ -269,11 +268,12 @@
                                        {:underlying-error e}))})))
                       custom-respond! (::respond! representation)]
 
+                  (prn "error rep" representation)
                   (if custom-respond!
                     ;; Let the representation handle the response, including
                     ;; setting all the response header fields correctly.
                     ;; TODO: Shouldn't we help it a little, at least with content-length?
-                    (custom-respond! (assoc ctx ::response response))
+                    (custom-respond! request respond! raise!)
 
                     ;; TODO: Try to format the content according to the representation
                     ;; metadata. If it's a string, or byte[], then assume it's
@@ -282,8 +282,8 @@
                     ;; representation metadata.
                     (let [{::keys [content content-length content-type]} representation
                           content-length (or content-length (when content (count content)))
-                          response
-                          (cond-> response
+                          request
+                          (cond-> request
                             content-length
                             (assoc-in [:ring.response/headers "content-length"] (str content-length))
                             content-type
@@ -291,7 +291,7 @@
                             content
                             (assoc :ring.response/body content))]
                       (assert respond!)
-                      (respond! response))))
+                      (respond! request))))
 
                 (catch Exception e
                   ;; Recover and use a plain-text representation
@@ -299,19 +299,19 @@
                   (respond!
                    (into {:ring.response/headers {"content-type" "text/plain;charset=utf-8"}
                           :ring.response/body (str "Failure when selecting representation: " (pr-str e))}
-                         response))))
+                         request))))
               ;; otherwise, if no select-representation!
               (respond!
                (into
                 {:ring.response/headers {"content-type" "text/plain;charset=utf-8"}
                  :ring.response/body (pr-str e)}
-                response)))))]
+                request)))))]
     (try
-      (add-date!
-       (assoc ctx ::raise! raise!))
+      (add-date! request respond! raise!)
       ;; Also, catch any exceptions that are thrown by this calling thread which
       ;; slip through uncaught.
       (catch Exception e
+        (prn e)
         (raise! e)))))
 
 (defn handler
@@ -322,8 +322,14 @@
   (->
    (fn [request respond! raise!]
      (handle-errors!
-      {::resource resource
-       ::request request
-       ::respond! respond!
-       ::raise! raise!}))
+      (conj request resource)
+      respond! raise!))
    util/sync-adapt))
+
+(defn created!
+  "Convenience function for returning a 201 with a Location header."
+  [location request respond! _]
+  (respond!
+   (-> request
+       (assoc :ring.response/status 201)
+       (update :ring.response/headers assoc "location" location))))

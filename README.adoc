@@ -90,15 +90,16 @@ argument, the *resource*.
 
 .Hello World!
 ====
-For examplel, to return the message "Hello World!" from a GET request:
+For example, to return the message "Hello World!" from a GET request:
 
 [source,clojure]
 ----
 (require '[juxt.spin.alpha :as spin])
 
 (def hello-resource
-  {::spin/representation
-    {::spin/content "Hello World!\n"}})
+  {::spin/select-representation!
+    (fn [_ _ _]
+      {::spin/content "Hello World!\n"})})
 
 (def hello
   (spin/handler hello-resource))
@@ -148,9 +149,9 @@ response.
 
 [source,clojure]
 ----
-{::spin/representation {}
+{::spin/select-representation! {}
  ::spin/validate-request!
- (fn [{::spin/keys [request respond! response] :as ctx}]
+ (fn [request respond! raise!]
    (if (:ring.request/query request)
      ctx
      ;; No query string, bad request!
@@ -191,9 +192,10 @@ database lookup.
 ----
 {:roles {:superuser #{:get :head :put}
          :manager #{:get :head}} <1>
- ::spin/representation {::spin/content "Secret stuff!"}
+ ::spin/select-representation!
+   (fn [_ _ _] {::spin/content "Secret stuff!"})
  ::spin/validate-request!
- (fn [{::spin/keys [request respond! response] :as ctx}]
+ (fn [request respond! raise!] :as ctx}]
    (when-let [role <2>
                (case (get-in request
                              [:ring.request/headers "authorization"])
