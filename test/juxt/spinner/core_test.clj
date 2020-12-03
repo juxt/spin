@@ -120,3 +120,19 @@
 
        (request :get "/")
        [:ring.response/status])))))
+
+(deftest allow-test
+  (is
+   (=
+    {:ring.response/status 405
+     :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}}
+    (response-for
+
+     (fn [request respond! _]
+
+       (let [request (conj request {::spin/methods #{:get}})]
+         (when-let [response (s/method-not-allowed? request)]
+           (respond! response))))
+
+     (request :post "/")
+     [:ring.response/status "allow"]))))

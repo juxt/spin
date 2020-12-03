@@ -2,6 +2,7 @@
 
 (ns juxt.spinner.core
   (:require
+   [clojure.string :as str]
    [juxt.spin.alpha :as spin]
    [juxt.spin.alpha.util :as util]))
 
@@ -50,13 +51,31 @@
   (when-not representation
     {:ring.response/status 404}))
 
+(defn allow-header
+  "Produce a value for the Allow response header. Expected the given parameter to
+  have a ::spin/methods set containing method keywords."
+  [{::keys [methods]}]
+  (->>
+   (if (and
+        methods
+        (seq (dissoc methods :get :head :options)))
+     (concat (keys methods) [:options])
+     [:get :options])
+   ;; if GET is included, so is HEAD
+   (mapcat (fn [method] (if (= :get method) [:get :head] [method])))
+   distinct
+   (map (comp str/upper-case name))
+   (str/join ", ")))
+
 (defn method-not-allowed?
   "The given request parameter is required to have a ::spin/methods set containing
   method keywords."
   [request]
   (assert (::spin/methods request))
   (when-not (contains? (::spin/methods request) (:ring.request/method request))
-    {:ring.response/status 405}))
+    {:ring.response/status 405
+     :ring.response/headers
+     {"allow" (allow-header request)}}))
 
 (defn head? [request]
   (= (:ring.request/method request) :head))
