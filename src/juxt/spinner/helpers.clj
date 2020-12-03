@@ -5,7 +5,7 @@
    [juxt.spinner.core :as s]))
 
 (defn GET! [request representation respond! _]
-  (assert (contains? #{:get :head} (:ring.request/method request)))
+  (assert (contains? #{:get :head} (:request-method request)))
 
   ;; Now to evaluate conditional requests. Note that according to Section 5,
   ;; RFC 7232, "redirects and failures take precedence over the evaluation
@@ -14,7 +14,7 @@
   ;; code.
   (cond
     (s/not-modified? request representation)
-    (respond! {:ring.response/status 304})
+    (respond! {:status 304})
 
     :else
     representation))

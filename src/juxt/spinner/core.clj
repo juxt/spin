@@ -15,12 +15,12 @@
   ;; received with a request method that does not involve the selection or
   ;; modification of a selected representation, such as CONNECT, OPTIONS, or
   ;; TRACE." -- Section 5, RFC 7232
-  (when (not (#{:connect :options :trace} (:ring.request/method request)))
+  (when (not (#{:connect :options :trace} (:request-method request)))
     (let [last-modified (::spin/last-modified representation)
 
           if-modified-since
           (when last-modified
-            (some-> (get-in request [:ring.request/headers "if-modified-since"])
+            (some-> (get-in request [:headers "if-modified-since"])
                     util/parse-http-date))
 
           entity-tag (::spin/entity-tag representation)
@@ -28,34 +28,34 @@
           if-none-match
           (when entity-tag
             (some->>
-             (get-in request [:ring.request/headers "if-none-match"])
+             (get-in request [:headers "if-none-match"])
              util/parse-if-none-match
              (map (comp :juxt.reap.alpha.rfc7232/opaque-tag :juxt.reap.alpha.rfc7232/entity-tag))
              set))]
       (cond
         (and (seq if-none-match) entity-tag)
         (when (contains? if-none-match entity-tag)
-          {:ring.response/status 304})
+          {:status 304})
 
         (and if-modified-since last-modified)
         (when-not (.isAfter (.toInstant last-modified) (.toInstant if-modified-since))
           ;; TODO: Need to distinguish which
-          {:ring.response/status 304})))))
+          {:status 304})))))
 
 (defn unknown-method?
   "When the request method is unknown, return a 501 response."
   [request]
-  (when-not (contains? #{:get :put :post :delete :options :trace :connect} (:ring.request/method request))
-    {:ring.response/status 501}))
+  (when-not (contains? #{:get :put :post :delete :options :trace :connect} (:request-method request))
+    {:status 501}))
 
 (defn ok []
-  {:ring.response/status 200})
+  {:status 200})
 
 (defn not-found?
   "When representation is nil, return a 404 response."
   [representation]
   (when-not representation
-    {:ring.response/status 404}))
+    {:status 404}))
 
 (defn allow-header
   "Return the Allow response header value, given a set of method keywords."
@@ -74,16 +74,16 @@
 
 (defn method-not-allowed?
   [request methods]
-  (when-not (contains? methods (:ring.request/method request))
-    {:ring.response/status 405
-     :ring.response/headers
+  (when-not (contains? methods (:request-method request))
+    {:status 405
+     :headers
      {"allow" (allow-header methods)}}))
 
 (defn head? [request]
-  (= (:ring.request/method request) :head))
+  (= (:request-method request) :head))
 
 (defn bad-request []
-  {:ring.response/status 400})
+  {:status 400})
 
 (defn representation->response [representation]
   (let [{::spin/keys [content-type content-encoding
@@ -96,52 +96,52 @@
 
       content-type
       (assoc-in
-       [:ring.response/headers "content-type"]
+       [:headers "content-type"]
        content-type)
 
       content-encoding
       (assoc-in
-       [:ring.response/headers "content-encoding"]
+       [:headers "content-encoding"]
        content-encoding)
 
       content-language
       (assoc-in
-       [:ring.response/headers "content-language"]
+       [:headers "content-language"]
        content-language)
 
       content-location
       (assoc-in
-       [:ring.response/headers "content-location"]
+       [:headers "content-location"]
        content-location)
 
       content-length
       (assoc-in
-       [:ring.response/headers "content-length"]
+       [:headers "content-length"]
        (str content-length))
 
       content-range
       (assoc-in
-       [:ring.response/headers "content-range"]
+       [:headers "content-range"]
        content-range)
 
       last-modified
       (assoc-in
-       [:ring.response/headers "last-modified"]
+       [:headers "last-modified"]
        (util/format-http-date last-modified))
 
       entity-tag
-      (assoc-in [:ring.response/headers "etag"] entity-tag))))
+      (assoc-in [:headers "etag"] entity-tag))))
 
 (defn created
   "Convenience function for returning a 201 repsonse with a Location header."
   [location]
-  {:ring.response/status 201
-   :ring.response/headers {"location" location}})
+  {:status 201
+   :headers {"location" location}})
 
 (defn options
   [methods]
-  {:ring.response/status 200
-   :ring.response/headers
+  {:status 200
+   :headers
    {"allow" (allow-header methods)
     ;; TODO: Shouldn't this be a situation (a missing body) detected by
     ;; middleware, which can set the content-length header accordingly?
@@ -153,7 +153,7 @@
   (fn
     [request]
     (let [response (h request)]
-      (let [status (get response :ring.response/status 200)
+      (let [status (get response :status 200)
             inst (java.util.Date.)]
         (cond-> response
           ;; While Section 7.1.1.2 of RFC 7232 states: "An origin server
@@ -163,5 +163,5 @@
           ;; cacheing.
           (and (>= status 200) (< status 500))
           (assoc-in
-           [:ring.response/headers "date"]
+           [:headers "date"]
            (util/format-http-date inst)))))))
