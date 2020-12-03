@@ -54,7 +54,7 @@
    ::spin/select-representation!
    (fn [_ _ _] {::spin/content "Secret stuff!"})
    ::spin/validate-request!
-   (fn [request respond! raise!]
+   (fn [request respond! _]
      (when-let [role
                 (case (get-in request
                               [:ring.request/headers "authorization"])
