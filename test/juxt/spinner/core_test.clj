@@ -10,7 +10,7 @@
 
 (defn response-for
   ([h request]
-   ((util/sync-adapt h) request))
+   (h request))
   ([h request keyseq]
    (let [keyseq (cond-> keyseq (seq (filter string? keyseq)) (conj :ring.response/headers))]
      (cond-> (response-for h request)
@@ -25,9 +25,9 @@
      (=
       {:ring.response/status 501}
       (response-for
-       (fn [request respond! _]
+       (fn [request]
          (when-let [response (s/unknown-method? request)]
-           (respond! response)))
+           response))
        (request :brew "/")
        [:ring.response/status])))))
 
@@ -37,14 +37,15 @@
      (=
       {:ring.response/status 404}
       (response-for
-       (fn [request respond! _]
-         (when-let [response (s/unknown-method? request)]
-           (respond! response))
-         (case (:ring.request/method request)
-           (:head :get)
-           (let [representation nil]
-             (when-let [response (s/not-found? representation)]
-               (respond! response)))))
+       (fn [request]
+         (or
+          (when-let [response (s/unknown-method? request)]
+            response)
+          (case (:ring.request/method request)
+            (:head :get)
+            (let [representation nil]
+              (when-let [response (s/not-found? representation)]
+                response)))))
        (request :get "/")
        [:ring.response/status])))))
 
@@ -55,19 +56,19 @@
       {:ring.response/status 405}
 
       (response-for
-       (fn [request respond! _]
+       (fn [request]
 
          (when-let [response (s/method-not-allowed? request #{:get})]
-           (respond! response)))
+           response))
 
        (request :post "/")
        [:ring.response/status])))))
 
 (deftest get-and-head-test
-  (let [h (fn [request respond! _]
+  (let [h (fn [request]
 
             (when-let [response (s/method-not-allowed? request #{:get})]
-              (respond! response))
+              response)
 
             (case (:ring.request/method request)
               (:head :get)
@@ -75,12 +76,11 @@
                     {::spin/content-type "text/plain"
                      ::spin/content-length (count (.getBytes "Hello World!\n"))}]
 
-                (respond!
-                 (cond-> (s/ok)
-                   true (conj (s/representation->response representation))
-                   (not (s/head? request)) ; when not HEAD …
-                   ;; … we add the body ourselves
-                   (conj {:ring.response/body "Hello World!\n"}))))))]
+                (cond-> (s/ok)
+                  true (conj (s/representation->response representation))
+                  (not (s/head? request)) ; when not HEAD …
+                  ;; … we add the body ourselves
+                  (conj {:ring.response/body "Hello World!\n"})))))]
 
     (testing "a 200 response, with a body, in response to a GET request"
       (is
@@ -110,9 +110,9 @@
       {:ring.response/status 400}
 
       (response-for
-       (fn [request respond! _]
+       (fn [request]
          (when-not (get-in request [:ring.request/headers "some-required-header"])
-           (respond! (s/bad-request))))
+           (s/bad-request)))
 
        (request :get "/")
        [:ring.response/status])))))
@@ -124,20 +124,20 @@
      :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}}
     (response-for
 
-     (fn [request respond! _]
-
+     (fn [request]
        (when-let [response (s/method-not-allowed? request #{:get})]
-         (respond! response)))
+         response))
 
      (request :post "/")
      [:ring.response/status "allow"]))))
 
 (deftest post-test
-  (let [h (fn [request respond! _]
-            (when-let [response (s/method-not-allowed? request #{:post})]
-              (respond! response))
+  (let [h (fn [request]
+            (or
+             (when-let [response (s/method-not-allowed? request #{:post})]
+               response)
 
-            (respond! (s/created "/new-resource")))]
+             (s/created "/new-resource")))]
 
     (testing "responds with 201 when new resource created"
       (is
@@ -150,8 +150,7 @@
          [:ring.response/status "location"]))))))
 
 (deftest response-header-date-test
-  (-> (fn [_ respond! _]
-        (respond! (s/ok)))
+  (-> (fn [_] (s/ok))
       s/wrap-add-date
       (response-for (request :get "/"))
       (get-in [:ring.response/headers "date"])
@@ -163,9 +162,9 @@
     (is
      (= {:ring.response/status 200,
          :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}}
-        (-> (fn [request respond! _]
+        (-> (fn [request]
               (case (:ring.request/method request)
-                :options (respond! (s/options #{:get}))))
+                :options (s/options #{:get})))
             (response-for
              (request :options "/")
              [:ring.response/status "allow"])))))
@@ -175,9 +174,9 @@
      (=
       {:ring.response/status 200,
        :ring.response/headers {"allow" "DELETE, OPTIONS"}}
-      (-> (fn [request respond! _]
+      (-> (fn [request]
             (case (:ring.request/method request)
-              :options (respond! (s/options #{:delete}))))
+              :options (s/options #{:delete})))
           (response-for
            (request :options "/")
            [:ring.response/status "allow"])))))
@@ -186,9 +185,9 @@
     (is (=
          {:ring.response/status 200,
           :ring.response/headers {"allow" "GET, HEAD, PUT, OPTIONS"}}
-         (-> (fn [request respond! _]
+         (-> (fn [request]
                (case (:ring.request/method request)
-                 :options (respond! (s/options #{:get :put}))))
+                 :options (s/options #{:get :put})))
              (response-for
               (request :options "/")
               [:ring.response/status "allow"])))))
@@ -197,22 +196,20 @@
     (is (=
          {:ring.response/status 200,
           :ring.response/headers {"content-length" "0"}}
-         (-> (fn [request respond! _]
+         (-> (fn [request]
                (case (:ring.request/method request)
-                 :options (respond! (s/options #{:get :put}))))
+                 :options (s/options #{:get :put})))
              (response-for
               (request :options "/")
               [:ring.response/status "content-length"]))))))
 
 (deftest conditional-if-modified-since-test
-  (let [h (fn [request respond! _]
+  (let [h (fn [request]
             (let [representation
                   {::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")}]
-
-              (when-let [response (s/not-modified? request representation)]
-                (respond! response))
-
-              (respond!
+              (or
+               (when-let [response (s/not-modified? request representation)]
+                 response)
                (conj (s/ok) (s/representation->response representation)))))]
 
     (testing "Representation was modified since 8am. Let the request through."
@@ -247,13 +244,11 @@
          [:ring.response/status]))))))
 
 (deftest conditional-if-none-match-test
-  (let [h (fn [request respond! _]
+  (let [h (fn [request]
             (let [representation {::spin/entity-tag "\"abc\""}]
-
-              (when-let [response (s/not-modified? request representation)]
-                (respond! response))
-
-              (respond!
+              (or
+               (when-let [response (s/not-modified? request representation)]
+                 response)
                (conj (s/ok) (s/representation->response representation)))))]
     (is
      (=
