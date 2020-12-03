@@ -52,14 +52,13 @@
     {:ring.response/status 404}))
 
 (defn allow-header
-  "Produce a value for the Allow response header. Expected the given parameter to
-  have a ::spin/methods set containing method keywords."
-  [{::keys [methods]}]
+  "Return the Allow response header value, given a set of method keywords."
+  [methods]
   (->>
    (if (and
         methods
-        (seq (dissoc methods :get :head :options)))
-     (concat (keys methods) [:options])
+        (seq (disj methods :get :head :options)))
+     (concat methods [:options])
      [:get :options])
    ;; if GET is included, so is HEAD
    (mapcat (fn [method] (if (= :get method) [:get :head] [method])))
@@ -68,35 +67,17 @@
    (str/join ", ")))
 
 (defn method-not-allowed?
-  "The given request parameter is required to have a ::spin/methods set containing
-  method keywords."
-  [request]
-  (assert (::spin/methods request))
-  (when-not (contains? (::spin/methods request) (:ring.request/method request))
+  [request methods]
+  (when-not (contains? methods (:ring.request/method request))
     {:ring.response/status 405
      :ring.response/headers
-     {"allow" (allow-header request)}}))
+     {"allow" (allow-header methods)}}))
 
 (defn head? [request]
   (= (:ring.request/method request) :head))
 
 (defn bad-request []
   {:ring.response/status 400})
-
-(defn GET! [request representation respond! raise!]
-  (assert (contains? #{:get :head} (:ring.request/method request)))
-
-  ;; Now to evaluate conditional requests. Note that according to Section 5,
-  ;; RFC 7232, "redirects and failures take precedence over the evaluation
-  ;; of preconditions in conditional requests." Therefore, we don't evaluate
-  ;; whether the request is conditional until we have determined its status
-  ;; code.
-  (cond
-    (not-modified? request representation)
-    (respond! {:ring.response/status 304})
-
-    :else
-    representation))
 
 (defn representation->response [representation]
   (let [{::spin/keys [content-type content-encoding
@@ -144,3 +125,9 @@
 
       entity-tag
       (assoc-in [:ring.response/headers "etag"] entity-tag))))
+
+(defn created
+  "Convenience function for returning a 201 repsonse with a Location header."
+  [location]
+  {:ring.response/status 201
+   :ring.response/headers {"location" location}})

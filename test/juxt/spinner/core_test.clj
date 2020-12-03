@@ -57,34 +57,30 @@
       (response-for
        (fn [request respond! _]
 
-         (let [request (conj request {::spin/methods #{:get}})]
-           (when-let [response (s/method-not-allowed? request)]
-             (respond! response))))
+         (when-let [response (s/method-not-allowed? request #{:get})]
+           (respond! response)))
 
        (request :post "/")
        [:ring.response/status])))))
 
 (deftest get-and-head-test
-  (let [h (fn [request respond! raise!]
+  (let [h (fn [request respond! _]
 
-            ;; Look up resource, merge into request
-            (let [request (assoc request ::spin/methods #{:get})]
-              (when-let [response (s/method-not-allowed? request)]
-                (respond! response))
+            (when-let [response (s/method-not-allowed? request #{:get})]
+              (respond! response))
 
-              (case (:ring.request/method request)
-                (:head :get)
-                (let [representation
-                      {::spin/content-type "text/plain"
-                       ::spin/content-length (count (.getBytes "Hello World!\n"))}]
-                  (when-let [representation
-                             (s/GET! request representation respond! raise!)]
-                    (respond!
-                     (cond-> {:ring.response/status 200}
-                       true (conj (s/representation->response representation))
-                       (not (s/head? request)) ; when not HEAD …
-                       ;; … we add the body ourselves
-                       (conj {:ring.response/body "Hello World!\n"}))))))))]
+            (case (:ring.request/method request)
+              (:head :get)
+              (let [representation
+                    {::spin/content-type "text/plain"
+                     ::spin/content-length (count (.getBytes "Hello World!\n"))}]
+
+                (respond!
+                 (cond-> {:ring.response/status 200}
+                   true (conj (s/representation->response representation))
+                   (not (s/head? request)) ; when not HEAD …
+                   ;; … we add the body ourselves
+                   (conj {:ring.response/body "Hello World!\n"}))))))]
 
     (testing "a 200 response, with a body, in response to a GET request"
       (is
@@ -130,9 +126,26 @@
 
      (fn [request respond! _]
 
-       (let [request (conj request {::spin/methods #{:get}})]
-         (when-let [response (s/method-not-allowed? request)]
-           (respond! response))))
+       (when-let [response (s/method-not-allowed? request #{:get})]
+         (respond! response)))
 
      (request :post "/")
      [:ring.response/status "allow"]))))
+
+
+(deftest post-test
+  (let [h (fn [request respond! _]
+            (when-let [response (s/method-not-allowed? request #{:post})]
+              (respond! response))
+
+            (respond! (s/created "/new-resource")))]
+
+    (testing "responds with 201 when new resource created"
+      (is
+       (=
+        {:ring.response/status 201
+         :ring.response/headers {"location" "/new-resource"}}
+        (response-for
+         h
+         (request :post "/")
+         [:ring.response/status "location"]))))))
