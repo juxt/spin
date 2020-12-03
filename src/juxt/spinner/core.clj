@@ -131,3 +131,25 @@
   [location]
   {:ring.response/status 201
    :ring.response/headers {"location" location}})
+
+(defn wrap-add-date
+  "Compute and add a Date header to the response."
+  [h]
+  (fn
+    [request respond! raise!]
+    (h
+     request
+     (fn [response]
+       (let [status (get response :ring.response/status 200)
+             inst (java.util.Date.)]
+         (respond!
+          (cond-> response
+            ;; While Section 7.1.1.2 of RFC 7232 states: "An origin server
+            ;; MAY send a Date header field if the response is in the 1xx
+            ;; (Informational) or 5xx (Server Error) class of status
+            ;; codes.", we choose not to, as it cannot be used for
+            ;; cacheing.
+            (and (>= status 200) (< status 500))
+            (assoc-in
+             [:ring.response/headers "date"]
+             (util/format-http-date inst)))))) raise!)))

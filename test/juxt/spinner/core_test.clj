@@ -148,3 +148,12 @@
          h
          (request :post "/")
          [:ring.response/status "location"]))))))
+
+(deftest response-header-date-test
+  (-> (fn [_ respond! _]
+        (respond! {:status 200}))
+      s/wrap-add-date
+      (response-for (request :get "/"))
+      (get-in [:ring.response/headers "date"])
+      util/parse-http-date
+      inst? is))
