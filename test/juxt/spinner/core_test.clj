@@ -4,7 +4,7 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [juxt.spin.alpha :as spin]
-   [juxt.spin.alpha.test-util :refer [request]]
+   [juxt.spin.alpha.test-util :refer [request header]]
    [juxt.spin.alpha.util :as util]
    [juxt.spinner.core :as s]))
 
@@ -76,7 +76,7 @@
                      ::spin/content-length (count (.getBytes "Hello World!\n"))}]
 
                 (respond!
-                 (cond-> {:ring.response/status 200}
+                 (cond-> (s/ok)
                    true (conj (s/representation->response representation))
                    (not (s/head? request)) ; when not HEAD …
                    ;; … we add the body ourselves
@@ -151,7 +151,7 @@
 
 (deftest response-header-date-test
   (-> (fn [_ respond! _]
-        (respond! {:status 200}))
+        (respond! (s/ok)))
       s/wrap-add-date
       (response-for (request :get "/"))
       (get-in [:ring.response/headers "date"])
@@ -203,3 +203,73 @@
              (response-for
               (request :options "/")
               [:ring.response/status "content-length"]))))))
+
+(deftest conditional-if-modified-since-test
+  (let [h (fn [request respond! _]
+            (let [representation
+                  {::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")}]
+
+              (when-let [response (s/not-modified? request representation)]
+                (respond! response))
+
+              (respond!
+               (conj (s/ok) (s/representation->response representation)))))]
+
+    (testing "Representation was modified since 8am. Let the request through."
+      (is
+       (=
+        {:ring.response/status 200
+         :ring.response/headers {"last-modified" "Tue, 24 Nov 2020 09:00:00 GMT"}}
+        (response-for
+         h
+         (-> (request :get "/")
+             (header "if-modified-since" "Tue, 24 Nov 2020 08:00:00 GMT"))
+         [:ring.response/status "last-modified"]))))
+
+    (testing "Representation was modified at exactly 9am. Return 304."
+      (is
+       (=
+        {:ring.response/status 304}
+        (response-for
+         h
+         (-> (request :get "/")
+             (header "if-modified-since" "Tue, 24 Nov 2020 09:00:00 GMT"))
+         [:ring.response/status]))))
+
+    (testing "Representation was not modified since 10am. Return 304."
+      (is
+       (=
+        {:ring.response/status 304}
+        (response-for
+         h
+         (-> (request :get "/")
+             (header "if-modified-since" "Tue, 24 Nov 2020 10:00:00 GMT"))
+         [:ring.response/status]))))))
+
+(deftest conditional-if-none-match-test
+  (let [h (fn [request respond! _]
+            (let [representation {::spin/entity-tag "\"abc\""}]
+
+              (when-let [response (s/not-modified? request representation)]
+                (respond! response))
+
+              (respond!
+               (conj (s/ok) (s/representation->response representation)))))]
+    (is
+     (=
+      {:ring.response/status 200
+       :ring.response/headers {"etag" "\"abc\""}}
+      (response-for
+       h
+       (-> (request :get "/")
+           (header "if-none-match" "\"def\""))
+       [:ring.response/status "etag"])))
+
+    (is
+     (=
+      {:ring.response/status 304}
+      (response-for
+       h
+       (-> (request :get "/")
+           (header "if-none-match" "\"abc\", \"def\""))
+       [:ring.response/status])))))

@@ -16,14 +16,14 @@
   ;; modification of a selected representation, such as CONNECT, OPTIONS, or
   ;; TRACE." -- Section 5, RFC 7232
   (when (not (#{:connect :options :trace} (:ring.request/method request)))
-    (let [last-modified (::last-modified representation)
+    (let [last-modified (::spin/last-modified representation)
 
           if-modified-since
           (when last-modified
             (some-> (get-in request [:ring.request/headers "if-modified-since"])
                     util/parse-http-date))
 
-          entity-tag (::entity-tag representation)
+          entity-tag (::spin/entity-tag representation)
 
           if-none-match
           (when entity-tag
@@ -34,16 +34,22 @@
              set))]
       (cond
         (and (seq if-none-match) entity-tag)
-        (if-none-match entity-tag)
+        (when (contains? if-none-match entity-tag)
+          {:ring.response/status 304})
 
         (and if-modified-since last-modified)
-        (not (.isAfter (.toInstant last-modified) (.toInstant if-modified-since)))))))
+        (when-not (.isAfter (.toInstant last-modified) (.toInstant if-modified-since))
+          ;; TODO: Need to distinguish which
+          {:ring.response/status 304})))))
 
 (defn unknown-method?
   "When the request method is unknown, return a 501 response."
   [request]
   (when-not (contains? #{:get :put :post :delete :options :trace :connect} (:ring.request/method request))
     {:ring.response/status 501}))
+
+(defn ok []
+  {:ring.response/status 200})
 
 (defn not-found?
   "When representation is nil, return a 404 response."
