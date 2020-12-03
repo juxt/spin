@@ -132,6 +132,15 @@
   {:ring.response/status 201
    :ring.response/headers {"location" location}})
 
+(defn options
+  [methods]
+  {:ring.response/status 200
+   :ring.response/headers
+   {"allow" (allow-header methods)
+    ;; TODO: Shouldn't this be a situation (a missing body) detected by
+    ;; middleware, which can set the content-length header accordingly?
+    "content-length" "0"}})
+
 (defn wrap-add-date
   "Compute and add a Date header to the response."
   [h]

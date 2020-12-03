@@ -157,3 +157,49 @@
       (get-in [:ring.response/headers "date"])
       util/parse-http-date
       inst? is))
+
+(deftest options-test
+  (testing "Default Allow header includes GET, HEAD and OPTIONS"
+    (is
+     (= {:ring.response/status 200,
+         :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}}
+        (-> (fn [request respond! _]
+              (case (:ring.request/method request)
+                :options (respond! (s/options #{:get}))))
+            (response-for
+             (request :options "/")
+             [:ring.response/status "allow"])))))
+
+  (testing "Allow header reveals declared methods"
+    (is
+     (=
+      {:ring.response/status 200,
+       :ring.response/headers {"allow" "DELETE, OPTIONS"}}
+      (-> (fn [request respond! _]
+            (case (:ring.request/method request)
+              :options (respond! (s/options #{:delete}))))
+          (response-for
+           (request :options "/")
+           [:ring.response/status "allow"])))))
+
+  (testing "Allow header includes HEAD when GET declared"
+    (is (=
+         {:ring.response/status 200,
+          :ring.response/headers {"allow" "GET, HEAD, PUT, OPTIONS"}}
+         (-> (fn [request respond! _]
+               (case (:ring.request/method request)
+                 :options (respond! (s/options #{:get :put}))))
+             (response-for
+              (request :options "/")
+              [:ring.response/status "allow"])))))
+
+  (testing "Content-Length set to 0 when no payload"
+    (is (=
+         {:ring.response/status 200,
+          :ring.response/headers {"content-length" "0"}}
+         (-> (fn [request respond! _]
+               (case (:ring.request/method request)
+                 :options (respond! (s/options #{:get :put}))))
+             (response-for
+              (request :options "/")
+              [:ring.response/status "content-length"]))))))
