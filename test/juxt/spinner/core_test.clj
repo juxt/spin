@@ -5,12 +5,12 @@
    [clojure.test :refer [deftest is testing]]
    [juxt.spin.alpha :as spin]
    [juxt.spin.alpha.test-util :refer [request]]
-   [juxt.spin.alpha.util :refer [sync-adapt]]
+   [juxt.spin.alpha.util :as util]
    [juxt.spinner.core :as s]))
 
 (defn response-for
   ([h request]
-   ((sync-adapt h) request))
+   ((util/sync-adapt h) request))
   ([h request keyseq]
    (let [keyseq (cond-> keyseq (seq (filter string? keyseq)) (conj :ring.response/headers))]
      (cond-> (response-for h request)
@@ -131,7 +131,6 @@
 
      (request :post "/")
      [:ring.response/status "allow"]))))
-
 
 (deftest post-test
   (let [h (fn [request respond! _]
