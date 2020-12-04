@@ -8,8 +8,8 @@ toc::[]
 == Introduction
 
 This README contains a step-by-step guide will help you write the code for a
-standardfootnote:[This means it will satisfy the requirements layed down by RFCs
-https://tools.ietf.org/html/rfc7231[7231],
+standardfootnote:[This means it will satisfy the minium requirements layed down
+by RFCs https://tools.ietf.org/html/rfc7231[7231],
 https://tools.ietf.org/html/rfc7232[7232],
 https://tools.ietf.org/html/rfc7233[7233],
 https://tools.ietf.org/html/rfc7234[7234] and
@@ -59,17 +59,18 @@ asynchronous 3-arity functions, is up to you. This guide supports both.
 
 === Is the service is available?
 
-First, check that your service is not overwhelmed with requests. How you can
-tell this is beyond the scope of this guide, and might be a feature of the web
-listener you are working with. If you don't know, just skip this step, it's
-optional.
+First, check that your service is not overwhelmed with requests.
 
-NOTE: This first step is optional, depending on your needs.
+How you can tell this is beyond the scope of this guide. It might be a feature
+of the web listener you are working with. Or you might want to build something
+that signals that new web requests should temporarily suspended. If you don't
+know, just skip this step, it's optional.
 
-If the service is unavailable, return a 503 (Service Unavailable) response.
+If the service is unavailable, return a 503 (Service Unavailable) response and
+exit immediately. We don't want to give the server any _more_ work to do!
 
 ====
-In Clojure, we return the following map from our handler.
+In Clojure, we can return a map from our handler.
 
 [source,clojure]
 ----
