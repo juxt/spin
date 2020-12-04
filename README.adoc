@@ -4,536 +4,78 @@
 
 _Far more web_ for _much less code_.
 
-Spin is a small, https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md[Ring
-2.0]-compatible, Clojure library that helps you write HTTP endpoints that
-actually conform to HTTP.
+Spin is a small Clojure library that helps you write HTTP endpoints that
+conform to HTTP.
 
 toc::[]
-
-== Introduction
-
-Since the earliest web servers, dynamic behaviour in web servers has been built
-on the https://www.w3.org/CGI/[CGI: Common Gateway Interface]. CGI itself has
-been consigned to history but the model of web development that it inspired is
-still by far the dominant model used by developers of dynamic websites and web
-APIs.
-
-In CGI, a web-server captures information about a web request (such as the
-request method, path, remote address, query-string, etc.) and calls a sends it
-to an external program, script, plugin or in-process function, that generates
-the response on behalf of the web server.
-
-As web-servers have evolved, virtually every web library and framework has
-inherited this primeval design: from Java's 'servlets' and Ruby's
-https://www.rubyguides.com/2018/09/rack-middleware/[Rack] and PHP to Node.js
-Express, Erlang's https://www.phoenixframework.org/[Phoenix], Clojure's
-https://github.com/ring-clojure/ring[Ring] and hundreds more.
-
-=== Problem Statement
-
-The problem at the heart of CGI, and everything based on it, is that it is an
-interface based on a web _request_ rather than a web _resource_. It was designed
-to attach basic scripts to web servers, not to build the web itself.
-
-The web is built on the HTTP protocol, which governs how browsers, web-servers,
-proxies and other participants communicate. What does HTTP provide? It's right
-there in just the second paragraph:
-
-[quote,RFC 7231 - Section 1]
-____
-HTTP provides a uniform interface for interacting with a _resource_
-____
-
-The problem with CGI-based web libraries is that CGI is too low-level. It asks
-too much of developers who have to recreate this 'resource' abstraction in every
-handler they write. Of course this results in HTTP services that are half-baked,
-half-implemented and non-comformant with HTTP. This makes the web poorer, more
-brittle, *less inter-operable*, *less flexible*, *more expensive to create and
-maintain*.
-
-=== Proposed Solution
-
-This project defines a new _resource-oriented_ interface to replace CGI.
-
-It also provides an adapter that converts the CGI-based request-oriented
-interface of Java/Clojure web servers to this new resource-oriented interface.
-
-You provide the resource (in the form of data and functions). In exchange, you
-get a Ring 2.0 handler that fully conforms with HTTP.
-
-Spin's goal is to assist developers in implementing RFCs 7231-7235, and possibly
-other RFCs, as faithfully as possible.
-
-Spin is a Clojure project because that language provides a very fast design
-iteration cycle. But it's hoped that once Spin's design stabilises it can be
-copied by others, just as CGI was.
 
 === Status
 
 Spin is still under active development and is ALPHA status, meaning that the API
 should be considered unstable and likely to change.
 
-It is planned that Spin will be agnostic as to whether you are using Ring's sync
-(1-arity) of async (3-arity) forms and will support both.
-
 === Naming
 
 The name 'spin' is a deliberate pun on the word 'web'.
 
-== Technical Guide
+== How to write Ring handlers
 
-Spin is based on Clojure maps, with namespaced keywords. Functions take maps
-and, usually, return other maps.
+NOTE: Mention how you should strive not to follow this procedure for every endpoint, but establish resource metadata which can influence processing and make your handlers far more reusable and generic.
 
-You create a Ring handler with `juxt.spin.alpha/handler` that takes a single
-argument, the *resource*.
+=== Check method is known
 
-.Hello World!
-====
-For example, to return the message "Hello World!" from a GET request:
+If not, return a 501
 
-[source,clojure]
-----
-(require '[juxt.spin.alpha :as spin])
-
-(def hello-resource
-  {::spin/select-representation!
-    (fn [_ _ _]
-      {::spin/content "Hello World!\n"})})
-
-(def hello
-  (spin/handler hello-resource))
-
-(hello {:ring.request/method :get})
-=>
-{:ring.response/status 200
- :ring.response/headers
-  {"content-length" "13"
-   "date" "Thu, 26 Nov 2020 16:53:14 GMT"}
- :ring.response/body "Hello World!\n"}
-----
-====
-
-[[resource-map]]
-=== Resources
-
-The *resource* is a Clojure map.
-
-It can contain any entries you like, to describe what you want.
-
-But the ones with keywords in the `juxt.spin.alpha` namespace are reserved. They
-are the declarations that Spin uses to process a request properly.
-
-Each resource entry is described below.
-
-[[validate-request]]
-==== `validate-request!`
-
-A function that takes a context argument and returns it, or (optionally) a
-modified version of it, if the request is valid.
-
-The resource can be found in the `:resource` entry of the context.
-
-If the request is malformed or invalid in some way, the function MUST respond
-directly using the function in the `:respond!` entry of the context.
-
-When responding, the function SHOULD use the value in the `:response` entry of
-the context (although it is free to modify it as necessary).
-
-.Responding with a 400 (Bad Request)
-====
-
-Say you have a resource that requires a query parameter to be present. Requests
-without this query parameter are considered invalid and should result in a 400
-response.
-
-[source,clojure]
-----
-{::spin/select-representation! {}
- ::spin/validate-request!
- (fn [request respond! raise!]
-   (if (:ring.request/query request)
-     ctx
-     ;; No query string, bad request!
-     (respond!
-      (assoc
-       response
-       :ring.response/status 400
-       :ring.response/body "Bad request!"))))}
-----
-====
-
-The `validate-request!` is also the place to authenticate the request and ensure
-it is authorized to interact with the resource.
-
-.Authorizing a request
-[source,clojure]
-====
-
-In this example, we use the `validate-request!` function in conjunction with
-some custom data in our resource to implement restrictions to a resource.
-
-First, we'll need to authenticate the request. We'll assign each request a
-single role.
-
-WARNING: We'll use an extremely silly authentication scheme (called `Terrible`)
-FOR THE PURPOSES OF THIS EXPLANATION ONLY. Don't copy this!
-
-Then we'll check the role provides the entitlement to access the resource using
-the method in the requested. We could use any arbitary authorization logic here
-instead.
-
-The `validate-request!` function first determines the role by authenticating the
-request. Normally, you wouldn't automatically trust the user agent like this,
-instead, you'd add some way of verifying the trust, e.g. JWT signatures, a
-database lookup.
-
-[source,clojure]
-----
-{:roles {:superuser #{:get :head :put}
-         :manager #{:get :head}} <1>
- ::spin/select-representation!
-   (fn [_ _ _] {::spin/content "Secret stuff!"})
- ::spin/validate-request!
- (fn [request respond! raise!] :as ctx}]
-   (when-let [role <2>
-               (case (get-in request
-                             [:ring.request/headers "authorization"])
-
-                 "Terrible let-me-in;role=superuser"
-                 :superuser
-
-                 "Terrible let-me-in;role=manager"
-                 :manager
-
-                 (respond! <3>
-                  (-> response
-                      (assoc :ring.response/status 401)
-                      (assoc-in
-                       [:ring.response/headers "www-authenticate"]
-                       "Terrible"))))]
-
-     (if (get-in resource
-           [:roles role (:ring.request/method request)]) <4>
-       (assoc ctx :role role) <5>
-       (respond! (assoc response :ring.response/status 403)) <6>
-       )))}
-----
-<1> some custom data in the resource map we'll use later
-<2> authenticate the request
-<3> respond with a 401 if tell the user-agent to send credentials
-<4> is the method allowed for this role?
-<5> yes? then the request can proceed, return the ctx (adding the role)
-<6> no? then the request is forbidden, return a 403
-====
+=== Locate the resource
 
-[[select-representation]]
-==== `select-representation!`
+Hold on to the methods of the resource.
 
-A function that takes a context argument and returns a map corresponding to the
-selected representation's metadata.
+=== Validate the request with respect to the resource
 
-The representation should be chosen based on the request (the `:request` entry
-of the context) and the response (the `:response` entry of the context). Usually
-this means looking up the `:ring.response/status` of the response, since the
-desirable content type often depends on the status of the response. For
-instance, the representation of an error might only be available in English,
-regardless of the language preferences of the user agent.
+Return 400 if the request is not valid
 
-Proactive content negotiation may be employed to determine the representation.
+NOTE: TBD - this includes authentication
+==== Authentication
 
-// TODO: Add an example of using pick to select and return a single
-// representation map.
+==== Validate parameters (OpenAPI)
 
-If there are no representations, regardless of their acceptability, you MUST
-respond with a 404 response, calling the `:respond!` function provided in the
-context argument.
+=== Check method allowed
 
-// TODO: Add an example of a 404
+Return a 405 if the method is not allowed on the resource, with an Allow header
 
-Otherwise, if none of the representations are acceptable, you MAY respond with a
-406 response, in which you SHOULD add a `Vary` header. See
-https://tools.ietf.org/html/rfc7231.html#section-7.1.4[Section 7.1.4 of RFC
-7231] for how to construct the `Vary` header.
+==== Authorization
 
-// TODO: Add an example of a 406, with Vary header
+Return 401 if not authenticated, 403 if forbidden
 
-Alternatively, you may wish to return one anyway, since "sending a response that
-doesn't conform to the user agent's preferences" might be "better than sending a
-406" (see https://tools.ietf.org/html/rfc7231.html#section-3.4.1[Section 3.4.1 of RFC 7231]).
+=== Dispatch on the method
 
-// TODO: Add an example of returning a single representation
+Go to the relevant sub-section below, corresponding to the request method.
 
-Finally, if you wish to use
-https://tools.ietf.org/html/rfc7231.html#section-3.4.2[Reactive Negotiation],
-respond with a 300 response with the response payload of your choosing. See
-https://tools.ietf.org/html/rfc7231.html#section-3.4.2[Section 3.4.2 of RFC
-7231] for further details.
+=== GET/HEAD
 
-// TODO: Add an example of Reactive Negotiation
+==== Select the representation
 
-==== `methods`
+For example, use pick.
 
-A map that maps method keywords to their implementations.
+Return 404 if no representations. Return 406 if no acceptable representations.
 
-If this entry is not provided, the resource will have default implementations of
-GET, HEAD and OPTIONS.
+Return the representation, with validator header fields, payload semantics and
+control data (see 7.1, control data).
 
-.Declaring methods
-====
-To indicate the methods on a resource, add a `::spin/methods` entry.
+=== POST
 
-[source,clojure]
-----
-{::spin/methods
-  {:post
-    (fn [ctx]
-      ;; Insert new record into database
-      (spin/resource-created! ctx "/new-resource"))}}
-----
-====
+=== PUT
 
-The implementations are as follows.
+=== DELETE
 
-===== `get`
+=== OPTIONS
 
-A function that takes the context as an argument.
+=== Response
 
-The function is called on a POST request.
+==== Add the Date header
 
-The `get` method should respond with a Ring response containing the selected
-representation.
+==== Add the Server header
 
-===== `post`
-
-A function that takes the context as an argument.
-
-The function is called on a POST request. It is responsible for any data
-processing associated with a POST. If a new resource is created, it should
-respond with a 201 status and a `Location` header containing the URL of the new
-resource. A convenience function is available
-(`juxt.spin.alpha/resource-created!`) which does this.
-
-To respond, it should call the `respond!` function provided in the context
-argument with the (Ring 2.0) response as an argument.
-
-See link:https://tools.ietf.org/html/rfc7231.html#section-4.3.3[Section 4.3.3 of
-RFC 7231] for further details.
-
-===== `put`
-
-A function that takes the context as an argument.
-
-The function is called on a PUT request.
-
-Generally speaking, the `put` function is responsible for replacing the state
-of the target resource with the representation enclosed in the request message
-payload.
-
-Like the `post` method, a PUT should respond with a 201 status is the target
-resource doesn't have a representation until the PUT successfully creates
-one. Otherwise, it should respond with a 200 (or 204) to indicate successful
-modification of an existing representation.
-
-To respond, it should call the `respond!` function provided in the context
-argument with the (Ring 2.0) response as an argument.
-
-See
-https://tools.ietf.org/html/rfc7231.html#section-4.3.4[Section 4.3.4 of RFC
-7231] for further details.
-
-===== `delete`
-
-A function that takes the context as an argument.
-
-The function is called on a DELETE request.
-
-To respond, it should call the `respond!` function provided in the context
-argument with the (Ring 2.0) response as an argument.
-
-See
-link:https://tools.ietf.org/html/rfc7231.html#section-4.3.5[Section 4.3.5 of RFC
-7231] for further details.
-
-=== Representations
-
-The <<select-representation,`select-representation!`>> function should return
-representation metadata. This is a Clojure map which can contain any data, but
-entries with keywords in the `juxt.spin.alpha` are meaningful to Spin.
-
-==== `respond!`
-
-A representation can declare a single-arity function which will generate the
-actual Ring response.
-
-If this is not provided, then Spin will do its best to return a representation
-defined by the representation metadata in the map.
-
-==== `content`
-
-The representation's content, the body of a GET response, as a string.
-
-==== `content-type`
-
-The media-type of the representation.
-
-==== `content-encoding`
-
-How the representation's content is encoded.
-
-==== `content-language`
-
-How natural language (or languages) of the representation.
-
-// TODO: How are multiple languages to be specified? See pick
-
-==== `content-length`
-
-The length, in bytes, of the representation's content.
-
-==== `content-range`
-
-The partial byte-range of the representation.
-
-==== `last-modified`
-
-The instant (a `java.util.Date`) that the representation was last modified.
-
-==== `entity-tag`
-
-The entity tag. Must be a string delimited with double-quotes.
-
-====
-[source,clojure]
-----
-{::spin/entity-tag "\"a6es7q53s\""}
-----
-====
-
-=== Request context
-
-On each request, a *request context* is created. This is a map with the
-following entries:
-
-==== `request`
-
-A map describing a Ring request, see
-https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md
-
-==== `respond!`
-
-A callback function that is used to return a Ring response, which is map. See
-https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
-
-==== `raise!`
-
-A callback function that is used to raise any errors. See
-https://github.com/ring-clojure/ring/blob/2.0/SPEC-2.md for full details.
-
-==== `resource`
-
-The target resource, as a map. See <<resource-map>>.
-
-=== Keyword naming
-
-Keywords are all in the `juxt.spin.alpha` namespace, unless otherwise stated.
-
-Keywords that end in a `!` indicate functions that can directly produce a Ring
-response via the `respond!` callback provided in the first parameter of the
-function. Sending a response back to the user agent is certainly a side-effect,
-so the Clojure convention is adopted of marking functions that potentially cause
-side-effects.
-
-[appendix]
-== Comparison to _yada_
-
-JUXT publish another library, https://github.com/juxt/yada[_yada_], which shares
-similar goals to this project. Spin in a much younger project, and is hoped to
-be an official successor to _yada_. They do have simiarities but Spin is
-smaller, with fewer dependencies, and a significantly different design. In
-comparison, Spin can be considered less opinionated and more modular than
-_yada_. But at the present time, it doesn't quite have as much funcionality
-built-in. This may change over time, of course.
-
-=== Async
-
-Both Spin and _yada_ fully support fulfilling each request in an asynchronous
-manner, to avoid blocking the request thread. In the case of _yada_,
-https://github.com/aleph-io/manifold[Manifold] is used to provide async chaining
-of operations.
-
-Spin is built on the asynchronous standard defined in Ring 1.6 which was not yet
-established when _yada_ was designed. This provides independence from the
-underlying server and full compatibility with existing Ring middleware. In
-contrast, _yada_'s use of Manifold fixes it to
-https://github.com/aleph-io/aleph/[aleph], a Clojure wrapper on
-https://netty.io/[Netty].
-
-However, one sizeable benefit of _yada_'s dependence on Aleph does mean it is
-easy access to create asynchronous response streams, for instance, to create
-streams of server-sent events. Work is underway on a comparable set of
-functionality for Spin based on https://vertx.io/[Vert.x], via our
-https://github.com/juxt/vext[Vext] project, although this is some way from
-feature parity.
-
-In _yada_, blocking operations can be wrapped in asynchronous chains using
-Manifold's `chain` function. In Spin, the `respond!` function can be passed
-around between threads and invoked in a different thread from the request
-thread, which can prevent blocking the request thread during the request
-processing. For non-blocking steaming of response payloads (which might be
-standardised in a future Ring 2.1), there is some work underway within Vext on
-adopting the Java interfaces defined by
-http://www.reactive-streams.org/[Reactive Streams].
-
-=== Resource map validation
-
-_yada_ uses https://github.com/plumatic/schema[Primatic Schema] for validation
-of its resource maps. Spin uses Clojure's now built-in
-https://clojure.org/guides/spec[spec].
-
-=== Responses
-
-Sometimes you need to take over request processing from a library and send your
-own response. In _yada_,
-https://www.juxt.land/yada/manual/index.html#explicit-responses[explicit
-responses] are provided. In Spin, care has been taken to allow for the calling
-of the `respond!` callback. This allows implementations direct control of the
-response.
-
-=== OpenAPI
-
-_yada_ supports the definition, via Prismatic Schema, of parameters to
-facilitate the generation of OpenAPI (Swagger) descriptions.
-
-Spin is agnostic to OpenAPI, and does not involve itself in the specification of
-the types of parameters, request and response bodies. However, it is designed to
-complement other projects that may seek to add these facilities to Spin. One
-example is our https://github.com/juxt/apex[Apex] project, which aims to process
-parameters according to their definitions in OpenAPI documents. The
-https://www.openapis.org/blog/2020/06/18/openapi-3-1-0-rc0-its-here[reconvergence]
-of OpenAPI 3.1.0 with JSON Schema hasn't escaped our notice, and we hope this
-will allow direct use of JSON Schema, possibly supported by our
-https://github.com/juxt/apex[jinx] library.
-
-=== Content Negotiation
-
-_yada_ supports a limited form of content negotiation, but is unable to use the
-response status code in its determination of available variants. In Spin, the
-status code is computed earlier, and can be used in content negotiation. This is
-particularly relevant to OpenAPI, which allows for different status codes their
-own variants.
-
-Spin aligns directly with OpenAPI's declaration hierarchy: paths -> operations
--> statuses -> content-types. In comparison, in _yada_, the available
-content-types for a given resource are usually declared statically, without
-taking the response status code into consideration. Error representations, in
-particular, are fixed, whereas in Spin a resource's variant representations are
-computed dynamically, and can factor in the response's status code into the
-decision.
-
-For proactive (server-driven) content negotiation, Spin is designed to
-interoperate with external algorithms, in particular, with
-https://github.com/juxt/pick[pick].
 
 [appendix]
 == License
