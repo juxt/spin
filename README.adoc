@@ -96,8 +96,11 @@ Spin has a utility function called `unknown-method?` which can generate the nece
 (defn unknown-method?
   "When the request method is unknown, return a 501 response."
   [request]
-  (when-not (contains? #{:get :put :post :delete :options :trace :connect} (:request-method request))
-    {:status 501}))
+  (when-not
+      (contains?
+       #{:get :put :post :delete :options :trace :connect}
+       (:request-method request))
+      {:status 501}))
 ----
 
 In our handler, we can call it like this:
