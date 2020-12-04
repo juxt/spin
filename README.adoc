@@ -57,7 +57,7 @@ asynchronous 3-arity functions, is up to you. This guide supports both.
 
 == Step-by-step Guide
 
-=== Is the service is available?
+=== Is the service available?
 
 First, check that your service is not overwhelmed with requests.
 
@@ -84,7 +84,30 @@ some Ring 'middleware' that will do this for you.
 
 === Check method is known
 
-If not, return a 501
+The next step is to check whether the request method is one your system recognises.
+
+If not, return a 501.
+
+====
+Spin has a utility function called `unknown-method?` which can generate the necessary 501 response:
+
+[source,clojure]
+----
+(defn unknown-method?
+  "When the request method is unknown, return a 501 response."
+  [request]
+  (when-not (contains? #{:get :put :post :delete :options :trace :connect} (:request-method request))
+    {:status 501}))
+----
+
+In our handler, we can call it like this:
+
+[source,clojure]
+----
+(when-let [response (spin/unknown-method? request)]
+  response)
+----
+====
 
 === Locate the resource
 
