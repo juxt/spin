@@ -4,354 +4,275 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [juxt.spin.alpha :as spin]
-   [juxt.spin.alpha.util :as util]
-   [juxt.spin.alpha.test-util :refer [response-for request header]]))
+   [juxt.spin.alpha.util :as util]))
+
+(defn header [request header value]
+  (-> request
+      (assoc-in [:headers header] value)))
+
+(defn request [method reluri]
+  (let [[_ path query] (re-matches #"([^\?]*)\??(.*)" reluri)]
+    (cond-> {:request-method method}
+     (seq path) (conj [:uri path])
+     (seq query) (conj [:query-string query]))))
+
+(defn response-for
+  ([h request]
+   (h request))
+  ([h request keyseq]
+   (let [keyseq (cond-> keyseq (seq (filter string? keyseq)) (conj :headers))]
+     (cond-> (response-for h request)
+       true
+       (select-keys (filter keyword? keyseq))
+       (seq (filter string? keyseq))
+       (update :headers select-keys (filter string? keyseq))))))
 
 (deftest unknown-method-test
-  (testing "responds with 501 for unknown method"
+  (testing "501 response for unknown method"
     (is
      (=
-      {:ring.response/status 501}
+      {:status 501}
       (response-for
-       {}
+       (fn [request]
+         (when-let [response (spin/unknown-method? request)]
+           response))
        (request :brew "/")
-       [:ring.response/status])))))
+       [:status])))))
 
-(deftest get-request-test
-  (testing "responds with 404 if resource is an empty map"
+(deftest not-found-test
+  (testing "a 404 response if resource is an empty map"
     (is
      (=
-      {:ring.response/status 404}
+      {:status 404}
       (response-for
-       {}
+       (fn [request]
+         (or
+          (when-let [response (spin/unknown-method? request)]
+            response)
+          (case (:request-method request)
+            (:head :get)
+            (let [representation nil]
+              (when-let [response (spin/not-found? representation)]
+                response)))))
        (request :get "/")
-       [:ring.response/status]))))
+       [:status])))))
 
-  (testing "GET on 'Hello World!'"
+(deftest method-not-allowed-test
+  (testing "a 405 response if method not allowed"
     (is
      (=
-      {:ring.response/status 200
-       :ring.response/headers {"content-length" "13"}
-       :ring.response/body "Hello World!\n"}
-      (response-for
-       {::spin/select-representation!
-        (fn [_ _ _]
-          {::spin/content-type "text/plain"
-           ::spin/content "Hello World!\n"})}
-       (request :get "/")
-       [:ring.response/status :ring.response/body "content-length"]))))
+      {:status 405}
 
-  (testing "GET on 'Hello World!' with select-representation! callback"
-    (is
-     (=
-      {:ring.response/status 200
-       :ring.response/headers {"content-length" "13"}
-       :ring.response/body "Hello World!\n"}
       (response-for
-       {::spin/select-representation!
-        (fn [_ _ _]
-          {::spin/content-type "text/plain"
-           ::spin/content "Hello World!\n"})}
-       (request :get "/")
-       [:ring.response/status :ring.response/body "content-length"]))))
+       (fn [request]
 
-  (testing "respond with 400 on a malformed GET on resource"
-    (is
-     (= {:ring.response/status 400 :ring.response/body "Bad request!"}
+         (when-let [response (spin/method-not-allowed? request #{:get})]
+           response))
+
+       (request :post "/")
+       [:status])))))
+
+(deftest get-and-head-test
+  (let [h (fn [request]
+
+            (when-let [response (spin/method-not-allowed? request #{:get})]
+              response)
+
+            (case (:request-method request)
+              (:head :get)
+              (let [representation
+                    {::spin/content-type "text/plain"
+                     ::spin/content-length (count (.getBytes "Hello World!\n"))}]
+
+                (cond-> (spin/ok)
+                  true (conj (spin/representation->response representation))
+                  (not (spin/head? request)) ; when not HEAD …
+                  ;; … we add the body ourselves
+                  (conj {:body "Hello World!\n"})))))]
+
+    (testing "a 200 response, with a body, in response to a GET request"
+      (is
+       (=
+        {:status 200
+         :headers {"content-length" "13"}
+         :body "Hello World!\n"}
+
         (response-for
-         {::spin/validate-request!
-          (fn [request respond! _]
-            (respond! (assoc request :ring.response/body "Bad request!")))}
+         h
          (request :get "/")
-         [:ring.response/status :ring.response/body])))))
+         [:status :body "content-length"]))))
 
-(deftest head-request-test
-  (testing "HEAD on 'Hello World!'"
+    (testing "a 200 response, without a body, in response to a HEAD request"
+      (let [response
+            (response-for
+             h
+             (request :head "/"))]
+        (is (= 200 (:status response)                     ))
+        (is (= "13" (get-in response [:headers "content-length"])))
+        (is (nil? (find response :body)))))))
+
+(deftest bad-request-test
+  (testing "a 400 response if bad request"
     (is
      (=
-      {:ring.response/status 200
-       :ring.response/headers {"content-length" "13"}}
-      (response-for
-       {::spin/select-representation!
-        (fn [_ _ _]
-          {::spin/content-type "text/plain"
-           ::spin/content "Hello World!\n"})}
+      {:status 400}
 
-       (request :head "/")
-       [:ring.response/status :ring.response/body "content-length"]))))
-
-  (testing "HEAD on Hello World! with representation respond!"
-    (is
-     (=
-      {:ring.response/status 200
-       :ring.response/headers {"content-length" "13"}}
       (response-for
-       {::spin/select-representation!
-        (fn [_ _ _]
-          {::spin/content-type "text/plain"
-           ::spin/content "Hello World!\n"
-           ::spin/respond!
-           (fn [request respond! _]
-             (respond! request))})}
-       (request :head "/")
-       [:ring.response/status :ring.response/body "content-length"])))))
+       (fn [request]
+         (when-not (get-in request [:headers "some-required-header"])
+           (spin/bad-request)))
+
+       (request :get "/")
+       [:status])))))
 
 (deftest allow-test
   (is
    (=
-    {:ring.response/status 405
-     :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}}
+    {:status 405
+     :headers {"allow" "GET, HEAD, OPTIONS"}}
     (response-for
-     {}
+
+     (fn [request]
+       (when-let [response (spin/method-not-allowed? request #{:get})]
+         response))
+
      (request :post "/")
-     [:ring.response/status "allow"]))))
+     [:status "allow"]))))
 
-(deftest post-request-test
-  (testing "responds with 405 (Method Not Allowed) if POST but no post callback"
-    (is
-     (=
-      {:ring.response/status 405}
-      (response-for
-       {}
-       (request :post "/")
-       [:ring.response/status]))))
+(deftest post-test
+  (let [h (fn [request]
+            (or
+             (when-let [response (spin/method-not-allowed? request #{:post})]
+               response)
 
-  (testing "responds with 201 when new resource created"
-    (is
-     (=
-      {:ring.response/status 201
-       :ring.response/headers {"location" "/new-resource"}}
-      (response-for
-       {::spin/methods
-        {:post
-         (fn [request respond! raise!]
-           ;; A real implementation would do some processing here.
-           (spin/created! "/new-resource" request respond! raise!))}}
-       (request :post "/")
-       [:ring.response/status "location"])))))
+             (spin/created "/new-resource")))]
 
-;; TODO:
-;; Expose last-modified and etag as response headers - test for this
-;; Put with body, set representation
-;; Test If-Match to avoid conflicts, produce 409
-
-#_(response-for
- {::spin/representation
-  {::spin/content "Hello World!"
-   ::spin/entity-tag "\"abc\""}
-  ::spin/methods
-  {:get spin/GET
-   :put
-   (fn [ctx]
-     ;; A real implementation would do some processing here.
-     (spin/created! ctx "/new-resource"))}}
- (request :get "/"))
-
-#_(response-for
- {::spin/select-representation!
-  (fn [{::spin/keys [respond!]}]
-    {::spin/content "foo"
-     ::spin/last-modified (util/parse-http-date "Sat, 28 Nov 2020 00:57:49 GMT")})
-  }
- (->
-  (request :put "/")
-  (header "if-modified-since" "Sat, 28 Nov 2020 00:57:49 GMT")
-  ))
+    (testing "responds with 201 when new resource created"
+      (is
+       (=
+        {:status 201
+         :headers {"location" "/new-resource"}}
+        (response-for
+         h
+         (request :post "/")
+         [:status "location"]))))))
 
 (deftest response-header-date-test
-  (-> {::spin/select-representation!
-       (fn [_ _ _]
-         {::spin/content "Hello World!\n"})}
-      (response-for (request :get "/") [:ring.response/status "date"])
-      (get-in [:ring.response/headers "date"])
-      util/parse-http-date inst? is))
-
-(deftest response-error-test
-  (testing "An error that occurs in a custom response! is handled"
-    (is
-     (=
-      {:ring.response/status 500
-       :ring.response/headers
-       {"content-length" "6"
-        "content-type" "text/plain;charset=utf-8"}
-       :ring.response/body "ERROR!"}
-
-      (->
-       {::spin/select-representation!
-        (fn [request _ _]
-          (case (:ring.response/status request)
-            200 {::spin/respond!
-                 (fn [_ _ raise!]
-                   (raise! (ex-info "Error" {})))}
-            500 {::spin/content-type "text/plain;charset=utf-8"
-                 ::spin/content "ERROR!"}
-
-            {::spin/content-type "text/plain;charset=utf-8"
-             ::spin/content "Not 500 - test should fail"}))}
-
-       (response-for
-        (request :get "/")
-        [:ring.response/status :ring.response/body "content-length" "content-type"])))))
-
-  (testing "Custom response! in representation"
-    (is
-     (=
-      {:ring.response/status 403,
-       :ring.response/body "Custom message: Something went wrong!"}
-      (-> {::spin/select-representation!
-           (fn [request _ _]
-             (case (:ring.response/status request)
-               200 {::spin/respond!
-                    (fn [_ _ raise!]
-                      ;; TODO: Can we let the ring response body be set here?
-                      (raise! (ex-info "Forbidden!" {:ring.response/status 403})))}
-               403 {::spin/respond!
-                    (fn [request respond! _]
-                      (respond!
-                       (assoc
-                        request
-                        :ring.response/body "Custom message: Something went wrong!")))
-                    ::spin/content-type "text/plain;charset=utf-8"
-                    ::spin/content "Error"}))}
-          (response-for
-           (request :get "/")
-           [:ring.response/status :ring.response/body]))))))
+  (-> (fn [_] (spin/ok))
+      spin/wrap-add-date
+      (response-for (request :get "/"))
+      (get-in [:headers "date"])
+      util/parse-http-date
+      inst? is))
 
 (deftest options-test
   (testing "Default Allow header includes GET, HEAD and OPTIONS"
-    (is (= {:ring.response/status 200,
-            :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}}
-           (-> {::spin/select-representation!
-                (fn [_ _ _]
-                  {::spin/content "Hello World!\n"})}
-               (response-for
-                (request :options "/")
-                [:ring.response/status "allow"])))))
+    (is
+     (= {:status 200,
+         :headers {"allow" "GET, HEAD, OPTIONS"}}
+        (-> (fn [request]
+              (case (:request-method request)
+                :options (spin/options #{:get})))
+            (response-for
+             (request :options "/")
+             [:status "allow"])))))
 
   (testing "Allow header reveals declared methods"
-    (is (= {:ring.response/status 200,
-            :ring.response/headers {"allow" "DELETE, OPTIONS"}}
-           (-> {::spin/select-representation!
-                (fn [_ _ _]
-                  {::spin/content "Hello World!\n"})
-                ::spin/methods
-                {:delete (fn [_ _ _] (throw (ex-info "" {})))}}
-               (response-for
-                (request :options "/")
-                [:ring.response/status "allow"])))))
+    (is
+     (=
+      {:status 200,
+       :headers {"allow" "DELETE, OPTIONS"}}
+      (-> (fn [request]
+            (case (:request-method request)
+              :options (spin/options #{:delete})))
+          (response-for
+           (request :options "/")
+           [:status "allow"])))))
 
   (testing "Allow header includes HEAD when GET declared"
-    (is (= {:ring.response/status 200,
-            :ring.response/headers {"allow" "GET, HEAD, PUT, OPTIONS"}}
-           (-> {::spin/select-representation!
-                (fn [_ _ _]
-                  {::spin/content "Hello World!\n"})
-                ::spin/methods
-                {:get (fn [_ _ _] (throw (ex-info "" {})))
-                 :put (fn [_ _ _] (throw (ex-info "" {})))}}
-               (response-for
-                (request :options "/")
-                [:ring.response/status "allow"])))))
+    (is (=
+         {:status 200,
+          :headers {"allow" "GET, HEAD, PUT, OPTIONS"}}
+         (-> (fn [request]
+               (case (:request-method request)
+                 :options (spin/options #{:get :put})))
+             (response-for
+              (request :options "/")
+              [:status "allow"])))))
 
   (testing "Content-Length set to 0 when no payload"
-    (is (= {:ring.response/status 200,
-            :ring.response/headers {"content-length" "0"}}
-           (-> {::spin/select-representation!
-                (fn [_ _ _]
-                  {::spin/content "Hello World!\n"})}
-               (response-for
-                (request :options "/")
-                [:ring.response/status "content-length"])))))
+    (is (=
+         {:status 200,
+          :headers {"content-length" "0"}}
+         (-> (fn [request]
+               (case (:request-method request)
+                 :options (spin/options #{:get :put})))
+             (response-for
+              (request :options "/")
+              [:status "content-length"]))))))
 
-  (testing "OPTIONS can be overridden with a custom implementation"
-    ;; The default OPTIONS implementation doesn't support extensions. Therefore,
-    ;; its implementation can be easily overridden.
-    (is (= {:ring.response/status 200,
-            :ring.response/headers {"allow" "GET, HEAD, OPTIONS"}
-            :ring.response/body "Custom options"}
-           (-> {::spin/select-representation!
-                (fn [_ _ _]
-                  {::spin/content "Hello World!\n"})
-                ::spin/methods
-                {:options
-                 (fn [{::spin/keys [respond!]}]
-                   (respond! {:ring.response/status 200
-                              :ring.response/body "Custom options"}))}}
-               (response-for
-                (request :options "/")
-                [:ring.response/status "allow" :ring.response/body]))))))
-
-;; RFC 7232
-(deftest conditional-get-request-test
-  (let [res
-        {::spin/select-representation!
-         (fn [_ _ _]
-           {::spin/content-type "text/plain"
-            ::spin/content "Hello World!\n"
-            ::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")
-            ::spin/respond!
-            (fn [request respond! _]
-              (respond! request))})}]
+(deftest conditional-if-modified-since-test
+  (let [h (fn [request]
+            (let [representation
+                  {::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")}]
+              (or
+               (when-let [response (spin/not-modified? request representation)]
+                 response)
+               (conj (spin/ok) (spin/representation->response representation)))))]
 
     (testing "Representation was modified since 8am. Let the request through."
       (is
        (=
-        {:ring.response/status 200
-         :ring.response/headers {"last-modified" "Tue, 24 Nov 2020 09:00:00 GMT"}}
+        {:status 200
+         :headers {"last-modified" "Tue, 24 Nov 2020 09:00:00 GMT"}}
         (response-for
-         res
+         h
          (-> (request :get "/")
              (header "if-modified-since" "Tue, 24 Nov 2020 08:00:00 GMT"))
-         [:ring.response/status "last-modified"]))))
+         [:status "last-modified"]))))
 
     (testing "Representation was modified at exactly 9am. Return 304."
       (is
        (=
-        {:ring.response/status 304}
+        {:status 304}
         (response-for
-         res
+         h
          (-> (request :get "/")
-             ;; No, it was modified at exactly 9am. No modifications since.
              (header "if-modified-since" "Tue, 24 Nov 2020 09:00:00 GMT"))
-         [:ring.response/status]))))
+         [:status]))))
 
     (testing "Representation was not modified since 10am. Return 304."
       (is
        (=
-        {:ring.response/status 304}
+        {:status 304}
         (response-for
-         res
+         h
          (-> (request :get "/")
              (header "if-modified-since" "Tue, 24 Nov 2020 10:00:00 GMT"))
-         [:ring.response/status])))))
+         [:status]))))))
 
-  (testing "GET with etags"
-    (let [res
-          {::spin/select-representation!
-           (fn [_ _ _]
-             {::spin/content-type "text/plain"
-              ::spin/content "Hello World!\n"
-              ::spin/entity-tag "\"abc\""
-              ::spin/respond!
-              (fn [request respond! _]
-                (respond! request))})}]
-      (is
-       (=
-        {:ring.response/status 200
-         :ring.response/headers {"etag" "\"abc\""}}
-        (response-for
-         res
-         (-> (request :get "/")
-             ;; Yes, def doesn't match abc
-             (header "if-none-match" "\"def\""))
-         [:ring.response/status "etag"])))
+(deftest conditional-if-none-match-test
+  (let [h (fn [request]
+            (let [representation {::spin/entity-tag "\"abc\""}]
+              (or
+               (when-let [response (spin/not-modified? request representation)]
+                 response)
+               (conj (spin/ok) (spin/representation->response representation)))))]
+    (is
+     (=
+      {:status 200
+       :headers {"etag" "\"abc\""}}
+      (response-for
+       h
+       (-> (request :get "/")
+           (header "if-none-match" "\"def\""))
+       [:status "etag"])))
 
-      (is
-       (=
-        {:ring.response/status 304}
-        (response-for
-         res
-         (-> (request :get "/")
-             ;; No, there's a match, so we return 304.
-             (header "if-none-match" "\"abc\", \"def\""))
-         [:ring.response/status]))))))
+    (is
+     (=
+      {:status 304}
+      (response-for
+       h
+       (-> (request :get "/")
+           (header "if-none-match" "\"abc\", \"def\""))
+       [:status])))))

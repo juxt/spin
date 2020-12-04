@@ -27,32 +27,3 @@
 
 (defn parse-if-none-match [v]
   (if-none-match-decoded (re/input v)))
-
-(defn sync-adapt [h]
-  (fn this
-    ([req]
-     (let [p (promise)]
-       (this
-        req
-        (fn [response]
-          (deliver p response)
-          ;; It's crucial this returns nil, as these are semantics of the async
-          ;; version
-          nil)
-        (fn [error]
-          (deliver p error)
-          nil))
-       (let [res (deref p 1000 ::timeout)]
-         (cond
-           (= res ::timeout)
-           (throw
-            (ex-info
-             "Timeout occured waiting for handler"
-             {:handler h
-              :request req}))
-           (instance? Throwable res)
-           (throw res)
-           :else
-           res))))
-    ([req respond! raise!]
-     (h req respond! raise!))))
