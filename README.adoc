@@ -1,26 +1,85 @@
-= Spin
+= How to write a RESTful Web service
 :toc: macro
 :toclevels: 4
-
-_Far more web_ for _much less code_.
-
-Spin is a small Clojure library that helps you write HTTP endpoints that
-conform to HTTP.
+:sectnums:
 
 toc::[]
 
-=== Status
+== Introduction
 
-Spin is still under active development and is ALPHA status, meaning that the API
-should be considered unstable and likely to change.
+This README contains a step-by-step guide will help you write the code for a
+standardfootnote:[This means it will satisfy the requirements layed down by RFCs
+https://tools.ietf.org/html/rfc7231[7231],
+https://tools.ietf.org/html/rfc7232[7232],
+https://tools.ietf.org/html/rfc7233[7233],
+https://tools.ietf.org/html/rfc7234[7234] and
+https://tools.ietf.org/html/rfc7235[7235].]
+https://en.wikipedia.org/wiki/Representational_state_transfer[REST]ful Web
+service.
 
-=== Naming
+Where applicable, some illustrative code samples will be shown. These code
+samples are written in the https://clojure.org/[Clojure] programming language,
+using Ring, but the steps here are applicable to many other programming
+languages.
 
-The name 'spin' is a deliberate pun on the word 'web'.
+Provided in this repository are a number of utility functions, also written in
+Clojure, which help us to keep the sample code short. Clojure developers can
+make direct use of these utility functions. If you're using a different
+language, do feel free to port these utility functions to your own language and
+release your own library! But let us know, and we'll maintain a list of such
+libraries here.
 
-== How to write Ring handlers
+////
+Mention how you should strive not to follow this procedure for every endpoint,
+but establish resource metadata which can influence processing and make your
+handlers far more reusable and generic.
+////
 
-NOTE: Mention how you should strive not to follow this procedure for every endpoint, but establish resource metadata which can influence processing and make your handlers far more reusable and generic.
+=== Clojure setup
+
+With Clojure's Ring library, we can handle a web request with a function. <<ring-handler>> illustrates a simple function that takes the web request and returns a web response.
+
+[[ring-handler]]
+.A simple Ring handler
+====
+[source,clojure]
+----
+(fn [req] <1>
+  {:status 200 :body "OK"} <2>
+)
+----
+<1> `req` is a Clojure map, containing details of the incoming web request
+<2> This map is the value returned from the function. It contains details of the outgoing web response.
+====
+
+NOTE: Whether you want to use the 'classic' synchronous single-arity functions, or
+asynchronous 3-arity functions, is up to you. This guide supports both.
+
+== Step-by-step Guide
+
+=== Is the service is available?
+
+First, check that your service is not overwhelmed with requests. How you can
+tell this is beyond the scope of this guide, and might be a feature of the web
+listener you are working with. If you don't know, just skip this step, it's
+optional.
+
+NOTE: This first step is optional, depending on your needs.
+
+If the service is unavailable, return a 503 (Service Unavailable) response.
+
+====
+In Clojure, we return the following map from our handler.
+
+[source,clojure]
+----
+{:status 503}
+----
+
+TIP: For the purposes of brevity, we won't add a message body, like "Service
+Unavailable". However, this might be something you choose to do, or add
+some Ring 'middleware' that will do this for you.
+====
 
 === Check method is known
 
@@ -35,6 +94,7 @@ Hold on to the methods of the resource.
 Return 400 if the request is not valid
 
 NOTE: TBD - this includes authentication
+
 ==== Authentication
 
 ==== Validate parameters (OpenAPI)
@@ -76,6 +136,27 @@ control data (see 7.1, control data).
 
 ==== Add the Server header
 
+
+
+== Spin project details
+
+Spin is an _unbundled_ web library, not a web _framework_.
+
+What's the difference? By our definition, a library is a _set of supporting
+utility functions_. In contrast, a framework is a system that calls into your
+code, via functions (or callbacks). With a library, the _control_ of the program
+is very much with the developer. With a framework, the overall control of the
+program is taken away from the developer. This might or might not be a
+worthwhile trade, depending on your needs.
+
+=== Status
+
+Spin is still under active development and is ALPHA status, meaning that the API
+should be considered unstable and likely to change.
+
+=== Naming
+
+The name 'spin' is a deliberate pun on the word 'web'.
 
 [appendix]
 == License
