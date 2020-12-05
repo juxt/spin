@@ -112,17 +112,101 @@ In our handler, we can call it like this:
 ----
 ====
 
+=== Authenticate the request
+
+We now authenticate the request. This can be done by inspecting the request
+headers, in particular, the `Authorization` header and establishing any claims
+made are true (i.e. they can be trusted). This might involve verifying digital
+signatures or performing a query on a database containing sessions.
+
+Such claims and session information can be attached to the request. How you
+should do this is up to you and your programming language.
+
 === Locate the resource
 
-Hold on to the methods of the resource.
+[quote,Section 2 RFC 7231]
+____
+The target of an HTTP request is called a "resource".
+____
+
+The request contains the Uniform Resource Locator (URL), which as its name
+suggests, is used to locate the target resource.
+
+But first, what _is_ a resource? A resource can be anything! But for our
+purposes, we define a *resource* to be a _value_ (e.g. object, structure,
+entity, class instance in our programming language) that provides the following:
+
+* A set of *request method* tokens that indicate the request methods allowed on
+  the resource.
+
+* The *representation* (or multiple *representations*) that can be provided (or
+  generated) that reflects (or reflect) the current state of the resource.
+
+* Other attributes of the resource that may be useful.
+
+////
+The set of *request method* tokens might very well depend on details in the
+request. For example, a resource might allow a POST but only if the request is
+_authorized_ to do so. So you can make use of any information in the request,
+not just the URL, to determine the set of *request method* tokens
+allowed. Moreover, if some attribute or attributes of a resource are referred to
+in making such a decision, or affect the processing of request methods (at the
+minimum, the *request method* in the current request), then these should be
+included in the *resource* too.
+////
+
+Each representation should consist of a set of *representation metadata* and
+enough details to produce a *stream of representation data*.
+
+We now use the *request* to locate and construct this *resource* value.
+
+Of course, we should make use of the request' URL , but we can also use other
+information contained in the request headers.
+
+TIP: Try to avoid using the *request method* when locating a resource--a *resource* value should
+encompass _all_ its methods.
+
+====
+In Clojure, you might choose to use a map as a *resource*.
+
+You can use a router to locate the *resource*. In this example, we're using the
+https://github.com/metosin/reitit[Reitit] library.
+
+[source,clojure]
+----
+(ns my-example
+  (:require
+    [reitit.core :as r]
+    [juxt.spin.alpha :as spin]))
+
+(def router
+  (r/router
+    [["/api/ping" ::ping
+     ["/api/orders/:id" ::order]])))
+
+(defn locate-resource [request]
+  (let [target (r/match-by-path router (:url request))]
+    (case target
+      ::ping {::spin/methods #{:get}
+              ::spin/representations []}
+      ::order {::spin/methods #{:get :post :put :delete}
+               ;; merge order id in here
+               ::spin/representations []})))
+----
+
+Alternatively, we can resolve the resource in any other way that's
+appropriate. For example, since resources can be modelled as data values, they
+can be stored in a key/value database. Locating a resource is simply a matter of
+looking it up using the URL as the key.
+
+====
+
 
 === Validate the request with respect to the resource
 
 Return 400 if the request is not valid
 
 NOTE: TBD - this includes authentication
-
-==== Authentication
 
 ==== Validate parameters (OpenAPI)
 
