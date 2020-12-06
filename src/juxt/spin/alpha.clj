@@ -143,6 +143,12 @@
   {:status 201
    :headers {"location" location}})
 
+(defn authenticate-challenge
+  "Convenience function for returning a 201 repsonse with a Location header."
+  [challenge]
+  {:status 401
+   :headers {"www-authenticate" challenge}})
+
 (defn options
   [methods]
   {:status 200
