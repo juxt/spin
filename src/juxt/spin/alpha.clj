@@ -44,12 +44,14 @@
 
 (defn unknown-method?
   "When the request method is unknown, return a 501 response."
-  [request]
-  (when-not
-      (contains?
-       #{:get :put :post :delete :options :trace :connect}
-       (:request-method request))
-      {:status 501}))
+  ([request]
+   (unknown-method? request #{:get :put :post :delete :options :trace :connect}))
+  ([request methods]
+   (when-not
+       (contains?
+        methods
+        (:request-method request))
+       {:status 501})))
 
 (defn ok []
   {:status 200})
