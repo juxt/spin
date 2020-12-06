@@ -1,0 +1,10 @@
+In Clojure, we can return a map from our handler.
+
+[source,clojure]
+----
+{:status 503}
+----
+
+TIP: For the purposes of brevity, we won't add a message body, like "Service
+Unavailable". However, this might be something you choose to do, or add
+some Ring 'middleware' that will do this for you.

@@ -1,14 +1,12 @@
 = How to write a RESTful Web service
-:toc: macro
+:toc: left
 :toclevels: 4
 :sectnums:
-
-toc::[]
 
 == Introduction
 
 This README contains a step-by-step guide will help you write the code for a
-standardfootnote:[This means it will satisfy the minium requirements layed down
+standard. This means it will satisfy the minium requirements layed down
 by RFCs https://tools.ietf.org/html/rfc7231[7231],
 https://tools.ietf.org/html/rfc7232[7232],
 https://tools.ietf.org/html/rfc7233[7233],
@@ -69,18 +67,7 @@ know, just skip this step, it's optional.
 If the service is unavailable, return a 503 (Service Unavailable) response and
 exit immediately. We don't want to give the server any _more_ work to do!
 
-====
-In Clojure, we can return a map from our handler.
-
-[source,clojure]
-----
-{:status 503}
-----
-
-TIP: For the purposes of brevity, we won't add a message body, like "Service
-Unavailable". However, this might be something you choose to do, or add
-some Ring 'middleware' that will do this for you.
-====
+//// insert: service-available
 
 === Check method is known
 
@@ -112,16 +99,6 @@ In our handler, we can call it like this:
 ----
 ====
 
-=== Authenticate the request
-
-We now authenticate the request. This can be done by inspecting the request
-headers, in particular, the `Authorization` header and establishing any claims
-made are true (i.e. they can be trusted). This might involve verifying digital
-signatures or performing a query on a database containing sessions.
-
-Such claims and session information can be attached to the request. How you
-should do this is up to you and your programming language.
-
 === Locate the resource
 
 [quote,Section 2 RFC 7231]
@@ -134,15 +111,12 @@ suggests, is used to locate the target resource.
 
 But first, what _is_ a resource? A resource can be anything! But for our
 purposes, we define a *resource* to be a _value_ (e.g. object, structure,
-entity, class instance in our programming language) that provides the following:
+entity, class instance in our programming language). This value should include a
+set of *request method* tokens that indicate the request methods allowed on the
+resource.
 
-* A set of *request method* tokens that indicate the request methods allowed on
-  the resource.
-
-* The *representation* (or multiple *representations*) that can be provided (or
-  generated) that reflects (or reflect) the current state of the resource.
-
-* Other attributes of the resource that may be useful.
+It can also include any other attributes of the resource that may be useful
+later on (for example, for authorization or method execution).
 
 ////
 The set of *request method* tokens might very well depend on details in the
@@ -166,41 +140,17 @@ information contained in the request headers.
 TIP: Try to avoid using the *request method* when locating a resource--a *resource* value should
 encompass _all_ its methods.
 
-====
-In Clojure, you might choose to use a map as a *resource*.
+//// insert: locate-resource
 
-You can use a router to locate the *resource*. In this example, we're using the
-https://github.com/metosin/reitit[Reitit] library.
+=== Authenticate the request
 
-[source,clojure]
-----
-(ns my-example
-  (:require
-    [reitit.core :as r]
-    [juxt.spin.alpha :as spin]))
+We now authenticate the request. This can be done by inspecting the request
+headers, in particular, the `Authorization` header and establishing any claims
+made are true (i.e. they can be trusted). This might involve verifying digital
+signatures or performing a query on a database containing sessions.
 
-(def router
-  (r/router
-    [["/api/ping" ::ping
-     ["/api/orders/:id" ::order]])))
-
-(defn locate-resource [request]
-  (let [target (r/match-by-path router (:url request))]
-    (case target
-      ::ping {::spin/methods #{:get}
-              ::spin/representations []}
-      ::order {::spin/methods #{:get :post :put :delete}
-               ;; merge order id in here
-               ::spin/representations []})))
-----
-
-Alternatively, we can resolve the resource in any other way that's
-appropriate. For example, since resources can be modelled as data values, they
-can be stored in a key/value database. Locating a resource is simply a matter of
-looking it up using the URL as the key.
-
-====
-
+Such claims and session information can be attached to the request. How you
+should do this is up to you and your programming language.
 
 === Validate the request with respect to the resource
 

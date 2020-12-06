@@ -1,4 +1,4 @@
-.PHONY: all test lint lint2 watch clean
+.PHONY: all test lint lint2 watch clean doc
 
 all: 	lint2 test
 
@@ -14,6 +14,16 @@ lint2:
 
 watch:
 	find . -name "*.clj" | entr make test
+
+doc:	target/README.html
+
+target/README.adoc:	README.adoc doc/locate-resource.adoc doc/service-available.adoc
+	bb build.clj
+
+target/README.html:	target/README.adoc css/tufte.css
+	cp css/* target
+	asciidoctor $<
+
 
 clean:
 	rm /tmp/spin-test-status

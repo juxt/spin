@@ -1,0 +1,10 @@
+In Clojure, you might choose to use a map as a *resource*.
+
+You can use a router to locate the *resource*. See
+link:examples/reitit/src/reitit_example.clj[] for an example using the
+https://github.com/metosin/reitit[Reitit] router.
+
+Alternatively, we can resolve the resource in any other way that's
+appropriate. For example, since resources can be modelled as data values, they
+can be stored in a key/value database. Locating a resource is simply a matter of
+looking it up using the URL as the key.
