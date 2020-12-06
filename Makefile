@@ -17,6 +17,9 @@ watch:
 
 doc:	target/README.html
 
+doc-deploy:	target/README.html
+	aws s3 cp $< s3://rest.guide/README.html
+
 target/README.adoc:	README.adoc doc/locate-resource.adoc doc/service-available.adoc
 	bb build.clj
 

@@ -16,7 +16,7 @@
      (if-let [[_ insert] (re-matches #"//// insert: (.*)" line)]
        (let [f (io/file (format "doc/%s.adoc" insert))]
          (if (.exists f)
-           (concat ["****"] (line-seq (io/reader f)) ["****"])
+           (line-seq (io/reader f))
            (throw (ex-info (format "File not found: %s" f) {:file f}))))
        [line]))
    (line-seq (io/reader "README.adoc")))))

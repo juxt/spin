@@ -33,25 +33,7 @@ but establish resource metadata which can influence processing and make your
 handlers far more reusable and generic.
 ////
 
-=== Clojure setup
-
-With Clojure's Ring library, we can handle a web request with a function. <<ring-handler>> illustrates a simple function that takes the web request and returns a web response.
-
-[[ring-handler]]
-.A simple Ring handler
-====
-[source,clojure]
-----
-(fn [req] <1>
-  {:status 200 :body "OK"} <2>
-)
-----
-<1> `req` is a Clojure map, containing details of the incoming web request
-<2> This map is the value returned from the function. It contains details of the outgoing web response.
-====
-
-NOTE: Whether you want to use the 'classic' synchronous single-arity functions, or
-asynchronous 3-arity functions, is up to you. This guide supports both.
+//// insert: intro-language-setup
 
 == Step-by-step Guide
 
@@ -71,33 +53,12 @@ exit immediately. We don't want to give the server any _more_ work to do!
 
 === Check method is known
 
-The next step is to check whether the request method is one your system recognises.
+The next step is to check whether the request method is one your system
+recognises.
 
 If not, return a 501.
 
-====
-Spin has a utility function called `unknown-method?` which can generate the necessary 501 response:
-
-[source,clojure]
-----
-(defn unknown-method?
-  "When the request method is unknown, return a 501 response."
-  [request]
-  (when-not
-      (contains?
-       #{:get :put :post :delete :options :trace :connect}
-       (:request-method request))
-      {:status 501}))
-----
-
-In our handler, we can call it like this:
-
-[source,clojure]
-----
-(when-let [response (spin/unknown-method? request)]
-  response)
-----
-====
+//// insert: unknown-method
 
 === Locate the resource
 
@@ -111,9 +72,10 @@ suggests, is used to locate the target resource.
 
 But first, what _is_ a resource? A resource can be anything! But for our
 purposes, we define a *resource* to be a _value_ (e.g. object, structure,
-entity, class instance in our programming language). This value should include a
-set of *request method* tokens that indicate the request methods allowed on the
-resource.
+entity, class instance in our programming language).
+
+This value should include a set of *request method* tokens that indicate the
+request methods allowed on the resource.
 
 It can also include any other attributes of the resource that may be useful
 later on (for example, for authorization or method execution).
@@ -129,16 +91,13 @@ minimum, the *request method* in the current request), then these should be
 included in the *resource* too.
 ////
 
-Each representation should consist of a set of *representation metadata* and
-enough details to produce a *stream of representation data*.
-
 We now use the *request* to locate and construct this *resource* value.
 
-Of course, we should make use of the request' URL , but we can also use other
+Of course, we should make use of the request's URL, but we can also use other
 information contained in the request headers.
 
-TIP: Try to avoid using the *request method* when locating a resource--a *resource* value should
-encompass _all_ its methods.
+TIP: Try to avoid using the *request method* when locating a resource--a
+*resource* value should encompass _all_ its methods.
 
 //// insert: locate-resource
 
@@ -175,6 +134,9 @@ Go to the relevant sub-section below, corresponding to the request method.
 === GET/HEAD
 
 ==== Select the representation
+
+Each representation should consist of a set of *representation metadata* and
+enough details to produce a *stream of representation data*.
 
 For example, use pick.
 

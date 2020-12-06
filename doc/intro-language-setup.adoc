@@ -1,0 +1,19 @@
+=== Clojure setup
+
+With Clojure's Ring library, we can handle a web request with a function. <<ring-handler>> illustrates a simple function that takes the web request and returns a web response.
+
+[[ring-handler]]
+.A simple Ring handler
+====
+[source,clojure]
+----
+(fn [req] <1>
+  {:status 200 :body "OK"} <2>
+)
+----
+<1> `req` is a Clojure map, containing details of the incoming web request
+<2> This map is the value returned from the function. It contains details of the outgoing web response.
+====
+
+NOTE: Whether you want to use the 'classic' synchronous single-arity functions, or
+asynchronous 3-arity functions, is up to you. This guide supports both.

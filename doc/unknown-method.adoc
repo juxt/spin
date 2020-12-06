@@ -1,0 +1,23 @@
+****
+Spin has a utility function called `unknown-method?` which can generate the necessary 501 response:
+
+[source,clojure]
+----
+(defn unknown-method?
+  "When the request method is unknown, return a 501 response."
+  [request]
+  (when-not
+      (contains?
+       #{:get :put :post :delete :options :trace :connect}
+       (:request-method request))
+      {:status 501}))
+----
+
+In our handler, we can call it like this:
+
+[source,clojure]
+----
+(when-let [response (spin/unknown-method? request)]
+  response)
+----
+****
