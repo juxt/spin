@@ -1,0 +1,5 @@
+;; Copyright © 2020, JUXT LTD.
+
+{:paths ["src"]
+ :deps {metosin/reitit {:mvn/version "0.5.10"}
+        juxt/spin {:local/root "../.."}}}
