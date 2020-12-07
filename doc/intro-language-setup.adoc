@@ -1,6 +1,20 @@
+Where applicable, some illustrative code samples will be shown. These code
+samples are written in the https://clojure.org/[Clojure] programming language,
+using Ring, but the steps here are applicable to many other programming
+languages.
+
+Provided in this repository are a number of utility functions, also written in
+Clojure, which help us to keep the sample code short. Clojure developers can
+make direct use of these utility functions. If you're using a different
+language, do feel free to port these utility functions to your own language and
+release your own library! But let us know, and we'll maintain a list of such
+libraries here.
+
 === Clojure setup
 
-With Clojure's Ring library, we can handle a web request with a function. <<ring-handler>> illustrates a simple function that takes the web request and returns a web response.
+With Clojure's Ring library, we can handle a web request with a
+function. <<ring-handler>> illustrates a simple function that takes the web
+request and returns a web response.
 
 [[ring-handler]]
 .A simple Ring handler

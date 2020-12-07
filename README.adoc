@@ -15,18 +15,6 @@ https://tools.ietf.org/html/rfc7235[7235].]
 https://en.wikipedia.org/wiki/Representational_state_transfer[REST]ful Web
 service.
 
-Where applicable, some illustrative code samples will be shown. These code
-samples are written in the https://clojure.org/[Clojure] programming language,
-using Ring, but the steps here are applicable to many other programming
-languages.
-
-Provided in this repository are a number of utility functions, also written in
-Clojure, which help us to keep the sample code short. Clojure developers can
-make direct use of these utility functions. If you're using a different
-language, do feel free to port these utility functions to your own language and
-release your own library! But let us know, and we'll maintain a list of such
-libraries here.
-
 ////
 Mention how you should strive not to follow this procedure for every endpoint,
 but establish resource metadata which can influence processing and make your
@@ -37,28 +25,31 @@ handlers far more reusable and generic.
 
 == Step-by-step Guide
 
+[[check-service-available]]
 === Is the service available?
 
-First, check that your service is not overwhelmed with requests.
+. Check that your service is not overwhelmed with requests.
 
-How you can tell this is beyond the scope of this guide. It might be a feature
+. If it is, construct a `503 (Service Unavailable)` response and go to
+<<error-response>>. Otherwise, go to <<check-known-method>>.
+
+NOTE: How you can tell this is beyond the scope of this guide. It might be a feature
 of the web listener you are working with. Or you might want to build something
 that signals that new web requests should temporarily suspended. If you don't
 know, just skip this step, it's optional.
 
-If the service is unavailable, return a 503 (Service Unavailable) response and
-exit immediately. We don't want to give the server any _more_ work to do!
+//// insert: check-service-available
 
-//// insert: service-available
-
+[[check-known-method]]
 === Check method is known
 
 The next step is to check whether the request method is one your system
 recognises.
 
-If not, return a 501.
+. Check if the *request method* is recognised, for _any_ resource. If not,
+construct a 501 `(Not Implemented)` response and go to <<error-response>>.
 
-//// insert: unknown-method
+//// insert: check-known-method
 
 === Locate the resource
 
@@ -91,19 +82,42 @@ minimum, the *request method* in the current request), then these should be
 included in the *resource* too.
 ////
 
-We now use the *request* to locate and construct this *resource* value.
-
-Of course, we should make use of the request's URL, but we can also use other
-information contained in the request headers.
-
+. Construct the *resource* structure that corresponds to the *URL path* in the
+*request*, using any other information in the request as necessary. If no
+*resource* corresponds with the path, construct a NULL resource.
++
 TIP: Try to avoid using the *request method* when locating a resource--a
 *resource* value should encompass _all_ its methods.
 
 //// insert: locate-resource
 
-=== Authenticate the request
+=== Authorize the request
 
-We now authenticate the request. This can be done by inspecting the request
+Now's the time to authorize the request, to ensure the request has the authority
+to interact, with the method in the request, on the resource you have located.
+
+Often, this will involve inspecting some data about the resource.
+
+If no authorization is necessary, skip this step.
+
+==== Authenticate the request
+
+If you decide that the request needs to be authorized, the request must contain
+the necessary credentials.
+
+These might be provided in the form of an `Authorization` header, by a cookie or
+by some other means.
+
+If there are credentials provided in the request, then you should respond with a
+401 error response.
+
+Depending on the means of authentication, you might also want to add a
+`WWW-Authenticate` header or some else to indicate to the user agent that it
+should resend the request with credentials.
+
+Skip to <<error-response>> for how to send an error response.
+
+This can be done by inspecting the request
 headers, in particular, the `Authorization` header and establishing any claims
 made are true (i.e. they can be trusted). This might involve verifying digital
 signatures or performing a query on a database containing sessions.
@@ -123,15 +137,22 @@ NOTE: TBD - this includes authentication
 
 Return a 405 if the method is not allowed on the resource, with an Allow header
 
-==== Authorization
+=== Process the *request method*
 
-Return 401 if not authenticated, 403 if forbidden
+Go to the relevant procedure below, corresponding to the request method.
 
-=== Dispatch on the method
+. <<get>>
+. <<post>>
+. <<put>>
+. <<delete>>
+. <<patch>>
+. <<options>>
 
-Go to the relevant sub-section below, corresponding to the request method.
+[[get]]
+=== GET (or HEAD)
 
-=== GET/HEAD
+NOTE: The procedure for HEAD is identical to that of GET, with the exception
+that we do not produce any body in the response.
 
 ==== Select the representation
 
@@ -145,12 +166,19 @@ Return 404 if no representations. Return 406 if no acceptable representations.
 Return the representation, with validator header fields, payload semantics and
 control data (see 7.1, control data).
 
+[[post]]
 === POST
 
+[[put]]
 === PUT
 
+[[delete]]
 === DELETE
 
+[[patch]]
+=== PATCH
+
+[[options]]
 === OPTIONS
 
 === Response
@@ -158,6 +186,25 @@ control data (see 7.1, control data).
 ==== Add the Date header
 
 ==== Add the Server header
+
+
+
+
+
+[[error-response]]
+=== Send an error response
+
+If you want to send an error response, you should decide whether to send a body
+in the response. This might contain information about the error and explain to
+the user-agent (or human) how to avoid the error in future.
+
+. Perform content negotiation to establish the best representation to send.
+
+. Add the *representation metadata* to the response headers, and stream the
+*representation data* as the the *body* of the response.
+
+
+
 
 
 
@@ -182,8 +229,16 @@ should be considered unstable and likely to change.
 The name 'spin' is a deliberate pun on the word 'web'.
 
 [appendix]
+== Copyright
+
+This documentation is Copyright © 2020 JUXT LTD. All Rights Reserved.
+
+[appendix]
 == License
 
+This license is for the Skip library.
+
+----
 The MIT License (MIT)
 
 Copyright © 2020 JUXT LTD.
@@ -193,3 +248,4 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+----
