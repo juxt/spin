@@ -1,0 +1,8 @@
+****
+
+The https://github.com/juxt/pick[pick] library is written expressly for the
+purpose of proactive (server-driven) content negotiation.
+
+See https://github.com/juxt/pick for further details.
+
+****
