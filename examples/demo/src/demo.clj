@@ -17,14 +17,13 @@
 (defn index-page [title]
   (str
    (hp/html5
-    [:html
-     [:head
-      [:title title]]
-     [:body
-      [:h1 title]]])
-   \newline))
+    [:head
+     [:title title]]
+    [:body
+     [:h1 title]])
+   "\r\n\r\n"))
 
-(def contents
+(def payloads
   {"/en/index.html" (index-page "Welcome to the spin demo!")
    "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
    "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")})
@@ -34,35 +33,35 @@
    [{"content-type" "text/html;charset=utf-8"
      "content-language" "en-US"
      "content-location" "/en/index.html"
-     "content-length" (str (count (get contents "/en/index.html")))}
+     "content-length" (str (count (get payloads "/en/index.html")))}
 
     {"content-type" "text/html;charset=utf-8"
      "content-language" "de"
      "content-location" "/de/index.html"
-     "content-length" (str (count (get contents "/de/index.html")))}
+     "content-length" (str (count (get payloads "/de/index.html")))}
 
     {"content-type" "text/html;charset=utf-8"
      "content-language" "es"
      "content-location" "/es/index.html"
-     "content-length" (str (count (get contents "/es/index.html")))}]
+     "content-length" (str (count (get payloads "/es/index.html")))}]
 
    "/en/index.html"
    [{"content-type" "text/html;charset=utf-8"
      "content-language" "en-US"
      "content-location" "/en/index.html"
-     "content-length" (str (count (get contents "/en/index.html")))}]
+     "content-length" (str (count (get payloads "/en/index.html")))}]
 
    "/de/index.html"
    [{"content-type" "text/html;charset=utf-8"
      "content-language" "de"
      "content-location" "/de/index.html"
-     "content-length" (str (count (get contents "/de/index.html")))}]
+     "content-length" (str (count (get payloads "/de/index.html")))}]
 
    "/es/index.html"
    [{"content-type" "text/html;charset=utf-8"
      "content-language" "es"
      "content-location" "/es/index.html"
-     "content-length" (str (count (get contents "/es/index.html")))}]})
+     "content-length" (str (count (get payloads "/es/index.html")))}]})
 
 (defn locate-resource [path]
   (when-let [resource
@@ -80,10 +79,9 @@
 
 (defn response-body [representation]
   (when-let [content-location (get representation "content-location")]
-    (get contents content-location)))
+    (get payloads content-location)))
 
 (defn handler [request]
-
   (try
     ;; Check method is known
     (if-let [response (spin/unknown-method? request)]
@@ -124,6 +122,7 @@
             ;; Process the request method
             (case (:request-method request)
               (:get :head)
+              ;; GET (or HEAD)
               (cond-> {:status 200
                        :headers
                        (cond-> {}
