@@ -50,18 +50,11 @@
      "/es/index.html" [es]}))
 
 (defn locate-resource [path]
-  (when-let [resource
-             (get resources path)]
+  (when-let [resource (get resources path)]
     (conj resource [::spin/path path])))
 
 (defn available-representations [resource]
   (get representation-metadata (::spin/path resource) []))
-
-(defn to-pick [{:strs [content-type content-encoding content-language] :as representation}]
-  (cond-> representation
-    content-type (conj [:juxt.pick.alpha/content-type content-type])
-    content-encoding (conj [:juxt.pick.alpha/content-encoding content-encoding])
-    content-language (conj [:juxt.pick.alpha/content-language content-language])))
 
 (defn response-body [representation]
   (when-let [content-location (get representation "content-location")]
@@ -90,7 +83,16 @@
                         "Not Found"
                         {::spin/response {:status 404}})))
 
-                    (let [negotiation-result
+                    (let [to-pick
+                          ;; There's some work to do on our representation
+                          ;; format to adapt it to pick's expectations.
+                          (fn [{:strs [content-type content-encoding content-language] :as representation}]
+                            (cond-> representation
+                              content-type (conj [:juxt.pick.alpha/content-type content-type])
+                              content-encoding (conj [:juxt.pick.alpha/content-encoding content-encoding])
+                              content-language (conj [:juxt.pick.alpha/content-language content-language])))
+
+                          negotiation-result
                           (pick
                            request
                            (map to-pick (available-representations resource))
