@@ -68,9 +68,6 @@
    \newline))
 
 (defn response-body [representation]
-  (assert representation)
-  (assert (get representation "content-location"))
-  (println representation)
   (case (get representation "content-location")
     "/en/index.html" (index-page "Welcome to the spin demo!")
     "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
