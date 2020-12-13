@@ -6,8 +6,8 @@
    [juxt.pick.alpha :as pick]))
 
 (def req {:request-method :get
-              :uri "/"
-              :headers {"accept" "text/plain"}})
+          :uri "/"
+          :headers {"accept" "text/plain"}})
 
 (::pick/representation
  (pick

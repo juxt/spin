@@ -2,24 +2,33 @@
 
 (ns demo
   (:require
+   [clojure.string :as str]
+   [hiccup.page :as hp]
    [juxt.pick.alpha.ring :refer [pick]]
    [juxt.spin.alpha :as spin]
-   [clojure.set :as set]
    [ring.adapter.jetty :as jetty]))
 
 (defn locate-resource [path]
   (when-let [resource
              (case path
                "/index.html"
-               {::spin/methods #{:get}})]
+               {::spin/methods #{:get}}
+               "/en/index.html"
+               {::spin/methods #{:get}}
+               "/de/index.html"
+               {::spin/methods #{:get}}
+               "/es/index.html"
+               {::spin/methods #{:get}}
+               nil)]
 
     (conj resource [::spin/path path])))
 
 (defn available-representations [resource]
+  (assert resource)
   (case (::spin/path resource)
     "/index.html"
     [{"content-type" "text/html;charset=utf-8"
-      "content-language" "en"
+      "content-language" "en-US"
       "content-location" "/en/index.html"}
 
      {"content-type" "text/html;charset=utf-8"
@@ -28,7 +37,25 @@
 
      {"content-type" "text/html;charset=utf-8"
       "content-language" "es"
-      "content-location" "/es/index.html"}]))
+      "content-location" "/es/index.html"}]
+
+    "/en/index.html"
+    [{"content-type" "text/html;charset=utf-8"
+      "content-language" "en-US"
+      "content-location" "/en/index.html"}]
+
+    "/de/index.html"
+    [{"content-type" "text/html;charset=utf-8"
+      "content-language" "de"
+      "content-location" "/de/index.html"}]
+
+    "/es/index.html"
+    [{"content-type" "text/html;charset=utf-8"
+      "content-language" "es"
+      "content-location" "/es/index.html"}]
+
+    ;; default case
+    []))
 
 (defn to-pick [{:strs [content-type content-encoding content-language] :as representation}]
   (cond-> representation
@@ -36,12 +63,24 @@
     content-encoding (conj [:juxt.pick.alpha/content-encoding content-encoding])
     content-language (conj [:juxt.pick.alpha/content-language content-language])))
 
+(defn index-page [title]
+  (str
+   (hp/html5
+    [:html
+     [:head
+      [:title title]]
+     [:body
+      [:h1 title]]])
+   \newline))
+
 (defn response-body [representation]
-  (def representation representation)
+  (assert representation)
+  (assert (get representation "content-location"))
+  (println representation)
   (case (get representation "content-location")
-    "/en/index.html" "<h1>Welcome to the spin demo!</h1>\n"
-    "/de/index.html" "<h1>Willkommen zur Spin-Demo!</h1>\n"
-    "/es/index.html" "<h1>¡Bienvenida a la demo de spin!</h1>\n"))
+    "/en/index.html" (index-page "Welcome to the spin demo!")
+    "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
+    "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")))
 
 (comment
   (locate-resource "/index.html"))
@@ -57,49 +96,52 @@
       (let [resource (locate-resource (:uri request))]
 
         ;; Check method allowed
-        (if-let [response (spin/method-not-allowed? request (::spin/methods resource))]
+        (if-let [response (when resource (spin/method-not-allowed? request (::spin/methods resource)))]
           response
 
           ;; Select the representation (only if GET)
-          (let [representation
+          (let [{:keys [representation vary]}
                 (when (#{:get :head} (:request-method request))
-                  (let [available (available-representations resource)]
+                  (let [available (when resource (available-representations resource))]
                     (when (empty? available)
                       (throw
                        (ex-info
                         "Not Found"
-                        {::spin/error true
-                         ::spin/response {:status 404}})))
+                        {::spin/response {:status 404}})))
 
-                    (let [pick-result (pick
-                                       request
-                                       (map to-pick (available-representations {::spin/path "/index.html"})))]
-                      (def pick-result pick-result)
-                      (let [representation (:juxt.pick.alpha/representation pick-result)]
-                        (if representation
-                          representation
-                          (throw
-                           (ex-info "Not Acceptable" {::spin/error true
-                                                      ::spin/response {:status 406}})))))))]
+                    (let [negotiation-result
+                          (pick
+                           request
+                           (map to-pick (available-representations resource))
+                           {:juxt.pick.alpha/vary? true})]
 
+                      (if-let [representation (:juxt.pick.alpha/representation negotiation-result)]
+                        {:representation representation
+                         :vary (:juxt.pick.alpha/vary negotiation-result)}
+                        (throw
+                         (ex-info
+                          "Not Acceptable"
+                          { ;; TODO: Must add list of available representations
+                           ::spin/response {:status 406}}))))))]
 
             {:status 200
-             :headers (conj {}
-                            (select-keys
-                             representation ["content-type" "content-language" "content-encoding" "content-location"]))
+             :headers
+             (cond-> {}
+               vary (conj ["vary" (str/join ", " vary)])
+
+               (not= (get representation "content-location") (:uri request))
+               (conj ["content-location" (get representation "content-location")])
+
+               true
+               (conj
+                (select-keys
+                 representation ["content-type" "content-language" "content-encoding"])))
              :body (response-body representation)}))))
 
     (catch clojure.lang.ExceptionInfo e
       (let [exdata (ex-data e)]
-        (if (::spin/error exdata)
-          (conj
-           (::spin/response exdata)
-           [:body (.getMessage e)]))))
-
-    (catch Exception e
-      (.printStackTrace e *out*)
-      {:status 500
-       :body "TODO: Print out error"}
-      )))
+        (conj
+         (or (::spin/response exdata) {:status 500})
+         [:body (str (.getMessage e) "\n")])))))
 
 (defonce server (jetty/run-jetty #'handler {:port 8080 :join? false}))

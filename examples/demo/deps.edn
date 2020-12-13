@@ -2,7 +2,8 @@
 
 {:paths ["src"]
  :deps
- {ring/ring {:mvn/version"1.8.2"}
+ {ring/ring {:mvn/version "1.8.2"}
+  hiccup/hiccup {:mvn/version "1.0.5"}
   juxt/spin {:local/root "../.."}
   juxt/pick
   {:git/url "https://github.com/juxt/pick.git"
