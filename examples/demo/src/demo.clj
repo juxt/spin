@@ -14,49 +14,6 @@
    "/de/index.html" {::spin/methods #{:get}}
    "/es/index.html" {::spin/methods #{:get}}})
 
-(defn locate-resource [path]
-  (when-let [resource
-             (get resources path)]
-    (conj resource [::spin/path path])))
-
-(def representations
-  {"/index.html"
-   [{"content-type" "text/html;charset=utf-8"
-     "content-language" "en-US"
-     "content-location" "/en/index.html"}
-
-    {"content-type" "text/html;charset=utf-8"
-     "content-language" "de"
-     "content-location" "/de/index.html"}
-
-    {"content-type" "text/html;charset=utf-8"
-     "content-language" "es"
-     "content-location" "/es/index.html"}]
-
-   "/en/index.html"
-   [{"content-type" "text/html;charset=utf-8"
-     "content-language" "en-US"
-     "content-location" "/en/index.html"}]
-
-   "/de/index.html"
-   [{"content-type" "text/html;charset=utf-8"
-     "content-language" "de"
-     "content-location" "/de/index.html"}]
-
-   "/es/index.html"
-   [{"content-type" "text/html;charset=utf-8"
-     "content-language" "es"
-     "content-location" "/es/index.html"}]})
-
-(defn available-representations [resource]
-  (get representations (::spin/path resource) []))
-
-(defn to-pick [{:strs [content-type content-encoding content-language] :as representation}]
-  (cond-> representation
-    content-type (conj [:juxt.pick.alpha/content-type content-type])
-    content-encoding (conj [:juxt.pick.alpha/content-encoding content-encoding])
-    content-language (conj [:juxt.pick.alpha/content-language content-language])))
-
 (defn index-page [title]
   (str
    (hp/html5
@@ -67,11 +24,63 @@
       [:h1 title]]])
    \newline))
 
+(def contents
+  {"/en/index.html" (index-page "Welcome to the spin demo!")
+   "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
+   "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")})
+
+(def representations
+  {"/index.html"
+   [{"content-type" "text/html;charset=utf-8"
+     "content-language" "en-US"
+     "content-location" "/en/index.html"
+     "content-length" (str (count (get contents "/en/index.html")))}
+
+    {"content-type" "text/html;charset=utf-8"
+     "content-language" "de"
+     "content-location" "/de/index.html"
+     "content-length" (str (count (get contents "/de/index.html")))}
+
+    {"content-type" "text/html;charset=utf-8"
+     "content-language" "es"
+     "content-location" "/es/index.html"
+     "content-length" (str (count (get contents "/es/index.html")))}]
+
+   "/en/index.html"
+   [{"content-type" "text/html;charset=utf-8"
+     "content-language" "en-US"
+     "content-location" "/en/index.html"
+     "content-length" (str (count (get contents "/en/index.html")))}]
+
+   "/de/index.html"
+   [{"content-type" "text/html;charset=utf-8"
+     "content-language" "de"
+     "content-location" "/de/index.html"
+     "content-length" (str (count (get contents "/de/index.html")))}]
+
+   "/es/index.html"
+   [{"content-type" "text/html;charset=utf-8"
+     "content-language" "es"
+     "content-location" "/es/index.html"
+     "content-length" (str (count (get contents "/es/index.html")))}]})
+
+(defn locate-resource [path]
+  (when-let [resource
+             (get resources path)]
+    (conj resource [::spin/path path])))
+
+(defn available-representations [resource]
+  (get representations (::spin/path resource) []))
+
+(defn to-pick [{:strs [content-type content-encoding content-language] :as representation}]
+  (cond-> representation
+    content-type (conj [:juxt.pick.alpha/content-type content-type])
+    content-encoding (conj [:juxt.pick.alpha/content-encoding content-encoding])
+    content-language (conj [:juxt.pick.alpha/content-language content-language])))
+
 (defn response-body [representation]
-  (case (get representation "content-location")
-    "/en/index.html" (index-page "Welcome to the spin demo!")
-    "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
-    "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")))
+  (when-let [content-location (get representation "content-location")]
+    (get contents content-location)))
 
 (defn handler [request]
 
@@ -115,20 +124,18 @@
             ;; Process the request method
             (case (:request-method request)
               (:get :head)
-              (cond->
-                  {:status 200
-                   :headers
-                   (cond-> {}
-                     (seq vary) (conj ["vary" (str/join ", " vary)])
+              (cond-> {:status 200
+                       :headers
+                       (cond-> {}
+                         (seq vary) (conj ["vary" (str/join ", " vary)])
 
-                     (not= (get representation "content-location") (:uri request))
-                     (conj ["content-location" (get representation "content-location")])
+                         (not= (get representation "content-location") (:uri request))
+                         (conj ["content-location" (get representation "content-location")])
 
-                     true
-                     (conj
-                      (select-keys
-                       representation ["content-type" "content-language" "content-encoding"])))
-                   }
+                         true
+                         (conj
+                          (select-keys
+                           representation ["content-type" "content-language" "content-encoding" "content-length"])))}
 
                 (= (:request-method request) :get)
                 (conj [:body (response-body representation)])))))))
