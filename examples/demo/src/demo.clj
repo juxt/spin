@@ -135,7 +135,10 @@
                          true
                          (conj
                           (select-keys
-                           representation ["content-type" "content-language" "content-encoding" "content-length"])))}
+                           representation
+                           ["content-type" "content-language" "content-encoding"
+                            ;; payload header fields too
+                            "content-length" "content-range"])))}
 
                 (= (:request-method request) :get)
                 (conj [:body (response-body representation)])))))))
