@@ -45,7 +45,7 @@
 (defn unknown-method?
   "When the request method is unknown, return a 501 response."
   ([request]
-   (unknown-method? request #{:get :put :post :delete :options :trace :connect}))
+   (unknown-method? request #{:get :head :put :post :delete :options :trace :connect}))
   ([request methods]
    (when-not
        (contains?
@@ -79,10 +79,14 @@
 
 (defn method-not-allowed?
   [request methods]
-  (when-not (contains? methods (:request-method request))
-    {:status 405
-     :headers
-     {"allow" (allow-header methods)}}))
+  (let [method
+        (if (= :head (:request-method request))
+          :get
+          (:request-method request))]
+    (when-not (contains? methods method)
+      {:status 405
+       :headers
+       {"allow" (allow-header methods)}})))
 
 (defn head? [request]
   (= (:request-method request) :head))

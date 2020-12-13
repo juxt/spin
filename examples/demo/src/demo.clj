@@ -112,19 +112,26 @@
                           { ;; TODO: Must add list of available representations
                            ::spin/response {:status 406}}))))))]
 
-            {:status 200
-             :headers
-             (cond-> {}
-               (seq vary) (conj ["vary" (str/join ", " vary)])
+            ;; Process the request method
+            (case (:request-method request)
+              (:get :head)
+              (cond->
+                  {:status 200
+                   :headers
+                   (cond-> {}
+                     (seq vary) (conj ["vary" (str/join ", " vary)])
 
-               (not= (get representation "content-location") (:uri request))
-               (conj ["content-location" (get representation "content-location")])
+                     (not= (get representation "content-location") (:uri request))
+                     (conj ["content-location" (get representation "content-location")])
 
-               true
-               (conj
-                (select-keys
-                 representation ["content-type" "content-language" "content-encoding"])))
-             :body (response-body representation)}))))
+                     true
+                     (conj
+                      (select-keys
+                       representation ["content-type" "content-language" "content-encoding"])))
+                   }
+
+                (= (:request-method request) :get)
+                (conj [:body (response-body representation)])))))))
 
     (catch clojure.lang.ExceptionInfo e
       (let [exdata (ex-data e)]
