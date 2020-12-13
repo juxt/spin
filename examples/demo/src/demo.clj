@@ -29,39 +29,25 @@
    "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")})
 
 (def representations
-  {"/index.html"
-   [{"content-type" "text/html;charset=utf-8"
-     "content-language" "en-US"
-     "content-location" "/en/index.html"
-     "content-length" (str (count (get payloads "/en/index.html")))}
+  (let [en {"content-type" "text/html;charset=utf-8"
+            "content-language" "en-US"
+            "content-location" "/en/index.html"
+            "content-length" (str (count (get payloads "/en/index.html")))}
 
-    {"content-type" "text/html;charset=utf-8"
-     "content-language" "de"
-     "content-location" "/de/index.html"
-     "content-length" (str (count (get payloads "/de/index.html")))}
+        de {"content-type" "text/html;charset=utf-8"
+            "content-language" "de"
+            "content-location" "/de/index.html"
+            "content-length" (str (count (get payloads "/de/index.html")))}
 
-    {"content-type" "text/html;charset=utf-8"
-     "content-language" "es"
-     "content-location" "/es/index.html"
-     "content-length" (str (count (get payloads "/es/index.html")))}]
+        es {"content-type" "text/html;charset=utf-8"
+            "content-language" "es"
+            "content-location" "/es/index.html"
+            "content-length" (str (count (get payloads "/es/index.html")))}]
 
-   "/en/index.html"
-   [{"content-type" "text/html;charset=utf-8"
-     "content-language" "en-US"
-     "content-location" "/en/index.html"
-     "content-length" (str (count (get payloads "/en/index.html")))}]
-
-   "/de/index.html"
-   [{"content-type" "text/html;charset=utf-8"
-     "content-language" "de"
-     "content-location" "/de/index.html"
-     "content-length" (str (count (get payloads "/de/index.html")))}]
-
-   "/es/index.html"
-   [{"content-type" "text/html;charset=utf-8"
-     "content-language" "es"
-     "content-location" "/es/index.html"
-     "content-length" (str (count (get payloads "/es/index.html")))}]})
+    {"/index.html" [en de es]
+     "/en/index.html" [en]
+     "/de/index.html" [de]
+     "/es/index.html" [es]}))
 
 (defn locate-resource [path]
   (when-let [resource
