@@ -19,39 +19,37 @@
              (get resources path)]
     (conj resource [::spin/path path])))
 
+(def representations
+  {"/index.html"
+   [{"content-type" "text/html;charset=utf-8"
+     "content-language" "en-US"
+     "content-location" "/en/index.html"}
+
+    {"content-type" "text/html;charset=utf-8"
+     "content-language" "de"
+     "content-location" "/de/index.html"}
+
+    {"content-type" "text/html;charset=utf-8"
+     "content-language" "es"
+     "content-location" "/es/index.html"}]
+
+   "/en/index.html"
+   [{"content-type" "text/html;charset=utf-8"
+     "content-language" "en-US"
+     "content-location" "/en/index.html"}]
+
+   "/de/index.html"
+   [{"content-type" "text/html;charset=utf-8"
+     "content-language" "de"
+     "content-location" "/de/index.html"}]
+
+   "/es/index.html"
+   [{"content-type" "text/html;charset=utf-8"
+     "content-language" "es"
+     "content-location" "/es/index.html"}]})
+
 (defn available-representations [resource]
-  (assert resource)
-  (case (::spin/path resource)
-    "/index.html"
-    [{"content-type" "text/html;charset=utf-8"
-      "content-language" "en-US"
-      "content-location" "/en/index.html"}
-
-     {"content-type" "text/html;charset=utf-8"
-      "content-language" "de"
-      "content-location" "/de/index.html"}
-
-     {"content-type" "text/html;charset=utf-8"
-      "content-language" "es"
-      "content-location" "/es/index.html"}]
-
-    "/en/index.html"
-    [{"content-type" "text/html;charset=utf-8"
-      "content-language" "en-US"
-      "content-location" "/en/index.html"}]
-
-    "/de/index.html"
-    [{"content-type" "text/html;charset=utf-8"
-      "content-language" "de"
-      "content-location" "/de/index.html"}]
-
-    "/es/index.html"
-    [{"content-type" "text/html;charset=utf-8"
-      "content-language" "es"
-      "content-location" "/es/index.html"}]
-
-    ;; default case
-    []))
+  (get representations (::spin/path resource) []))
 
 (defn to-pick [{:strs [content-type content-encoding content-language] :as representation}]
   (cond-> representation
