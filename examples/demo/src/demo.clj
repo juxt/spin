@@ -8,19 +8,15 @@
    [juxt.spin.alpha :as spin]
    [ring.adapter.jetty :as jetty]))
 
+(def resources
+  {"/index.html" {::spin/methods #{:get}}
+   "/en/index.html" {::spin/methods #{:get}}
+   "/de/index.html" {::spin/methods #{:get}}
+   "/es/index.html" {::spin/methods #{:get}}})
+
 (defn locate-resource [path]
   (when-let [resource
-             (case path
-               "/index.html"
-               {::spin/methods #{:get}}
-               "/en/index.html"
-               {::spin/methods #{:get}}
-               "/de/index.html"
-               {::spin/methods #{:get}}
-               "/es/index.html"
-               {::spin/methods #{:get}}
-               nil)]
-
+             (get resources path)]
     (conj resource [::spin/path path])))
 
 (defn available-representations [resource]
@@ -82,9 +78,6 @@
     "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
     "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")))
 
-(comment
-  (locate-resource "/index.html"))
-
 (defn handler [request]
 
   (try
@@ -127,7 +120,7 @@
             {:status 200
              :headers
              (cond-> {}
-               vary (conj ["vary" (str/join ", " vary)])
+               (seq vary) (conj ["vary" (str/join ", " vary)])
 
                (not= (get representation "content-location") (:uri request))
                (conj ["content-location" (get representation "content-location")])
