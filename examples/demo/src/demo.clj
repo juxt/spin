@@ -23,26 +23,26 @@
      [:h1 title]])
    "\r\n\r\n"))
 
-(def payloads
+(def representations
   {"/en/index.html" (index-page "Welcome to the spin demo!")
    "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
    "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")})
 
-(def representations
+(def representation-metadata
   (let [en {"content-type" "text/html;charset=utf-8"
             "content-language" "en-US"
             "content-location" "/en/index.html"
-            "content-length" (str (count (get payloads "/en/index.html")))}
+            "content-length" (str (count (get representations "/en/index.html")))}
 
         de {"content-type" "text/html;charset=utf-8"
             "content-language" "de"
             "content-location" "/de/index.html"
-            "content-length" (str (count (get payloads "/de/index.html")))}
+            "content-length" (str (count (get representations "/de/index.html")))}
 
         es {"content-type" "text/html;charset=utf-8"
             "content-language" "es"
             "content-location" "/es/index.html"
-            "content-length" (str (count (get payloads "/es/index.html")))}]
+            "content-length" (str (count (get representations "/es/index.html")))}]
 
     {"/index.html" [en de es]
      "/en/index.html" [en]
@@ -55,7 +55,7 @@
     (conj resource [::spin/path path])))
 
 (defn available-representations [resource]
-  (get representations (::spin/path resource) []))
+  (get representation-metadata (::spin/path resource) []))
 
 (defn to-pick [{:strs [content-type content-encoding content-language] :as representation}]
   (cond-> representation
@@ -65,7 +65,7 @@
 
 (defn response-body [representation]
   (when-let [content-location (get representation "content-location")]
-    (get payloads content-location)))
+    (get representations content-location)))
 
 (defn handler [request]
   (try
@@ -125,8 +125,7 @@
 
                          ;; content-location is only set if different from the effective uri
                          (not= (get representation "content-location") (:uri request))
-                         (conj ["content-location" (get representation "content-location")])
-                         )}
+                         (conj ["content-location" (get representation "content-location")]))}
 
                 (= (:request-method request) :get)
                 (conj [:body (response-body representation)])))))))
