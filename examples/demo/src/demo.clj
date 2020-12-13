@@ -114,16 +114,19 @@
                        (cond-> {}
                          (seq vary) (conj ["vary" (str/join ", " vary)])
 
-                         (not= (get representation "content-location") (:uri request))
-                         (conj ["content-location" (get representation "content-location")])
-
                          true
                          (conj
                           (select-keys
                            representation
-                           ["content-type" "content-language" "content-encoding"
+                           ;; representation metadata
+                           ["content-type" "content-encoding" "content-language"
                             ;; payload header fields too
-                            "content-length" "content-range"])))}
+                            "content-length" "content-range"]))
+
+                         ;; content-location is only set if different from the effective uri
+                         (not= (get representation "content-location") (:uri request))
+                         (conj ["content-location" (get representation "content-location")])
+                         )}
 
                 (= (:request-method request) :get)
                 (conj [:body (response-body representation)])))))))
