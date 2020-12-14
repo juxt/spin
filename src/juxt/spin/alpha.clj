@@ -3,8 +3,29 @@
 (ns juxt.spin.alpha
   (:require
    [clojure.string :as str]
-   [juxt.spin.alpha :as spin]
-   [juxt.spin.alpha.util :as util]))
+   [juxt.reap.alpha.regex :as re]
+   [juxt.reap.alpha.decoders.rfc7231 :as rfc7231-dec]
+   [juxt.reap.alpha.encoders.rfc7231 :as rfc7231-enc]
+   [juxt.reap.alpha.decoders.rfc7232 :as rfc7232-dec]
+   [juxt.spin.alpha :as spin])
+  (:import
+   (java.util Date)))
+
+(def ^:private date-decoder (rfc7231-dec/http-date {}))
+(def ^:private date-encoder (rfc7231-enc/http-date {}))
+
+(defn ^Date parse-http-date [s]
+  (when s
+    (:juxt.reap.alpha.rfc7231/date (date-decoder (re/input s)))))
+
+(defn format-http-date [^Date inst]
+  (assert (instance? java.util.Date inst) (format "Type is %s" (type inst)))
+  (date-encoder {:juxt.reap.alpha.rfc7231/date inst}))
+
+(def ^:private if-none-match-decoded (rfc7232-dec/if-none-match {}))
+
+(defn parse-if-none-match [v]
+  (if-none-match-decoded (re/input v)))
 
 (defn not-modified?
   "Return true if the given representation's validators report that it has not
@@ -18,10 +39,12 @@
   (when (not (#{:connect :options :trace} (:request-method request)))
     (let [last-modified (::spin/last-modified representation)
 
+          ;; TODO: See 3.3 of RFC 7232 - only do this on GET and HEAD!
+
           if-modified-since
           (when last-modified
             (some-> (get-in request [:headers "if-modified-since"])
-                    util/parse-http-date))
+                    parse-http-date))
 
           entity-tag (::spin/entity-tag representation)
 
@@ -29,7 +52,7 @@
           (when entity-tag
             (some->>
              (get-in request [:headers "if-none-match"])
-             util/parse-if-none-match
+             parse-if-none-match
              (map (comp :juxt.reap.alpha.rfc7232/opaque-tag :juxt.reap.alpha.rfc7232/entity-tag))
              set))]
       (cond
@@ -136,7 +159,7 @@
       last-modified
       (assoc-in
        [:headers "last-modified"]
-       (util/format-http-date last-modified))
+       (format-http-date last-modified))
 
       entity-tag
       (assoc-in [:headers "etag"] entity-tag))))
@@ -179,4 +202,4 @@
           (and (>= status 200) (< status 500))
           (assoc-in
            [:headers "date"]
-           (util/format-http-date inst)))))))
+           (format-http-date inst)))))))

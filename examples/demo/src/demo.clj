@@ -3,6 +3,7 @@
 (ns demo
   (:require
    [clojure.string :as str]
+   [clojure.set :refer [rename-keys]]
    [hiccup.page :as hp]
    [juxt.pick.alpha.ring :refer [pick]]
    [juxt.spin.alpha :as spin]
@@ -28,22 +29,18 @@
    "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
    "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")})
 
+(defn make-index-html-representation [content-location content-language]
+  {"content-type" "text/html;charset=utf-8"
+   "content-language" content-language
+   "content-location" content-location
+   "content-length" (str (count (get representations content-location)))
+   ::spin/entity-tag (format "\"%s\"" (hash (get representations content-location)))
+   ::spin/last-modified (java.util.Date/from (java.time.Instant/parse "2020-12-25T09:00:00Z"))})
+
 (def representation-metadata
-  (let [en {"content-type" "text/html;charset=utf-8"
-            "content-language" "en-US"
-            "content-location" "/en/index.html"
-            "content-length" (str (count (get representations "/en/index.html")))}
-
-        de {"content-type" "text/html;charset=utf-8"
-            "content-language" "de"
-            "content-location" "/de/index.html"
-            "content-length" (str (count (get representations "/de/index.html")))}
-
-        es {"content-type" "text/html;charset=utf-8"
-            "content-language" "es"
-            "content-location" "/es/index.html"
-            "content-length" (str (count (get representations "/es/index.html")))}]
-
+  (let [en (make-index-html-representation "/en/index.html" "en-US")
+        de (make-index-html-representation "/de/index.html" "de")
+        es (make-index-html-representation "/es/index.html" "es")]
     {"/index.html" [en de es]
      "/en/index.html" [en]
      "/de/index.html" [de]
@@ -112,27 +109,41 @@
                     (seq vary)
                     (assoc "vary" (str/join ", " vary)))]
 
-              ;; Process the request method
-              (case (:request-method request)
-                (:get :head)
-                ;; GET (or HEAD)
-                (cond-> {:status 200
-                         :headers
-                         (cond-> (conj
-                                  response
-                                  (select-keys
-                                   representation
-                                   ;; representation metadata
-                                   ["content-type" "content-encoding" "content-language"
-                                    ;; payload header fields too
-                                    "content-length" "content-range"]))
+              ;; Conditional requests
 
-                           ;; content-location is only set if different from the effective uri
-                           (not= (get representation "content-location") (:uri request))
-                           (assoc "content-location" (get representation "content-location")))}
+              (if-let [not-modified-response
+                       (spin/not-modified? request representation)]
+                not-modified-response
 
-                  (= (:request-method request) :get)
-                  (assoc :body (response-body representation)))))))))
+                ;; Process the request method
+                (case (:request-method request)
+                  (:get :head)
+                  ;; GET (or HEAD)
+                  (cond-> {:status 200
+                           :headers
+                           (cond-> (conj
+                                    response
+                                    (select-keys
+                                     representation
+                                     ;; representation metadata
+                                     ["content-type" "content-encoding" "content-language"
+                                      ;; payload header fields too
+                                      "content-length" "content-range"]))
+
+                             ;; content-location is only set if different from the effective uri
+                             (not= (get representation "content-location") (:uri request))
+                             (assoc "content-location" (get representation "content-location"))
+
+                             ;; Add validators
+                             ;; etag
+                             (::spin/entity-tag representation)
+                             (assoc "etag" (::spin/entity-tag representation ))
+                             ;; last-modified
+                             (::spin/last-modified representation)
+                             (assoc "last-modified" (spin/format-http-date (::spin/last-modified representation))))}
+
+                    (= (:request-method request) :get)
+                    (assoc :body (response-body representation))))))))))
 
     (catch clojure.lang.ExceptionInfo e
       (let [exdata (ex-data e)]
