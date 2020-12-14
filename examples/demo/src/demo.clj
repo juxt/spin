@@ -51,7 +51,7 @@
 
 (defn locate-resource [path]
   (when-let [resource (get resources path)]
-    (conj resource [::spin/path path])))
+    (assoc resource ::spin/path path)))
 
 (defn available-representations [resource]
   (get representation-metadata (::spin/path resource) []))
@@ -88,9 +88,9 @@
                           ;; format to adapt it to pick's expectations.
                           (fn [{:strs [content-type content-encoding content-language] :as representation}]
                             (cond-> representation
-                              content-type (conj [:juxt.pick.alpha/content-type content-type])
-                              content-encoding (conj [:juxt.pick.alpha/content-encoding content-encoding])
-                              content-language (conj [:juxt.pick.alpha/content-language content-language])))
+                              content-type (assoc :juxt.pick.alpha/content-type content-type)
+                              content-encoding (assoc :juxt.pick.alpha/content-encoding content-encoding)
+                              content-language (assoc :juxt.pick.alpha/content-language content-language)))
 
                           negotiation-result
                           (pick
@@ -114,7 +114,7 @@
               (cond-> {:status 200
                        :headers
                        (cond-> {}
-                         (seq vary) (conj ["vary" (str/join ", " vary)])
+                         (seq vary) (assoc "vary" (str/join ", " vary))
 
                          true
                          (conj
@@ -127,15 +127,16 @@
 
                          ;; content-location is only set if different from the effective uri
                          (not= (get representation "content-location") (:uri request))
-                         (conj ["content-location" (get representation "content-location")]))}
+                         (assoc "content-location" (get representation "content-location")))}
 
                 (= (:request-method request) :get)
-                (conj [:body (response-body representation)])))))))
+                (assoc :body (response-body representation))))))))
 
     (catch clojure.lang.ExceptionInfo e
       (let [exdata (ex-data e)]
-        (conj
+        (assoc
          (or (::spin/response exdata) {:status 500})
-         [:body (str (.getMessage e) "\n")])))))
+         :body
+         (str (.getMessage e) "\n"))))))
 
 (defonce server (jetty/run-jetty #'handler {:port 8080 :join? false}))
