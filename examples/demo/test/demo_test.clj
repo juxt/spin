@@ -168,3 +168,8 @@
           :request-method :get
           :headers {"accept-language" "en"
                     "if-none-match" "\"dummy\""}}))))))
+
+
+(demo/handler
+ {:uri "/comments.html"
+  :request-method :get})

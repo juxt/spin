@@ -8,11 +8,14 @@
    [juxt.spin.alpha :as spin]
    [ring.adapter.jetty :as jetty]))
 
-(def resources
-  {"/index.html" {::spin/methods #{:get}}
-   "/en/index.html" {::spin/methods #{:get}}
-   "/de/index.html" {::spin/methods #{:get}}
-   "/es/index.html" {::spin/methods #{:get}}})
+(def *resources
+  (atom
+   {"/index.html" {::spin/methods #{:get}}
+    "/en/index.html" {::spin/methods #{:get}}
+    "/de/index.html" {::spin/methods #{:get}}
+    "/es/index.html" {::spin/methods #{:get}}
+
+    "/comments.html" {::spin/methods #{:get :post}}}))
 
 (defn index-page [title]
   (str
@@ -43,18 +46,25 @@
     {"/index.html" [en de es]
      "/en/index.html" [en]
      "/de/index.html" [de]
-     "/es/index.html" [es]}))
+     "/es/index.html" [es]
+     "/comments.html" [{"content-type" "text/html;charset=utf-8"
+                        "content-location" "/comments.html"}]}))
 
 (defn locate-resource [path]
-  (when-let [resource (get resources path)]
+  (when-let [resource (get @*resources path)]
     (assoc resource ::spin/path path)))
 
 (defn available-representations [resource]
   (get representation-metadata (::spin/path resource) []))
 
 (defn response-body [representation]
-  (when-let [content-location (get representation "content-location")]
-    (get representations content-location)))
+  (let [content-location (get representation "content-location")]
+    (or
+     (get representations content-location)
+     (case content-location
+       "/comments.html" "<h1>Comments</h1>"
+       ))
+    ))
 
 (defn handler [request]
   (try
@@ -142,7 +152,8 @@
                            (assoc "last-modified" (spin/format-http-date (::spin/last-modified representation))))}
 
                   (= (:request-method request) :get)
-                  (assoc :body (response-body representation)))))))))
+                  (assoc :body (response-body representation)))
+))))))
 
     (catch clojure.lang.ExceptionInfo e
       (let [exdata (ex-data e)]
