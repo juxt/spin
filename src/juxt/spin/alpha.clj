@@ -58,12 +58,12 @@
       (cond
         (and (seq if-none-match) entity-tag)
         (when (contains? if-none-match entity-tag)
-          {:status 304 :body "Not Modified"})
+          {:status 304 :body "Not Modified\n"})
 
         (and if-modified-since last-modified)
         (when-not (.isAfter (.toInstant last-modified) (.toInstant if-modified-since))
           ;; TODO: Need to distinguish which
-          {:status 304 :body "Not Modified"})))))
+          {:status 304 :body "Not Modified\n"})))))
 
 (defn unknown-method?
   "When the request method is unknown, return a 501 response."
@@ -74,7 +74,7 @@
        (contains?
         methods
         (:request-method request))
-       {:status 501 :body "Not Implemented"})))
+       {:status 501 :body "Not Implemented\n"})))
 
 (defn ok []
   {:status 200})
@@ -83,7 +83,7 @@
   "When representation is nil, return a 404 response."
   [representation]
   (when-not representation
-    {:status 404 :body "Not Found"}))
+    {:status 404 :body "Not Found\n"}))
 
 (defn allow-header
   "Return the Allow response header value, given a set of method keywords."
@@ -109,14 +109,14 @@
     (when-not (contains? methods method)
       {:status 405
        :headers {"allow" (allow-header methods)}
-       :body "Method Not Allowed"})))
+       :body "Method Not Allowed\n"})))
 
 (defn head? [request]
   (= (:request-method request) :head))
 
 (defn bad-request []
   {:status 400
-   :body "Bad Request"})
+   :body "Bad Request\n"})
 
 (defn representation->response [representation]
   (let [{::spin/keys [content-type content-encoding
@@ -170,14 +170,14 @@
   [location]
   {:status 201
    :headers {"location" location}
-   :body "Created"})
+   :body "Created\n"})
 
 (defn authenticate-challenge
   "Convenience function for returning a 201 repsonse with a Location header."
   [challenge]
   {:status 401
    :headers {"www-authenticate" challenge}
-   :body "Unauthorized"})
+   :body "Unauthorized\n"})
 
 (defn options
   [methods]
@@ -186,24 +186,23 @@
    {"allow" (allow-header methods)
     ;; TODO: Shouldn't this be a situation (a missing body) detected by
     ;; middleware, which can set the content-length header accordingly?
-    "content-length" "0"}
-   :body "OK"})
+    "content-length" "0"}})
 
 (defn wrap-add-date
   "Compute and add a Date header to the response."
   [h]
   (fn
     [request]
-    (let [response (h request)]
-      (let [status (get response :status 200)
-            inst (java.util.Date.)]
-        (cond-> response
-          ;; While Section 7.1.1.2 of RFC 7232 states: "An origin server
-          ;; MAY send a Date header field if the response is in the 1xx
-          ;; (Informational) or 5xx (Server Error) class of status
-          ;; codes.", we choose not to, as it cannot be used for
-          ;; cacheing.
-          (and (>= status 200) (< status 500))
-          (assoc-in
-           [:headers "date"]
-           (format-http-date inst)))))))
+    (let [inst (java.util.Date.)
+          response (h request)
+          status (get response :status 200)]
+      (cond-> response
+        ;; While Section 7.1.1.2 of RFC 7232 states: "An origin server
+        ;; MAY send a Date header field if the response is in the 1xx
+        ;; (Informational) or 5xx (Server Error) class of status
+        ;; codes.", we choose not to, as it cannot be used for
+        ;; cacheing.
+        (and (>= status 200) (< status 500))
+        (assoc-in
+         [:headers "date"]
+         (format-http-date inst))))))
