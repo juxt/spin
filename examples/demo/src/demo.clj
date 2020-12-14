@@ -107,30 +107,32 @@
                           { ;; TODO: Must add list of available representations
                            ::spin/response {:status 406}}))))))]
 
-            ;; Process the request method
-            (case (:request-method request)
-              (:get :head)
-              ;; GET (or HEAD)
-              (cond-> {:status 200
-                       :headers
-                       (cond-> {}
-                         (seq vary) (assoc "vary" (str/join ", " vary))
+            (let [response
+                  (cond-> {}
+                    (seq vary)
+                    (assoc "vary" (str/join ", " vary)))]
 
-                         true
-                         (conj
-                          (select-keys
-                           representation
-                           ;; representation metadata
-                           ["content-type" "content-encoding" "content-language"
-                            ;; payload header fields too
-                            "content-length" "content-range"]))
+              ;; Process the request method
+              (case (:request-method request)
+                (:get :head)
+                ;; GET (or HEAD)
+                (cond-> {:status 200
+                         :headers
+                         (cond-> (conj
+                                  response
+                                  (select-keys
+                                   representation
+                                   ;; representation metadata
+                                   ["content-type" "content-encoding" "content-language"
+                                    ;; payload header fields too
+                                    "content-length" "content-range"]))
 
-                         ;; content-location is only set if different from the effective uri
-                         (not= (get representation "content-location") (:uri request))
-                         (assoc "content-location" (get representation "content-location")))}
+                           ;; content-location is only set if different from the effective uri
+                           (not= (get representation "content-location") (:uri request))
+                           (assoc "content-location" (get representation "content-location")))}
 
-                (= (:request-method request) :get)
-                (assoc :body (response-body representation))))))))
+                  (= (:request-method request) :get)
+                  (assoc :body (response-body representation)))))))))
 
     (catch clojure.lang.ExceptionInfo e
       (let [exdata (ex-data e)]
