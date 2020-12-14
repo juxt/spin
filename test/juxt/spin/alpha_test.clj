@@ -3,8 +3,7 @@
 (ns juxt.spin.alpha-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [juxt.spin.alpha :as spin]
-   [juxt.spin.alpha.util :as util]))
+   [juxt.spin.alpha :as spin]))
 
 (defn header [request header value]
   (-> request
@@ -162,7 +161,7 @@
       spin/wrap-add-date
       (response-for (request :get "/"))
       (get-in [:headers "date"])
-      util/parse-http-date
+      spin/parse-http-date
       inst? is))
 
 (deftest options-test
@@ -214,7 +213,7 @@
 (deftest conditional-if-modified-since-test
   (let [h (fn [request]
             (let [representation
-                  {::spin/last-modified (util/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")}]
+                  {::spin/last-modified (spin/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")}]
               (or
                (when-let [response (spin/not-modified? request representation)]
                  response)
