@@ -58,12 +58,12 @@
       (cond
         (and (seq if-none-match) entity-tag)
         (when (contains? if-none-match entity-tag)
-          {:status 304})
+          {:status 304 :body "Not Modified"})
 
         (and if-modified-since last-modified)
         (when-not (.isAfter (.toInstant last-modified) (.toInstant if-modified-since))
           ;; TODO: Need to distinguish which
-          {:status 304})))))
+          {:status 304 :body "Not Modified"})))))
 
 (defn unknown-method?
   "When the request method is unknown, return a 501 response."
@@ -74,7 +74,7 @@
        (contains?
         methods
         (:request-method request))
-       {:status 501})))
+       {:status 501 :body "Not Implemented"})))
 
 (defn ok []
   {:status 200})
@@ -83,7 +83,7 @@
   "When representation is nil, return a 404 response."
   [representation]
   (when-not representation
-    {:status 404}))
+    {:status 404 :body "Not Found"}))
 
 (defn allow-header
   "Return the Allow response header value, given a set of method keywords."
@@ -108,14 +108,15 @@
           (:request-method request))]
     (when-not (contains? methods method)
       {:status 405
-       :headers
-       {"allow" (allow-header methods)}})))
+       :headers {"allow" (allow-header methods)}
+       :body "Method Not Allowed"})))
 
 (defn head? [request]
   (= (:request-method request) :head))
 
 (defn bad-request []
-  {:status 400})
+  {:status 400
+   :body "Bad Request"})
 
 (defn representation->response [representation]
   (let [{::spin/keys [content-type content-encoding
@@ -168,13 +169,15 @@
   "Convenience function for returning a 201 repsonse with a Location header."
   [location]
   {:status 201
-   :headers {"location" location}})
+   :headers {"location" location}
+   :body "Created"})
 
 (defn authenticate-challenge
   "Convenience function for returning a 201 repsonse with a Location header."
   [challenge]
   {:status 401
-   :headers {"www-authenticate" challenge}})
+   :headers {"www-authenticate" challenge}
+   :body "Unauthorized"})
 
 (defn options
   [methods]
@@ -183,7 +186,8 @@
    {"allow" (allow-header methods)
     ;; TODO: Shouldn't this be a situation (a missing body) detected by
     ;; middleware, which can set the content-length header accordingly?
-    "content-length" "0"}})
+    "content-length" "0"}
+   :body "OK"})
 
 (defn wrap-add-date
   "Compute and add a Date header to the response."
