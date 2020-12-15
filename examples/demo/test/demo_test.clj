@@ -170,6 +170,15 @@
                     "if-none-match" "\"dummy\""}}))))))
 
 
-(demo/handler
+#_(demo/handler
  {:uri "/comments.html"
-  :request-method :get})
+  :request-method :get
+  })
+
+#_(let [in (.getBytes "This is another comment")]
+  (demo/handler
+   {:uri "/comments"
+    :request-method :post
+    :headers {"content-length" (str (count in))}
+    :body (java.io.ByteArrayInputStream. in)
+    }))

@@ -24,7 +24,14 @@
    "/de/index.html" {::spin/methods #{:get}}
    "/es/index.html" {::spin/methods #{:get}}
 
-   "/comments.html" {::spin/methods #{:get :post}}})
+   "/comments.html" {::spin/methods #{:get}}
+   ;; And a place to post them
+   "/comments" {::spin/methods #{:post}}
+
+   "/articles.html" {::spin/methods #{:get :post}}
+   ;; TODO: Post new articles, and put/delete existing ones
+
+   })
 
 (defn index-page [title]
   (str
@@ -82,16 +89,36 @@
             [:li comment])]])))))
 
 (defn post! [request resource]
-  (case (::spin/path resource))
-  #break
-  (assert (:body request))
-  (let [out (java.io.ByteArrayOutputStream.)]
-    (with-open [in (:body request)]
-      (io/copy in out))
-    (let [comment (String. (.toByteArray out))]
-      (swap! *comments conj {:comment comment
-                             :date (new Date)}))
-    {:status 200 :body "Thanks!"}))
+  (case (::spin/path resource)
+    "/comments"
+    (do
+      (when-not (get-in request [:headers "content-length"])
+        (throw
+         (ex-info
+          "No body"
+          {::spin/response
+           {:status 411
+            :body "Length Required\n"}})))
+
+      (when-not (:body request)
+        (throw
+         (ex-info
+          "No body"
+          {::spin/response
+           {:status 400
+            :body "Bad Request\n"}})))
+
+      ;; TODO: Check input type, can throw a 415 error response if necessary
+      ;; (But use reap)
+      ;; (if (= (get-in request [:headers "content-type"]) "text/plain"))
+
+      (let [out (java.io.ByteArrayOutputStream.)]
+        (with-open [in (:body request)]
+          (io/copy in out))
+        (let [comment (String. (.toByteArray out))]
+          (swap! *comments conj {:comment comment
+                                 :date (new Date)}))
+        {:status 200 :body "Thanks!"}))))
 
 (defn handler [request]
   (try
@@ -139,7 +166,8 @@
                          (ex-info
                           "Not Acceptable"
                           { ;; TODO: Must add list of available representations
-                           ::spin/response {:status 406}}))))))
+                           ::spin/response {:status 406
+                                            :body "Not Acceptable\n"}}))))))
 
                 response
                 (cond-> {}
@@ -190,9 +218,8 @@
 
     (catch clojure.lang.ExceptionInfo e
       (let [exdata (ex-data e)]
-        (assoc
-         (or (::spin/response exdata) {:status 500})
-         :body
-         (str (.getMessage e) "\n"))))))
+        (or
+         (::spin/response exdata)
+         {:status 500 :body "Internal Error\n"})))))
 
 (defonce server (jetty/run-jetty #'handler {:port 8080 :join? false}))
