@@ -2,20 +2,29 @@
 
 (ns demo
   (:require
+   [clojure.java.io :as io]
    [clojure.string :as str]
    [hiccup.page :as hp]
    [juxt.pick.alpha.ring :refer [pick]]
    [juxt.spin.alpha :as spin]
-   [ring.adapter.jetty :as jetty]))
+   [ring.adapter.jetty :as jetty])
+  (:import
+   (java.util Date)
+   (java.time Instant)))
 
-(def *resources
+;; Some comments on a web page
+(def *comments
   (atom
-   {"/index.html" {::spin/methods #{:get}}
-    "/en/index.html" {::spin/methods #{:get}}
-    "/de/index.html" {::spin/methods #{:get}}
-    "/es/index.html" {::spin/methods #{:get}}
+   [{:comment "Here is the first comment"
+     :date (Date/from (Instant/parse "2020-12-14T23:00:00Z"))}]))
 
-    "/comments.html" {::spin/methods #{:get :post}}}))
+(def resources
+  {"/index.html" {::spin/methods #{:get}}
+   "/en/index.html" {::spin/methods #{:get}}
+   "/de/index.html" {::spin/methods #{:get}}
+   "/es/index.html" {::spin/methods #{:get}}
+
+   "/comments.html" {::spin/methods #{:get :post}}})
 
 (defn index-page [title]
   (str
@@ -51,7 +60,7 @@
                         "content-location" "/comments.html"}]}))
 
 (defn locate-resource [path]
-  (when-let [resource (get @*resources path)]
+  (when-let [resource (get resources path)]
     (assoc resource ::spin/path path)))
 
 (defn available-representations [resource]
@@ -62,9 +71,27 @@
     (or
      (get representations content-location)
      (case content-location
-       "/comments.html" "<h1>Comments</h1>"
-       ))
-    ))
+       "/comments.html"
+       (hp/html5
+        [:head
+         [:title "Comments"]]
+        [:body
+         [:h1 "Comments"]
+         [:ol
+          (for [{:keys [comment]} @*comments]
+            [:li comment])]])))))
+
+(defn post! [request resource]
+  (case (::spin/path resource))
+  #break
+  (assert (:body request))
+  (let [out (java.io.ByteArrayOutputStream.)]
+    (with-open [in (:body request)]
+      (io/copy in out))
+    (let [comment (String. (.toByteArray out))]
+      (swap! *comments conj {:comment comment
+                             :date (new Date)}))
+    {:status 200 :body "Thanks!"}))
 
 (defn handler [request]
   (try
@@ -74,6 +101,7 @@
 
       ;; Locate the resource
       (let [resource (locate-resource (:uri request))]
+
 
         ;; Check method allowed
         (if-let [response (when resource (spin/method-not-allowed? request (::spin/methods resource)))]
@@ -153,7 +181,12 @@
 
                   (= (:request-method request) :get)
                   (assoc :body (response-body representation)))
-))))))
+
+
+                :post
+                (post! request resource)
+
+                ))))))
 
     (catch clojure.lang.ExceptionInfo e
       (let [exdata (ex-data e)]
