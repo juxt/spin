@@ -19,7 +19,8 @@
      :date (Date/from (Instant/parse "2020-12-14T23:00:00Z"))}]))
 
 (def resources
-  {"/index.html" {::spin/methods #{:get}}
+  {"/" {::spin/methods #{:get}}
+   "/index.html" {::spin/methods #{:get}}
    "/en/index.html" {::spin/methods #{:get}}
    "/de/index.html" {::spin/methods #{:get}}
    "/es/index.html" {::spin/methods #{:get}}
@@ -37,7 +38,8 @@
                [:h1 title]
                [:a {:href "/comments"} "Comments"]])
              "\r\n\r\n"))]
-    {"/en/index.html" (index-page "Welcome to the spin demo!")
+    {"/" (hp/html5 [:head [:meta {"http-equiv" "Refresh" "content" "0; URL=/index.html"}]])
+     "/en/index.html" (index-page "Welcome to the spin demo!")
      "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
      "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")}))
 
@@ -76,7 +78,24 @@
         {"content-type" "text/plain;charset=utf-8"
          "content-location" "/comments.txt"}]
 
-    {"/index.html" [index-en index-de index-es]
+    {"/" [{"content-type" "text/html;charset=utf-8"
+           "content-location" "/"
+           "content-length" (str (count (get static-representations "/")))
+
+           "etag"
+           (format
+            "\"%s\"" ; etags MUST be wrapped in DQUOTEs
+            (hash    ; Clojure's hash function will do, but we could use another
+             {:content (get static-representations "/")
+              :content-type "text/html;charset=utf-8"}))
+
+           "last-modified"
+           (-> "2020-12-01T09:00:00Z"
+               java.time.Instant/parse
+               java.util.Date/from
+               spin/format-http-date)}]
+
+     "/index.html" [index-en index-de index-es]
      "/en/index.html" [index-en]
      "/de/index.html" [index-de]
      "/es/index.html" [index-es]
