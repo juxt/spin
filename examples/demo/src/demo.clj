@@ -194,7 +194,6 @@
                   (assoc "vary" (str/join ", " vary)))]
 
             ;; Conditional requests
-
             (if-let [not-modified-response
                      (spin/not-modified? request representation)]
               not-modified-response
@@ -223,11 +222,8 @@
                   (= (:request-method request) :get)
                   (assoc :body (response-body representation)))
 
-
                 :post
-                (post! request resource)
-
-                ))))))
+                (post! request resource)))))))
 
     (catch clojure.lang.ExceptionInfo e
       (let [exdata (ex-data e)]
