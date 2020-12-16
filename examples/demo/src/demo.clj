@@ -7,10 +7,29 @@
    [hiccup.page :as hp]
    [juxt.pick.alpha.ring :refer [pick]]
    [juxt.spin.alpha :as spin]
-   [ring.adapter.jetty :as jetty])
+   [ring.adapter.jetty :as jetty]
+   [ring.core.protocols :refer [StreamableResponseBody]])
   (:import
    (java.util Date)
    (java.time Instant)))
+
+(def resources
+  [{::spin/path "/" ::spin/methods #{:get}}
+   {::spin/path "/index.html" ::spin/methods #{:get}}
+   {::spin/path "/en/index.html" ::spin/methods #{:get}}
+   {::spin/path "/de/index.html" ::spin/methods #{:get}}
+   {::spin/path "/es/index.html" ::spin/methods #{:get}}
+   {::spin/path "/comments.html" ::spin/methods #{:get}}
+   {::spin/path "/comments.txt" ::spin/methods #{:get}}
+   {::spin/path "/comments" ::spin/methods #{:post :get}}])
+
+(def resources-by-location
+  (into {} (map (juxt ::spin/path identity) resources)))
+
+(defrecord ByteArrayRepresentation [bytes]
+  StreamableResponseBody
+  (write-body-to-stream [body response output-stream]
+    (.write output-stream bytes)))
 
 ;; Some comments on a web page
 (def *database
@@ -23,17 +42,6 @@
                            Date/from
                            spin/format-http-date)}
      {:comment "Here is the first comment"}]}))
-
-(def resources
-  {"/" {::spin/methods #{:get}}
-   "/index.html" {::spin/methods #{:get}}
-   "/en/index.html" {::spin/methods #{:get}}
-   "/de/index.html" {::spin/methods #{:get}}
-   "/es/index.html" {::spin/methods #{:get}}
-
-   "/comments.html" {::spin/methods #{:get}}
-   "/comments.txt" {::spin/methods #{:get}}
-   "/comments" {::spin/methods #{:post :get}}})
 
 (def static-representations
   (letfn [(index-page [title]
@@ -111,8 +119,7 @@
      "/comments.txt" [comments-txt]}))
 
 (defn locate-resource [path]
-  (when-let [resource (get resources path)]
-    (assoc resource ::spin/path path)))
+  (get resources-by-location path))
 
 (defn available-representations [resource]
   (get representation-metadata (::spin/path resource) []))
