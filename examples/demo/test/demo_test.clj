@@ -15,7 +15,7 @@
       "content-language" "en-US"
       "content-length" "133"
       "content-location" "/en/index.html"
-      "etag" "\"760966102\""
+      "etag" "\"1213568661\""
       "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
      :body
      "<!DOCTYPE html>\n<html><head><title>Welcome to the spin demo!</title></head><body><h1>Welcome to the spin demo!</h1></body></html>\r\n\r\n"}
@@ -34,7 +34,7 @@
         "content-language" "es"
         "content-length" "143"
         "content-location" "/es/index.html"
-        "etag" "\"1753055662\""
+        "etag" "\"1969026243\""
         "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
        :body
        "<!DOCTYPE html>\n<html><head><title>¡Bienvenida a la demo de spin!</title></head><body><h1>¡Bienvenida a la demo de spin!</h1></body></html>\r\n\r\n"}
@@ -52,7 +52,7 @@
        {"content-type" "text/html;charset=utf-8"
         "content-language" "de"
         "content-length" "133"
-        "etag" "\"-78183121\""
+        "etag" "\"-863487879\""
         "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
        :body
        "<!DOCTYPE html>\n<html><head><title>Willkommen zur Spin-Demo!</title></head><body><h1>Willkommen zur Spin-Demo!</h1></body></html>\r\n\r\n"}
@@ -69,7 +69,7 @@
        {"content-type" "text/html;charset=utf-8"
         "content-language" "de"
         "content-length" "133"
-        "etag" "\"-78183121\""
+        "etag" "\"-863487879\""
         "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
        :body
        "<!DOCTYPE html>\n<html><head><title>Willkommen zur Spin-Demo!</title></head><body><h1>Willkommen zur Spin-Demo!</h1></body></html>\r\n\r\n"}
@@ -83,7 +83,7 @@
     (is
      (=
       {:status 406
-       :body "Not Acceptable\n"}
+       :body "Not Acceptable\r\n"}
 
       (demo/handler
        {:uri "/de/index.html"
@@ -100,7 +100,7 @@
         "content-language" "en-US"
         "content-length" "133"
         "content-location" "/en/index.html"
-        "etag" "\"760966102\""
+        "etag" "\"1213568661\""
         "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}}
       (demo/handler
        {:uri "/index.html"
@@ -111,7 +111,7 @@
       (is
        (=
         {:status 304
-         :body "Not Modified\n"}
+         :body "Not Modified\r\n"}
 
         (demo/handler
          {:uri "/index.html"
@@ -128,7 +128,7 @@
           "content-language" "en-US"
           "content-length" "133"
           "content-location" "/en/index.html"
-          "etag" "\"760966102\""
+          "etag" "\"1213568661\""
           "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
          :body
          "<!DOCTYPE html>\n<html><head><title>Welcome to the spin demo!</title></head><body><h1>Welcome to the spin demo!</h1></body></html>\r\n\r\n"}
@@ -143,12 +143,12 @@
       (is
        (=
         {:status 304
-         :body "Not Modified\n"}
+         :body "Not Modified\r\n"}
         (demo/handler
          {:uri "/index.html"
           :request-method :get
           :headers {"accept-language" "en"
-                    "if-none-match" "\"760966102\""}})))
+                    "if-none-match" "\"1213568661\""}})))
 
       (is
        (=
@@ -159,7 +159,7 @@
           "content-language" "en-US"
           "content-length" "133"
           "content-location" "/en/index.html"
-          "etag" "\"760966102\""
+          "etag" "\"1213568661\""
           "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
          :body
          "<!DOCTYPE html>\n<html><head><title>Welcome to the spin demo!</title></head><body><h1>Welcome to the spin demo!</h1></body></html>\r\n\r\n"}
@@ -168,3 +168,17 @@
           :request-method :get
           :headers {"accept-language" "en"
                     "if-none-match" "\"dummy\""}}))))))
+
+(comment
+  (demo/handler
+   {:uri "/comments.txt"
+    :request-method :get}))
+
+(comment
+  (let [in (.getBytes "This is another comment")]
+    (demo/handler
+     {:uri "/comments"
+      :request-method :post
+      :headers {"content-length" (str (count in))}
+      :body (java.io.ByteArrayInputStream. in)
+      })))

@@ -43,12 +43,19 @@
    "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")})
 
 (defn make-index-html-representation [content-location content-language]
-  {"content-type" "text/html;charset=utf-8"
-   "content-language" content-language
-   "content-location" content-location
-   "content-length" (str (count (get representations content-location)))
-   ::spin/entity-tag (format "\"%s\"" (hash (get representations content-location)))
-   ::spin/last-modified (java.util.Date/from (java.time.Instant/parse "2020-12-25T09:00:00Z"))})
+  (let [content-type "text/html;charset=utf-8"]
+    {"content-type" content-type
+     "content-language" content-language
+     "content-location" content-location
+     "content-length" (str (count (get representations content-location)))
+     "etag" (format "\"%s\"" (hash {:content (get representations content-location)
+                                    :content-type content-type
+                                    :content-language content-language
+                                    :content-encoding ""}))
+     "last-modified" (-> "2020-12-25T09:00:00Z"
+                         java.time.Instant/parse
+                         java.util.Date/from
+                         spin/format-http-date)}))
 
 (def representation-metadata
   (let [index-en (make-index-html-representation "/en/index.html" "en-US")
@@ -204,20 +211,14 @@
                                    representation
                                    ;; representation metadata
                                    ["content-type" "content-encoding" "content-language"
+                                    ;; validators
+                                    "last-modified" "etag"
                                     ;; payload header fields too
                                     "content-length" "content-range"]))
 
                            ;; content-location is only set if different from the effective uri
                            (not= (get representation "content-location") (:uri request))
-                           (assoc "content-location" (get representation "content-location"))
-
-                           ;; Add validators
-                           ;; etag
-                           (::spin/entity-tag representation)
-                           (assoc "etag" (::spin/entity-tag representation ))
-                           ;; last-modified
-                           (::spin/last-modified representation)
-                           (assoc "last-modified" (spin/format-http-date (::spin/last-modified representation))))}
+                           (assoc "content-location" (get representation "content-location")))}
 
                   (= (:request-method request) :get)
                   (assoc :body (response-body representation)))

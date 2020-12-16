@@ -80,11 +80,10 @@
             (case (:request-method request)
               (:head :get)
               (let [representation
-                    {::spin/content-type "text/plain"
-                     ::spin/content-length (count (.getBytes "Hello World!\r\n"))}]
+                    {"content-type" "text/plain"
+                     "content-length" (str (count (.getBytes "Hello World!\r\n")))}]
 
-                (cond-> (spin/ok)
-                  true (conj (spin/representation->response representation))
+                (cond-> (assoc (spin/ok) :headers representation)
                   (not (spin/head? request)) ; when not HEAD …
                   ;; … we add the body ourselves
                   (conj {:body "Hello World!\r\n"})))))]
@@ -93,7 +92,7 @@
       (is
        (=
         {:status 200
-         :headers {"content-length" "13"}
+         :headers {"content-length" "14"}
          :body "Hello World!\r\n"}
 
         (response-for
@@ -107,7 +106,7 @@
              h
              (request :head "/"))]
         (is (= 200 (:status response)                     ))
-        (is (= "13" (get-in response [:headers "content-length"])))
+        (is (= "14" (get-in response [:headers "content-length"])))
         (is (nil? (find response :body)))))))
 
 (deftest bad-request-test
@@ -213,11 +212,11 @@
 (deftest conditional-if-modified-since-test
   (let [h (fn [request]
             (let [representation
-                  {::spin/last-modified (spin/parse-http-date "Tue, 24 Nov 2020 09:00:00 GMT")}]
+                  {"last-modified" "Tue, 24 Nov 2020 09:00:00 GMT"}]
               (or
                (when-let [response (spin/not-modified? request representation)]
                  response)
-               (conj (spin/ok) (spin/representation->response representation)))))]
+               (assoc (spin/ok) :headers representation))))]
 
     (testing "Representation was modified since 8am. Let the request through."
       (is
@@ -252,11 +251,11 @@
 
 (deftest conditional-if-none-match-test
   (let [h (fn [request]
-            (let [representation {::spin/entity-tag "\"abc\""}]
+            (let [representation {"etag" "\"abc\""}]
               (or
                (when-let [response (spin/not-modified? request representation)]
                  response)
-               (conj (spin/ok) (spin/representation->response representation)))))]
+               (assoc (spin/ok) :headers representation))))]
     (is
      (=
       {:status 200

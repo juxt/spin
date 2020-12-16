@@ -37,7 +37,7 @@
   ;; modification of a selected representation, such as CONNECT, OPTIONS, or
   ;; TRACE." -- Section 5, RFC 7232
   (when (not (#{:connect :options :trace} (:request-method request)))
-    (let [last-modified (::spin/last-modified representation)
+    (let [last-modified (get representation "last-modified")
 
           ;; TODO: See 3.3 of RFC 7232 - only do this on GET and HEAD!
 
@@ -46,7 +46,7 @@
             (some-> (get-in request [:headers "if-modified-since"])
                     parse-http-date))
 
-          entity-tag (::spin/entity-tag representation)
+          entity-tag (get representation "etag")
 
           if-none-match
           (when entity-tag
@@ -58,12 +58,14 @@
       (cond
         (and (seq if-none-match) entity-tag)
         (when (contains? if-none-match entity-tag)
-          {:status 304 :body "Not Modified\n"})
+          {:status 304 :body "Not Modified\r\n"})
 
         (and if-modified-since last-modified)
-        (when-not (.isAfter (.toInstant last-modified) (.toInstant if-modified-since))
+        (when-not (.isAfter
+                   (.toInstant (parse-http-date last-modified))
+                   (.toInstant if-modified-since))
           ;; TODO: Need to distinguish which
-          {:status 304 :body "Not Modified\n"})))))
+          {:status 304 :body "Not Modified\r\n"})))))
 
 (defn unknown-method?
   "When the request method is unknown, return a 501 response."
@@ -74,7 +76,7 @@
        (contains?
         methods
         (:request-method request))
-       {:status 501 :body "Not Implemented\n"})))
+       {:status 501 :body "Not Implemented\r\n"})))
 
 (defn ok []
   {:status 200})
@@ -83,7 +85,7 @@
   "When representation is nil, return a 404 response."
   [representation]
   (when-not representation
-    {:status 404 :body "Not Found\n"}))
+    {:status 404 :body "Not Found\r\n"}))
 
 (defn allow-header
   "Return the Allow response header value, given a set of method keywords."
@@ -109,75 +111,28 @@
     (when-not (contains? methods method)
       {:status 405
        :headers {"allow" (allow-header methods)}
-       :body "Method Not Allowed\n"})))
+       :body "Method Not Allowed\r\n"})))
 
 (defn head? [request]
   (= (:request-method request) :head))
 
 (defn bad-request []
   {:status 400
-   :body "Bad Request\n"})
-
-(defn representation->response [representation]
-  (let [{::spin/keys [content-type content-encoding
-                      content-language content-location
-                      content-length content-range
-                      last-modified entity-tag]}
-        representation]
-
-    (cond-> {}
-
-      content-type
-      (assoc-in
-       [:headers "content-type"]
-       content-type)
-
-      content-encoding
-      (assoc-in
-       [:headers "content-encoding"]
-       content-encoding)
-
-      content-language
-      (assoc-in
-       [:headers "content-language"]
-       content-language)
-
-      content-location
-      (assoc-in
-       [:headers "content-location"]
-       content-location)
-
-      content-length
-      (assoc-in
-       [:headers "content-length"]
-       (str content-length))
-
-      content-range
-      (assoc-in
-       [:headers "content-range"]
-       content-range)
-
-      last-modified
-      (assoc-in
-       [:headers "last-modified"]
-       (format-http-date last-modified))
-
-      entity-tag
-      (assoc-in [:headers "etag"] entity-tag))))
+   :body "Bad Request\r\n"})
 
 (defn created
   "Convenience function for returning a 201 repsonse with a Location header."
   [location]
   {:status 201
    :headers {"location" location}
-   :body "Created\n"})
+   :body "Created\r\n"})
 
 (defn authenticate-challenge
   "Convenience function for returning a 201 repsonse with a Location header."
   [challenge]
   {:status 401
    :headers {"www-authenticate" challenge}
-   :body "Unauthorized\n"})
+   :body "Unauthorized\r\n"})
 
 (defn options
   [methods]
