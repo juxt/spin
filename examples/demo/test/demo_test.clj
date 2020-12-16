@@ -217,7 +217,7 @@
           :headers {"accept-language" "en"
                     "if-none-match" "\"dummy\""}}))))))
 
-;; TODO: Test for POST on /commenets, GET with conneg, and PUTs of individual
+;; TODO: Test for POST on /comments, GET with conneg, and PUTs of individual
 ;; comments
 
 (comment

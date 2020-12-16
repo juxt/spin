@@ -13,10 +13,16 @@
    (java.time Instant)))
 
 ;; Some comments on a web page
-(def *comments
+(def *database
   (atom
-   [{:comment "Here is the first comment"
-     :date (Date/from (Instant/parse "2020-12-14T23:00:00Z"))}]))
+   {:next-comment-id 2
+    :comments
+    [^{"content-location" "/comments/1"
+       "last-modified" (-> "2020-12-14T23:00:00Z"
+                           Instant/parse
+                           Date/from
+                           spin/format-http-date)}
+     {:comment "Here is the first comment"}]}))
 
 (def resources
   {"/" {::spin/methods #{:get}}
@@ -24,6 +30,7 @@
    "/en/index.html" {::spin/methods #{:get}}
    "/de/index.html" {::spin/methods #{:get}}
    "/es/index.html" {::spin/methods #{:get}}
+
    "/comments.html" {::spin/methods #{:get}}
    "/comments.txt" {::spin/methods #{:get}}
    "/comments" {::spin/methods #{:post :get}}})
@@ -123,11 +130,11 @@
          [:body
           [:h1 "Comments"]
           [:ol
-           (for [{:keys [comment]} @*comments]
+           (for [{:keys [comment]} (:comments @*database)]
              [:li comment])]])
         "\r\n")
        "/comments.txt"
-       (map (comp #(str % "\r\n") :comment) @*comments)))))
+       (map (comp #(str % "\r\n") :comment) (:comments @*database))))))
 
 (defn post! [request resource]
   (case (::spin/path resource)
@@ -157,8 +164,18 @@
         (with-open [in (:body request)]
           (io/copy in out))
         (let [comment (String. (.toByteArray out))]
-          (swap! *comments conj {:comment comment
-                                 :date (new Date)}))
+          (swap!
+           *database
+           (fn [{:keys [next-comment-id comments] :as db}]
+             (-> db
+                 (update
+                  :comments
+                  conj
+                  (with-meta {:comment comment}
+                    {"content-location" (format "/comments/%d" next-comment-id)
+                     "last-modified" (spin/format-http-date (new Date))}))
+                 (update :next-comment-id inc)))))
+
         {:status 200 :body "Thanks!\r\n"}))))
 
 (defn handler [request]
