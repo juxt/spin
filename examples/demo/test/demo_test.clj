@@ -168,17 +168,3 @@
           :request-method :get
           :headers {"accept-language" "en"
                     "if-none-match" "\"dummy\""}}))))))
-
-
-#_(demo/handler
- {:uri "/comments.html"
-  :request-method :get
-  })
-
-#_(let [in (.getBytes "This is another comment")]
-  (demo/handler
-   {:uri "/comments"
-    :request-method :post
-    :headers {"content-length" (str (count in))}
-    :body (java.io.ByteArrayInputStream. in)
-    }))

@@ -25,13 +25,8 @@
    "/es/index.html" {::spin/methods #{:get}}
 
    "/comments.html" {::spin/methods #{:get}}
-   ;; And a place to post them
-   "/comments" {::spin/methods #{:post}}
-
-   "/articles.html" {::spin/methods #{:get :post}}
-   ;; TODO: Post new articles, and put/delete existing ones
-
-   })
+   "/comments.txt" {::spin/methods #{:get}}
+   "/comments" {::spin/methods #{:post :get}}})
 
 (defn index-page [title]
   (str
@@ -56,15 +51,25 @@
    ::spin/last-modified (java.util.Date/from (java.time.Instant/parse "2020-12-25T09:00:00Z"))})
 
 (def representation-metadata
-  (let [en (make-index-html-representation "/en/index.html" "en-US")
-        de (make-index-html-representation "/de/index.html" "de")
-        es (make-index-html-representation "/es/index.html" "es")]
-    {"/index.html" [en de es]
-     "/en/index.html" [en]
-     "/de/index.html" [de]
-     "/es/index.html" [es]
-     "/comments.html" [{"content-type" "text/html;charset=utf-8"
-                        "content-location" "/comments.html"}]}))
+  (let [index-en (make-index-html-representation "/en/index.html" "en-US")
+        index-de (make-index-html-representation "/de/index.html" "de")
+        index-es (make-index-html-representation "/es/index.html" "es")
+
+        comments-html
+        {"content-type" "text/html;charset=utf-8"
+         "content-location" "/comments.html"}
+
+        comments-txt
+        {"content-type" "text/plain;charset=utf-8"
+         "content-location" "/comments.txt"}]
+
+    {"/index.html" [index-en index-de index-es]
+     "/en/index.html" [index-en]
+     "/de/index.html" [index-de]
+     "/es/index.html" [index-es]
+     "/comments" [comments-html comments-txt]
+     "/comments.html" [comments-html]
+     "/comments.txt" [comments-txt]}))
 
 (defn locate-resource [path]
   (when-let [resource (get resources path)]
@@ -79,14 +84,18 @@
      (get representations content-location)
      (case content-location
        "/comments.html"
-       (hp/html5
-        [:head
-         [:title "Comments"]]
-        [:body
-         [:h1 "Comments"]
-         [:ol
-          (for [{:keys [comment]} @*comments]
-            [:li comment])]])))))
+       (str
+        (hp/html5
+         [:head
+          [:title "Comments"]]
+         [:body
+          [:h1 "Comments"]
+          [:ol
+           (for [{:keys [comment]} @*comments]
+             [:li comment])]])
+        "\r\n")
+       "/comments.txt"
+       (map (comp #(str % "\r\n") :comment) @*comments)))))
 
 (defn post! [request resource]
   (case (::spin/path resource)
