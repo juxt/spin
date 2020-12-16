@@ -134,7 +134,7 @@
         (if-let [response (when resource (spin/method-not-allowed? request (::spin/methods resource)))]
           response
 
-          ;; Select the representation (only if GET)
+          ;; Select the representation (only if GET or HEAD)
           (let [{:keys [representation vary]}
                 (when (#{:get :head} (:request-method request))
                   (let [available (when resource (available-representations resource))]
