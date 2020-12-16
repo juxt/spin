@@ -10,7 +10,7 @@
    :sha "793f7dcea01bdfba566b55bcd8eeb9fa1df1e89a"}}
 
  :aliases
- {:dev {:extra-paths ["dev"]}
+ {:dev {:extra-paths ["dev" "test"]}
   :test {:extra-paths ["test"]
          :extra-deps
          {com.cognitect/test-runner
