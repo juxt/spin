@@ -1,0 +1,6 @@
+= Spin Demo
+
+[source]
+----
+$ clj -A:dev
+----

@@ -27,33 +27,32 @@
    "/comments.txt" {::spin/methods #{:get}}
    "/comments" {::spin/methods #{:post :get}}})
 
-(defn index-page [title]
-  (str
-   (hp/html5
-    [:head
-     [:title title]]
-    [:body
-     [:h1 title]
-     [:a {:href "/comments"} "Comments"]])
-   "\r\n\r\n"))
-
-(def representations
-  {"/en/index.html" (index-page "Welcome to the spin demo!")
-   "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
-   "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")})
+(def static-representations
+  (letfn [(index-page [title]
+            (str
+             (hp/html5
+              [:head
+               [:title title]]
+              [:body
+               [:h1 title]
+               [:a {:href "/comments"} "Comments"]])
+             "\r\n\r\n"))]
+    {"/en/index.html" (index-page "Welcome to the spin demo!")
+     "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
+     "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")}))
 
 (defn index-html-representation-metadata [content-location content-language]
   (let [content-type "text/html;charset=utf-8"]
     {"content-type" content-type
      "content-language" content-language
      "content-location" content-location
-     "content-length" (str (count (get representations content-location)))
+     "content-length" (str (count (get static-representations content-location)))
 
      "etag"
      (format
       "\"%s\"" ; etags MUST be wrapped in DQUOTEs
       (hash ; Clojure's hash function will do, but we could use another
-       {:content (get representations content-location)
+       {:content (get static-representations content-location)
         :content-type content-type
         :content-language content-language
         :content-encoding ""}))
@@ -95,7 +94,7 @@
 (defn response-body [representation]
   (let [content-location (get representation "content-location")]
     (or
-     (get representations content-location)
+     (get static-representations content-location)
      (case content-location
        "/comments.html"
        (str
@@ -238,4 +237,5 @@
          (::spin/response exdata)
          {:status 500 :body "Internal Error\r\n"})))))
 
-(defonce server (jetty/run-jetty #'handler {:port 8080 :join? false}))
+(defn -main [args]
+  (jetty/run-jetty handler {:port 8080 :join? true}))

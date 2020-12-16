@@ -11,7 +11,7 @@
 
  :aliases
  {:dev
-  {:extra-paths ["test"]
+  {:extra-paths ["dev" "test"]
    :jvm-opts ["-XX:-OmitStackTraceInFastThrow"]
    :extra-deps
    {org.clojure/test.check {:mvn/version "1.1.0"}}}
