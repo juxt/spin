@@ -23,7 +23,6 @@
    "/en/index.html" {::spin/methods #{:get}}
    "/de/index.html" {::spin/methods #{:get}}
    "/es/index.html" {::spin/methods #{:get}}
-
    "/comments.html" {::spin/methods #{:get}}
    "/comments.txt" {::spin/methods #{:get}}
    "/comments" {::spin/methods #{:post :get}}})
@@ -34,7 +33,8 @@
     [:head
      [:title title]]
     [:body
-     [:h1 title]])
+     [:h1 title]
+     [:a {:href "/comments"} "Comments"]])
    "\r\n\r\n"))
 
 (def representations
@@ -42,25 +42,32 @@
    "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
    "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")})
 
-(defn make-index-html-representation [content-location content-language]
+(defn index-html-representation-metadata [content-location content-language]
   (let [content-type "text/html;charset=utf-8"]
     {"content-type" content-type
      "content-language" content-language
      "content-location" content-location
      "content-length" (str (count (get representations content-location)))
-     "etag" (format "\"%s\"" (hash {:content (get representations content-location)
-                                    :content-type content-type
-                                    :content-language content-language
-                                    :content-encoding ""}))
-     "last-modified" (-> "2020-12-25T09:00:00Z"
-                         java.time.Instant/parse
-                         java.util.Date/from
-                         spin/format-http-date)}))
+
+     "etag"
+     (format
+      "\"%s\"" ; etags MUST be wrapped in DQUOTEs
+      (hash ; Clojure's hash function will do, but we could use another
+       {:content (get representations content-location)
+        :content-type content-type
+        :content-language content-language
+        :content-encoding ""}))
+
+     "last-modified"
+     (-> "2020-12-25T09:00:00Z"
+         java.time.Instant/parse
+         java.util.Date/from
+         spin/format-http-date)}))
 
 (def representation-metadata
-  (let [index-en (make-index-html-representation "/en/index.html" "en-US")
-        index-de (make-index-html-representation "/de/index.html" "de")
-        index-es (make-index-html-representation "/es/index.html" "es")
+  (let [index-en (index-html-representation-metadata "/en/index.html" "en-US")
+        index-de (index-html-representation-metadata "/de/index.html" "de")
+        index-es (index-html-representation-metadata "/es/index.html" "es")
 
         comments-html
         {"content-type" "text/html;charset=utf-8"
