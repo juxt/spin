@@ -237,5 +237,8 @@
          (::spin/response exdata)
          {:status 500 :body "Internal Error\r\n"})))))
 
-(defn -main [args]
-  (jetty/run-jetty handler {:port 8080 :join? true}))
+(defn run [opts]
+  (prn opts)
+  (jetty/run-jetty
+   handler
+   {:port (Integer/parseInt (get opts "--port" "8080")) :join? true}))
