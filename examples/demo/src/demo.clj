@@ -104,18 +104,18 @@
       (when-not (get-in request [:headers "content-length"])
         (throw
          (ex-info
-          "No body"
+          "No Content-Length header found"
           {::spin/response
            {:status 411
-            :body "Length Required\n"}})))
+            :body "Length Required\r\n"}})))
 
       (when-not (:body request)
         (throw
          (ex-info
-          "No body"
+          "No body in request"
           {::spin/response
            {:status 400
-            :body "Bad Request\n"}})))
+            :body "Bad Request\r\n"}})))
 
       ;; TODO: Check input type, can throw a 415 error response if necessary
       ;; (But use reap)
@@ -127,7 +127,7 @@
         (let [comment (String. (.toByteArray out))]
           (swap! *comments conj {:comment comment
                                  :date (new Date)}))
-        {:status 200 :body "Thanks!"}))))
+        {:status 200 :body "Thanks!\r\n"}))))
 
 (defn handler [request]
   (try
@@ -151,7 +151,9 @@
                       (throw
                        (ex-info
                         "Not Found"
-                        {::spin/response {:status 404}})))
+                        {::spin/response
+                         {:status 404
+                          :body "Not Found\r\n"}})))
 
                     (let [to-pick
                           ;; There's some work to do on our representation
@@ -175,8 +177,9 @@
                          (ex-info
                           "Not Acceptable"
                           { ;; TODO: Must add list of available representations
-                           ::spin/response {:status 406
-                                            :body "Not Acceptable\n"}}))))))
+                           ::spin/response
+                           {:status 406
+                            :body "Not Acceptable\r\n"}}))))))
 
                 response
                 (cond-> {}
@@ -229,6 +232,6 @@
       (let [exdata (ex-data e)]
         (or
          (::spin/response exdata)
-         {:status 500 :body "Internal Error\n"})))))
+         {:status 500 :body "Internal Error\r\n"})))))
 
 (defonce server (jetty/run-jetty #'handler {:port 8080 :join? false}))

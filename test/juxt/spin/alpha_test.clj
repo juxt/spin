@@ -81,20 +81,20 @@
               (:head :get)
               (let [representation
                     {::spin/content-type "text/plain"
-                     ::spin/content-length (count (.getBytes "Hello World!\n"))}]
+                     ::spin/content-length (count (.getBytes "Hello World!\r\n"))}]
 
                 (cond-> (spin/ok)
                   true (conj (spin/representation->response representation))
                   (not (spin/head? request)) ; when not HEAD …
                   ;; … we add the body ourselves
-                  (conj {:body "Hello World!\n"})))))]
+                  (conj {:body "Hello World!\r\n"})))))]
 
     (testing "a 200 response, with a body, in response to a GET request"
       (is
        (=
         {:status 200
          :headers {"content-length" "13"}
-         :body "Hello World!\n"}
+         :body "Hello World!\r\n"}
 
         (response-for
          h
