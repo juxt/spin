@@ -4,6 +4,7 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
+   [clojure.set :as set]
    [hiccup.page :as hp]
    [juxt.pick.alpha.ring :refer [pick]]
    [juxt.spin.alpha :as spin]
@@ -12,6 +13,8 @@
   (:import
    (java.util Date)
    (java.time Instant)))
+
+;; Resources - these could be registered in a database.
 
 (def resources
   [{::spin/path "/" ::spin/methods #{:get}}
@@ -26,122 +29,161 @@
 (def resources-by-location
   (into {} (map (juxt ::spin/path identity) resources)))
 
+;; Representations - these are streams of bytes representing the current, or
+;; intended, state of a resource.
+
 (defrecord ByteArrayRepresentation [bytes]
   StreamableResponseBody
   (write-body-to-stream [body response output-stream]
     (.write output-stream bytes)))
 
+(defn make-byte-array-representation [bytes content-location content-type]
+  (with-meta
+    (->ByteArrayRepresentation bytes)
+    {"content-location" content-location
+     "content-type" content-type
+     "content-length" (str (count bytes))
+     "etag"
+     (format
+      "\"%s\""      ; etags MUST be wrapped in DQUOTEs
+      (hash         ; Clojure's hash function will do, but we could use another
+       {:content bytes
+        :content-type content-type}))}))
+
+(defn conj-meta [o metadata]
+  (with-meta o
+    (conj (meta o) metadata)))
+
+(defn make-comment [location s]
+  (->
+   (make-byte-array-representation
+    (.getBytes s)
+    location
+    "text/plain;charset=utf-8")
+   (conj-meta {"content-language" "en-US"
+               "last-modified" (-> "2020-12-14T23:00:00Z"
+                                   Instant/parse
+                                   Date/from
+                                   spin/format-http-date)})))
+
 ;; Some comments on a web page
 (def *database
   (atom
    {:next-comment-id 2
-    :comments
-    [^{"content-location" "/comments/1"
-       "last-modified" (-> "2020-12-14T23:00:00Z"
-                           Instant/parse
-                           Date/from
-                           spin/format-http-date)}
-     {:comment "Here is the first comment"}]}))
+    :comments [(make-comment "/comments/1" "Here is the first comment")]}))
 
-(def static-representations
-  (letfn [(index-page [title]
-            (str
-             (hp/html5
-              [:head
-               [:title title]]
-              [:body
-               [:h1 title]
-               [:a {:href "/comments"} "Comments"]])
-             "\r\n\r\n"))]
-    {"/" (hp/html5 [:head [:meta {"http-equiv" "Refresh" "content" "0; URL=/index.html"}]])
-     "/en/index.html" (index-page "Welcome to the spin demo!")
-     "/de/index.html" (index-page "Willkommen zur Spin-Demo!")
-     "/es/index.html" (index-page "¡Bienvenida a la demo de spin!")}))
+(defn index-page-representation [title content-location]
+  (make-byte-array-representation
+   (.getBytes
+    (str
+     (hp/html5
+      [:head
+       [:title title]]
+      [:body
+       [:h1 title]
+       [:a {:href "/comments"} "Comments"]])
+     "\r\n\r\n"))
+   content-location
+   "text/html;charset=utf-8"))
 
-(defn index-html-representation-metadata [content-location content-language]
-  (let [content-type "text/html;charset=utf-8"]
-    {"content-type" content-type
-     "content-language" content-language
-     "content-location" content-location
-     "content-length" (str (count (get static-representations content-location)))
+(def representations
+  [(->
+    (make-byte-array-representation
+     (.getBytes
+      (hp/html5 [:head [:meta {"http-equiv" "Refresh" "content" "0; URL=/index.html"}]]))
+     "/"
+     "text/html;charset=utf-8")
+    (conj-meta
+     {"last-modified"
+      (-> "2020-12-01T09:00:00Z"
+          java.time.Instant/parse
+          java.util.Date/from
+          spin/format-http-date)}))
 
-     "etag"
-     (format
-      "\"%s\"" ; etags MUST be wrapped in DQUOTEs
-      (hash ; Clojure's hash function will do, but we could use another
-       {:content (get static-representations content-location)
-        :content-type content-type
-        :content-language content-language
-        :content-encoding ""}))
+   (->
+    (index-page-representation
+     "Welcome to the spin demo!"
+     "/en/index.html")
+    (conj-meta
+     {"content-language" "en-US"
+      "last-modified"
+      (-> "2020-12-25T09:00:00Z"
+          java.time.Instant/parse
+          java.util.Date/from
+          spin/format-http-date)}))
 
-     "last-modified"
-     (-> "2020-12-25T09:00:00Z"
-         java.time.Instant/parse
-         java.util.Date/from
-         spin/format-http-date)}))
+   (->
+    (index-page-representation
+     "Willkommen zur Spin-Demo!"
+     "/de/index.html")
+    (conj-meta
+     {"content-language" "de"
+      "last-modified"
+      (-> "2020-12-25T09:00:00Z"
+          java.time.Instant/parse
+          java.util.Date/from
+          spin/format-http-date)}))
 
-(def representation-metadata
-  (let [index-en (index-html-representation-metadata "/en/index.html" "en-US")
-        index-de (index-html-representation-metadata "/de/index.html" "de")
-        index-es (index-html-representation-metadata "/es/index.html" "es")
+   (->
+    (index-page-representation
+     "¡Bienvenida a la demo de spin!"
+     "/es/index.html")
+    (conj-meta
+     {"content-language" "es"
+      "last-modified"
+      (-> "2020-12-25T09:00:00Z"
+          java.time.Instant/parse
+          java.util.Date/from
+          spin/format-http-date)}))
 
-        comments-html
-        {"content-type" "text/html;charset=utf-8"
-         "content-location" "/comments.html"}
+   #_(with-meta
+     (reify
+       StreamableResponseBody
+       (write-body-to-stream [body response output-stream]
+         (.write
+          output-stream
+          (.getBytes
+           (hp/html5
+            [:head
+             [:title "Comments"]]
+            [:body
+             [:h1 "Comments"]
+             [:ol
+              (for [{:keys [comment]} (:comments @*database)]
+                [:li comment])]])))))
+     {"content-location" "/comments.html"
+      "content-type" "text/html;charset=utf-8"})
 
-        comments-txt
-        {"content-type" "text/plain;charset=utf-8"
-         "content-location" "/comments.txt"}]
+   #_(with-meta
+     (reify
+       StreamableResponseBody
+       (write-body-to-stream [body response output-stream]
+         (.write
+          output-stream
+          (.getBytes
+           (apply str (map (comp #(str % "\r\n") :comment) (:comments @*database)))))))
+     {"content-location" "/comments.txt"
+      "content-type" "text/plain;charset=utf-8"})])
 
-    {"/" [{"content-type" "text/html;charset=utf-8"
-           "content-location" "/"
-           "content-length" (str (count (get static-representations "/")))
+(def negotiated-representations
+  {"/index.html" ["/en/index.html" "/de/index.html" "/es/index.html"]
+   "/comments" ["/comments.html" "/comments.txt"]})
 
-           "etag"
-           (format
-            "\"%s\"" ; etags MUST be wrapped in DQUOTEs
-            (hash    ; Clojure's hash function will do, but we could use another
-             {:content (get static-representations "/")
-              :content-type "text/html;charset=utf-8"}))
+(def representations-by-path
+  (let [index (into {} (map (juxt #(get (meta %) "content-location") identity) representations))
+        connegs (into {} (for [[k v] negotiated-representations]
+                           [k (map index v)]))]
+    (merge index connegs)))
 
-           "last-modified"
-           (-> "2020-12-01T09:00:00Z"
-               java.time.Instant/parse
-               java.util.Date/from
-               spin/format-http-date)}]
+;; ------
 
-     "/index.html" [index-en index-de index-es]
-     "/en/index.html" [index-en]
-     "/de/index.html" [index-de]
-     "/es/index.html" [index-es]
-     "/comments" [comments-html comments-txt]
-     "/comments.html" [comments-html]
-     "/comments.txt" [comments-txt]}))
+(defn current-representations
+  "Return the current representations for a resource."
+  [resource]
+  (representations-by-path (::spin/path resource)))
 
 (defn locate-resource [path]
   (get resources-by-location path))
-
-(defn available-representations [resource]
-  (get representation-metadata (::spin/path resource) []))
-
-(defn response-body [representation]
-  (let [content-location (get representation "content-location")]
-    (or
-     (get static-representations content-location)
-     (case content-location
-       "/comments.html"
-       (str
-        (hp/html5
-         [:head
-          [:title "Comments"]]
-         [:body
-          [:h1 "Comments"]
-          [:ol
-           (for [{:keys [comment]} (:comments @*database)]
-             [:li comment])]])
-        "\r\n")
-       "/comments.txt"
-       (map (comp #(str % "\r\n") :comment) (:comments @*database))))))
 
 (defn post! [request resource]
   (case (::spin/path resource)
@@ -194,7 +236,6 @@
       ;; Locate the resource
       (let [resource (locate-resource (:uri request))]
 
-
         ;; Check method allowed
         (if-let [response (when resource (spin/method-not-allowed? request (::spin/methods resource)))]
           response
@@ -202,8 +243,8 @@
           ;; Select the representation (only if GET or HEAD)
           (let [{:keys [representation vary]}
                 (when (#{:get :head} (:request-method request))
-                  (let [available (when resource (available-representations resource))]
-                    (when (empty? available)
+                  (let [current (when resource (current-representations resource))]
+                    (when (empty? current)
                       (throw
                        (ex-info
                         "Not Found"
@@ -214,19 +255,23 @@
                     (let [to-pick
                           ;; There's some work to do on our representation
                           ;; format to adapt it to pick's expectations.
-                          (fn [{:strs [content-type content-encoding content-language] :as representation}]
-                            (cond-> representation
-                              content-type (assoc :juxt.pick.alpha/content-type content-type)
-                              content-encoding (assoc :juxt.pick.alpha/content-encoding content-encoding)
-                              content-language (assoc :juxt.pick.alpha/content-language content-language)))
+                          (fn [representation]
+                            (let [md (meta representation)]
+                              (->
+                               (set/rename-keys
+                                md
+                                {"content-type" :juxt.pick.alpha/content-type
+                                 "content-encoding" :juxt.pick.alpha/content-encoding
+                                 "content-language" :juxt.pick.alpha/content-language})
+                               (assoc ::representation representation))))
 
                           negotiation-result
                           (pick
                            request
-                           (map to-pick (available-representations resource))
+                           (map to-pick current)
                            {:juxt.pick.alpha/vary? true})]
 
-                      (if-let [representation (:juxt.pick.alpha/representation negotiation-result)]
+                      (if-let [representation (::representation (:juxt.pick.alpha/representation negotiation-result))]
                         {:representation representation
                          :vary (:juxt.pick.alpha/vary negotiation-result)}
                         (throw
@@ -256,7 +301,7 @@
                          (cond-> (conj
                                   response
                                   (select-keys
-                                   representation
+                                   (meta representation)
                                    ;; representation metadata
                                    ["content-type" "content-encoding" "content-language"
                                     ;; validators
@@ -265,11 +310,11 @@
                                     "content-length" "content-range"]))
 
                            ;; content-location is only set if different from the effective uri
-                           (not= (get representation "content-location") (:uri request))
-                           (assoc "content-location" (get representation "content-location")))}
+                           (not= (get (meta representation) "content-location") (:uri request))
+                           (assoc "content-location" (get (meta representation) "content-location")))}
 
                   (= (:request-method request) :get)
-                  (assoc :body (response-body representation)))
+                  (assoc :body representation))
 
                 :post
                 (post! request resource)))))))
