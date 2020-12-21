@@ -9,39 +9,20 @@
    [juxt.pick.alpha.ring :refer [pick]]
    [juxt.spin.alpha :as spin]
    [ring.adapter.jetty :as jetty]
-   [ring.core.protocols :refer [StreamableResponseBody]])
-  (:import
-   (java.util Date)
-   (java.time Instant)))
-
-;; Resources - these could be registered in a database.
-
-(def resources
-  [{::spin/path "/" ::spin/methods #{:get}}
-   {::spin/path "/index.html" ::spin/methods #{:get}}
-   {::spin/path "/en/index.html" ::spin/methods #{:get}}
-   {::spin/path "/de/index.html" ::spin/methods #{:get}}
-   {::spin/path "/es/index.html" ::spin/methods #{:get}}
-   {::spin/path "/comments.html" ::spin/methods #{:get}}
-   {::spin/path "/comments.txt" ::spin/methods #{:get}}
-   {::spin/path "/comments" ::spin/methods #{:post :get}}])
-
-(def resources-by-location
-  (into {} (map (juxt ::spin/path identity) resources)))
-
-;; Representations - these are streams of bytes representing the current, or
-;; intended, state of a resource.
+   [ring.core.protocols :refer [StreamableResponseBody]]
+   [juxt.pick.alpha.ring :refer [decode-maybe]]
+   [juxt.pick.alpha.core :refer [rate-representation]]
+   [juxt.reap.alpha.ring :refer [request->decoded-preferences]]))
 
 (defrecord ByteArrayRepresentation [bytes]
   StreamableResponseBody
   (write-body-to-stream [body response output-stream]
     (.write output-stream bytes)))
 
-(defn make-byte-array-representation [bytes content-location content-type]
+(defn make-byte-array-representation [bytes content-type]
   (with-meta
     (->ByteArrayRepresentation bytes)
-    {"content-location" content-location
-     "content-type" content-type
+    {"content-type" content-type
      "content-length" (str (count bytes))
      "etag"
      (format
@@ -54,25 +35,15 @@
   (with-meta o
     (conj (meta o) metadata)))
 
-(defn make-comment [location s]
+(defn make-comment [comment]
   (->
    (make-byte-array-representation
-    (.getBytes s)
-    location
+    (.getBytes comment)
     "text/plain;charset=utf-8")
    (conj-meta {"content-language" "en-US"
-               "last-modified" (-> "2020-12-14T23:00:00Z"
-                                   Instant/parse
-                                   Date/from
-                                   spin/format-http-date)})))
+               "last-modified" (spin/format-http-date (new java.util.Date))})))
 
-;; Some comments on a web page
-(def *database
-  (atom
-   {:next-comment-id 2
-    :comments [(make-comment "/comments/1" "Here is the first comment")]}))
-
-(defn index-page-representation [title content-location]
+(defn index-page-representation [title]
   (make-byte-array-representation
    (.getBytes
     (str
@@ -81,119 +52,204 @@
        [:title title]]
       [:body
        [:h1 title]
-       [:a {:href "/comments"} "Comments"]])
+       [:a {:href "/comments.html"} "Comments"]])
      "\r\n\r\n"))
-   content-location
    "text/html;charset=utf-8"))
 
-(def representations
-  [(->
-    (make-byte-array-representation
-     (.getBytes
-      (hp/html5 [:head [:meta {"http-equiv" "Refresh" "content" "0; URL=/index.html"}]]))
-     "/"
-     "text/html;charset=utf-8")
-    (conj-meta
-     {"last-modified"
-      (-> "2020-12-01T09:00:00Z"
-          java.time.Instant/parse
-          java.util.Date/from
-          spin/format-http-date)}))
+(defn get-comments [db]
+  (->>
+   (for [[path res] (:resources db)
+           :let [n (second (re-matches #"/comments/(\d+)" path))]
+           :when n]
+       {:location path
+        :representation (first (::representations res))
+        :ordinal n})
+   (sort-by :ordinal)))
 
-   (->
-    (index-page-representation
-     "Welcome to the spin demo!"
-     "/en/index.html")
-    (conj-meta
-     {"content-language" "en-US"
-      "last-modified"
-      (-> "2020-12-25T09:00:00Z"
-          java.time.Instant/parse
-          java.util.Date/from
-          spin/format-http-date)}))
+(def *database
+  (atom
+   { ;; Resources - this contain methods, authorization details, and current representations.
+    :resources
+    {"/"
+     {::methods #{:get}
+      ::representations
+      [(->
+        (make-byte-array-representation
+         (.getBytes
+          (str
+           (hp/html5 [:head [:meta {"http-equiv" "Refresh" "content" "0; URL=/index.html"}]])
+           "\r\n\r\n"))
+         "text/html;charset=utf-8")
+        (conj-meta
+         {"last-modified"
+          (-> "2020-12-01T09:00:00Z"
+              java.time.Instant/parse
+              java.util.Date/from
+              spin/format-http-date)}))]}
 
-   (->
-    (index-page-representation
-     "Willkommen zur Spin-Demo!"
-     "/de/index.html")
-    (conj-meta
-     {"content-language" "de"
-      "last-modified"
-      (-> "2020-12-25T09:00:00Z"
-          java.time.Instant/parse
-          java.util.Date/from
-          spin/format-http-date)}))
+     "/index.html"
+     {::methods #{:get}
+      ::representations
+      ["/en/index.html"
+       "/de/index.html"
+       "/es/index.html"]}
 
-   (->
-    (index-page-representation
-     "¡Bienvenida a la demo de spin!"
-     "/es/index.html")
-    (conj-meta
-     {"content-language" "es"
-      "last-modified"
-      (-> "2020-12-25T09:00:00Z"
-          java.time.Instant/parse
-          java.util.Date/from
-          spin/format-http-date)}))
+     "/en/index.html"
+     {::methods #{:get}
+      ::representations
+      [(->
+        (index-page-representation
+         "Welcome to the spin demo!")
+        (conj-meta
+         {"content-language" "en-US"
+          "last-modified"
+          (-> "2020-12-25T09:00:00Z"
+              java.time.Instant/parse
+              java.util.Date/from
+              spin/format-http-date)}))]}
 
-   #_(with-meta
-     (reify
-       StreamableResponseBody
-       (write-body-to-stream [body response output-stream]
-         (.write
-          output-stream
-          (.getBytes
-           (hp/html5
-            [:head
-             [:title "Comments"]]
-            [:body
-             [:h1 "Comments"]
-             [:ol
-              (for [{:keys [comment]} (:comments @*database)]
-                [:li comment])]])))))
-     {"content-location" "/comments.html"
-      "content-type" "text/html;charset=utf-8"})
+     "/de/index.html"
+     {::methods #{:get}
+      ::representations
+      [(->
+        (index-page-representation
+         "Willkommen zur Spin-Demo!")
+        (conj-meta
+         {"content-language" "de"
+          "last-modified"
+          (-> "2020-12-25T09:00:00Z"
+              java.time.Instant/parse
+              java.util.Date/from
+              spin/format-http-date)}))]}
 
-   #_(with-meta
-     (reify
-       StreamableResponseBody
-       (write-body-to-stream [body response output-stream]
-         (.write
-          output-stream
-          (.getBytes
-           (apply str (map (comp #(str % "\r\n") :comment) (:comments @*database)))))))
-     {"content-location" "/comments.txt"
-      "content-type" "text/plain;charset=utf-8"})])
+     "/es/index.html"
+     {::methods #{:get}
+      ::representations
+      [(->
+        (index-page-representation
+         "¡Bienvenida a la demo de spin!")
+        (conj-meta
+         {"content-language" "es"
+          "last-modified"
+          (-> "2020-12-25T09:00:00Z"
+              java.time.Instant/parse
+              java.util.Date/from
+              spin/format-http-date)}))]}
 
-(def negotiated-representations
-  {"/index.html" ["/en/index.html" "/de/index.html" "/es/index.html"]
-   "/comments" ["/comments.html" "/comments.txt"]})
+     "/comments.html"
+     {::methods #{:get :head :options}
+      ::representations
+      [(with-meta
+         (reify
+           StreamableResponseBody
+           (write-body-to-stream [body {::keys [db]} output-stream]
+             (.write
+              output-stream
+              (.getBytes
+               (str
+                (hp/html5
+                 [:head
+                  [:title "Comments"]]
+                 [:body
+                  [:h1 "Comments"]
+                  [:ol
+                   (for [{:keys [location representation]} (get-comments db)]
+                     [:li
+                      (String. (:bytes representation))
+                      "&nbsp;"
+                      [:small
+                       [:a {:href location}
+                        "view"]]])]])
+                "\r\n\r\n")))))
+         {"content-type" "text/html;charset=utf-8"})]}
 
-(def representations-by-path
-  (let [index (into {} (map (juxt #(get (meta %) "content-location") identity) representations))
-        connegs (into {} (for [[k v] negotiated-representations]
-                           [k (map index v)]))]
-    (merge index connegs)))
+     "/comments.txt"
+     {::methods #{:get}
+      ::representations
+      [(with-meta
+         (reify
+           StreamableResponseBody
+           (write-body-to-stream [body {::keys [db]} output-stream]
+             (.write
+              output-stream
+              (.getBytes
+               (str/join
+                (for [{:keys [representation]} (get-comments db)]
+                  (str (String. (:bytes representation)) "\r\n")))))))
+         {"content-type" "text/plain;charset=utf-8"})]}
+
+     "/comments"
+     {::methods #{:get :head :post :options}
+      ::representations
+      ["/comments.html" "/comments.txt"]}}
+
+    :next-comment-id 1
+
+    ;; Representations - these are streams of bytes representing the current, or
+    ;; intended, state of a resource. Representations are not automatically
+    ;; public. There must be a corresponding resource, supporting at least GET
+    ;; method, and there could be authorization aspects too.
+    }))
+
+(defn locate-resource
+  "Locate a resource. We have lots of options here. We can attempt to find a
+  'static' resource from a database or file-system, or create a resource
+  dynamically if the path warrants it. This is very much an application
+  developer's decision and cannot be performed by a library."
+  [db path]
+  (or
+   (some->
+    (get-in db [:resources path])
+    (assoc ::path path))
+   (when (re-matches #"/articles/[a-z][a-z0-9-]*.adoc" path)
+     ;; Return a resource that represents the missing article. This is the
+     ;; resource that will be added to the database
+     {::path path
+      ::methods #{:get :head :put :options}
+      ::representations []
+      ::max-content-length 5
+      ::allowed {"accept" "text/asciidoc,text/plain"
+                 "accept-charset" "utf-8"}})))
+
+(defn current-representations [db resource]
+  (mapcat
+   (fn [rep]
+     (if (string? rep)
+       (current-representations db (get (:resources db) rep))
+       [rep]))
+   (::representations resource)))
 
 ;; ------
 
-(defn current-representations
-  "Return the current representations for a resource."
-  [resource]
-  (representations-by-path (::spin/path resource)))
+(defn add-comment [{:keys [next-comment-id] :as db} comment]
+  (let [location (format "/comments/%d" next-comment-id)]
+    (-> db
+        ;; Create a resource
+        (update
+         :resources
+         assoc
+         location
+         {::methods #{:get :put :delete}
+          ::representations [(make-comment comment)]})
+        (update :next-comment-id inc)
+        (assoc :last-location location))))
 
-(defn locate-resource [path]
-  (get resources-by-location path))
+(swap! *database #(-> %
+                      (add-comment "Here is the first comment")
+                      (add-comment "Here is another comment")))
 
-(defn post! [request resource]
-  (case (::spin/path resource)
+(defn post! [*db request resource]
+  (assert (= (:uri request) (::path resource)))
+  (case (:uri request)
+    ;; TODO: Should look at some hint in the resource as to functionality,
+    ;; perhaps via a defmethod
     "/comments"
     (do
       (when-not (get-in request [:headers "content-length"])
         (throw
          (ex-info
           "No Content-Length header found"
-          {::spin/response
+          {::response
            {:status 411
             :body "Length Required\r\n"}})))
 
@@ -201,7 +257,7 @@
         (throw
          (ex-info
           "No body in request"
-          {::spin/response
+          {::response
            {:status 400
             :body "Bad Request\r\n"}})))
 
@@ -212,118 +268,248 @@
       (let [out (java.io.ByteArrayOutputStream.)]
         (with-open [in (:body request)]
           (io/copy in out))
-        (let [comment (String. (.toByteArray out))]
+        (spin/created
+         (:last-location
           (swap!
-           *database
-           (fn [{:keys [next-comment-id comments] :as db}]
-             (-> db
-                 (update
-                  :comments
-                  conj
-                  (with-meta {:comment comment}
-                    {"content-location" (format "/comments/%d" next-comment-id)
-                     "last-modified" (spin/format-http-date (new Date))}))
-                 (update :next-comment-id inc)))))
+           *db
+           add-comment
+           (String. (.toByteArray out)))))))))
 
-        {:status 200 :body "Thanks!\r\n"}))))
+(defn put!
+  "Replace the state of a resource with the state defined by the representation
+  enclosed in the request message payload. Neither argument can be nil."
+  [*db request resource]
+  (assert (= (:uri request) (::path resource)))
+
+  ;; If resource just has one representation, we wish to put over it. We should
+  ;; be able to do this in the general case.
+
+  (when-not (get-in request [:headers "content-length"])
+    (throw
+     (ex-info
+      "No Content-Length header found"
+      {::response
+       {:status 411
+        :body "Length Required\r\n"}})))
+
+  (if-let [content-length (get-in request [:headers "content-length"])]
+    (when-let [max-content-length (::max-content-length resource)]
+      (try
+        (let [content-length (Long/parseLong content-length)]
+          (when (> content-length max-content-length)
+            (throw
+             (ex-info
+              "Payload too large"
+              {::response
+               {:status 413
+                :body "Payload Too Large\r\n"}}))))
+
+        (catch NumberFormatException e
+          (throw
+           (ex-info
+            "Bad content length"
+            {::response
+             {:status 400
+              :body "Bad Request\r\n"}})))))
+
+    ;; No content-length
+    (throw
+     (ex-info
+      "Length Required"
+      {::response
+       {:status 411
+        :body "Length Required\r\n"}})))
+
+  (when-not (:body request)
+    (throw
+     (ex-info
+      "No body in request"
+      {::response
+       {:status 400
+        :body "Bad Request\r\n"}})))
+
+  (when-let [allowed (::allowed resource)]
+    (let [prefs (request->decoded-preferences {:headers allowed})
+          request-rep (rate-representation
+                       prefs
+                       (decode-maybe (:headers request)))]
+      (when-not (:juxt.pick.alpha/acceptable? request-rep)
+        (throw
+         (ex-info
+          "No body in request"
+          {::representation-in-request request-rep
+           ::response
+           (if (= (:juxt.pick.alpha/content-type-qvalue request-rep) 0.0)
+             {:status 415
+              :body "Unsupported Media Type\r\n"}
+             {:status 409
+              :body "Conflict\r\n"})})))))
+
+  (let [out (java.io.ByteArrayOutputStream.)]
+    (with-open [in (:body request)]
+      (io/copy in out))
+
+    (let [content-type (get-in request [:headers "content-type"])
+          representation
+          (->
+           (make-byte-array-representation
+            (.toByteArray out)
+            content-type)
+           (conj-meta
+            (merge
+             (select-keys
+              (:headers request)
+              ["content-language" "content-encoding"])
+             ;; Add validators
+             {"last-modified" (spin/format-http-date (new java.util.Date))})))
+
+          new-resource (-> resource
+                           (assoc ::representations [representation])
+                           (dissoc ::path))]
+
+      (swap!
+       *db
+       (fn [db]
+         (assoc-in
+          db [:resources (:uri request)] new-resource)))
+
+      ;; TODO: Return 201
+
+      {:status 200}))
+
+  ;; TODO: Must read 6.3.2 and 7.2 to properly understand 201, especially: "The
+  ;; 201 response payload typically describes and links to the resource(s)
+  ;; created."
+
+  ;; "If the target resource does not have a current representation and the PUT
+  ;; successfully creates one, then the origin server MUST inform the user agent
+  ;; by sending a 201 (Created) response."
+  )
+
+(defn delete! [*db path]
+  (swap! *db #(update % :resources dissoc path))
+  {:status 200 :body "Deleted\r\n"})
 
 (defn handler [request]
-  (try
-    ;; Check method is known
-    (if-let [response (spin/unknown-method? request)]
-      response
+  (let [db @*database]
+    (try
+      ;; Check method is known
+      (if-let [response (spin/unknown-method? request)]
+        response
 
-      ;; Locate the resource
-      (let [resource (locate-resource (:uri request))]
+        ;; Locate the resource
+        (let [resource (locate-resource db (:uri request))]
 
-        ;; Check method allowed
-        (if-let [response (when resource (spin/method-not-allowed? request (::spin/methods resource)))]
-          response
+          ;; Check method allowed
+          (if-let [response
+                   (if resource
+                     (spin/method-not-allowed? request (::methods resource))
+                     ;; We forbid POST, PUT and DELETE on a nil resource
+                     (when (#{:put :delete :post} (:request-method request))
+                       {:status 405
+                        :headers {"allow" (spin/allow-header #{:get :head})}
+                        :body "Method Not Allowed\r\n"}))]
+            response
 
-          ;; Select the representation (only if GET or HEAD)
-          (let [{:keys [representation vary]}
-                (when (#{:get :head} (:request-method request))
-                  (let [current (when resource (current-representations resource))]
-                    (when (empty? current)
-                      (throw
-                       (ex-info
-                        "Not Found"
-                        {::spin/response
-                         {:status 404
-                          :body "Not Found\r\n"}})))
-
-                    (let [to-pick
-                          ;; There's some work to do on our representation
-                          ;; format to adapt it to pick's expectations.
-                          (fn [representation]
-                            (let [md (meta representation)]
-                              (->
-                               (set/rename-keys
-                                md
-                                {"content-type" :juxt.pick.alpha/content-type
-                                 "content-encoding" :juxt.pick.alpha/content-encoding
-                                 "content-language" :juxt.pick.alpha/content-language})
-                               (assoc ::representation representation))))
-
-                          negotiation-result
-                          (pick
-                           request
-                           (map to-pick current)
-                           {:juxt.pick.alpha/vary? true})]
-
-                      (if-let [representation (::representation (:juxt.pick.alpha/representation negotiation-result))]
-                        {:representation representation
-                         :vary (:juxt.pick.alpha/vary negotiation-result)}
+            ;; Select the representation (only if GET or HEAD)
+            (let [{:keys [representation vary]}
+                  (when (#{:get :head} (:request-method request))
+                    (let [current (current-representations db resource)]
+                      (when (empty? current)
                         (throw
                          (ex-info
-                          "Not Acceptable"
-                          { ;; TODO: Must add list of available representations
-                           ::spin/response
-                           {:status 406
-                            :body "Not Acceptable\r\n"}}))))))
+                          "Not Found"
+                          {::response
+                           {:status 404
+                            :body "Not Found\r\n"}})))
 
-                response
-                (cond-> {}
-                  (seq vary)
-                  (assoc "vary" (str/join ", " vary)))]
+                      (let [to-pick
+                            ;; There's some work to do on our representation
+                            ;; format to adapt it to pick's expectations.
+                            (fn [representation]
+                              (let [md (meta representation)]
+                                (->
+                                 (set/rename-keys
+                                  md
+                                  {"content-type" :juxt.pick.alpha/content-type
+                                   "content-encoding" :juxt.pick.alpha/content-encoding
+                                   "content-language" :juxt.pick.alpha/content-language})
+                                 (assoc ::representation representation))))
 
-            ;; Conditional requests
-            (if-let [not-modified-response
-                     (spin/not-modified? request representation)]
-              not-modified-response
+                            negotiation-result
+                            (pick
+                             request
+                             (map to-pick current)
+                             {:juxt.pick.alpha/vary? true})]
 
-              ;; Process the request method
-              (case (:request-method request)
-                (:get :head)
-                ;; GET (or HEAD)
-                (cond-> {:status 200
-                         :headers
-                         (cond-> (conj
-                                  response
-                                  (select-keys
-                                   (meta representation)
-                                   ;; representation metadata
-                                   ["content-type" "content-encoding" "content-language"
-                                    ;; validators
-                                    "last-modified" "etag"
-                                    ;; payload header fields too
-                                    "content-length" "content-range"]))
+                        (if-let [representation (::representation (:juxt.pick.alpha/representation negotiation-result))]
+                          {:representation representation
+                           :vary (:juxt.pick.alpha/vary negotiation-result)}
+                          (throw
+                           (ex-info
+                            "Not Acceptable"
+                            { ;; TODO: Must add list of available representations
+                             ::response
+                             {:status 406
+                              :body "Not Acceptable\r\n"}}))))))
 
-                           ;; content-location is only set if different from the effective uri
-                           (not= (get (meta representation) "content-location") (:uri request))
-                           (assoc "content-location" (get (meta representation) "content-location")))}
+                  response
+                  (cond-> {}
+                    (seq vary)
+                    (assoc "vary" (str/join ", " vary)))]
 
-                  (= (:request-method request) :get)
-                  (assoc :body representation))
+              ;; Conditional requests
+              (if-let [not-modified-response
+                       (spin/not-modified? request representation)]
+                not-modified-response
 
-                :post
-                (post! request resource)))))))
+                ;; Process the request method
+                (case (:request-method request)
+                  (:get :head)
+                  ;; GET (or HEAD)
+                  (do
+                    (println "Representation is" (pr-str representation))
+                    (cond-> {::db db
+                             :status 200
+                             :headers
+                             (cond-> (conj
+                                      response
+                                      (select-keys
+                                       (meta representation)
+                                       ;; representation metadata
+                                       ["content-type" "content-encoding" "content-language"
+                                        ;; validators
+                                        "last-modified" "etag"
+                                        ;; payload header fields too
+                                        "content-length" "content-range"]))
 
-    (catch clojure.lang.ExceptionInfo e
-      (let [exdata (ex-data e)]
-        (or
-         (::spin/response exdata)
-         {:status 500 :body "Internal Error\r\n"})))))
+                               ;; content-location is only set if different from the effective uri
+                               (not= (get (meta representation) "content-location") (:uri request))
+                               (assoc "content-location" (get (meta representation) "content-location")))}
+
+                      (= (:request-method request) :get)
+                      (assoc :body (do
+                                     (println "rep is" representation)
+                                     representation))))
+
+                  :post
+                  (post! *database request resource)
+
+                  :put
+                  (put! *database request resource)
+
+                  :delete
+                  (delete! *database (:uri request))
+
+                  :options
+                  ;; TODO: Allow user to take control of this, e.g. WebDAV
+                  (spin/options (::methods resource))))))))
+
+      (catch clojure.lang.ExceptionInfo e
+        (let [exdata (ex-data e)]
+          (or
+           (::response exdata)
+           {:status 500 :body "Internal Error\r\n"}))))))
 
 (defn run [opts]
   (prn opts)
