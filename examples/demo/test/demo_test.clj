@@ -20,6 +20,21 @@
   (let [{status :status
          {:strs [content-type content-length content-language content-location vary]} :headers
          :as response}
+        (demo/handler {:uri "/en/index.html"
+                       :request-method :get})]
+    (is (= 200 status))
+    (is (= "text/html;charset=utf-8" content-type))
+    (is (= "170" content-length))
+    (is (= "en-US" content-language))
+    (is (= #{"content-type" "content-language"
+             "last-modified" "etag"
+             "content-length"}
+           (set (keys (:headers response)))))))
+
+(deftest get-with-default-language-proactive-content-negotiation-test
+  (let [{status :status
+         {:strs [content-type content-length content-language content-location vary]} :headers
+         :as response}
         (demo/handler {:uri "/index.html"
                        :request-method :get})]
     (is (= 200 status))
@@ -33,7 +48,19 @@
              "vary"}
            (set (keys (:headers response)))))
     (is (= "/en/index.html" content-location))
-    (is (= "/en/index.html" content-location))))
+    (is (= "accept-language" vary))))
+
+(deftest get-with-accept-language-determined-proactive-content-negotiation-test
+  (let [{status :status
+         {:strs [content-language content-location vary]} :headers}
+        (demo/handler {:uri "/index.html"
+                       :request-method :get
+                       :headers {"accept-language" "es"}})]
+    (is (= 200 status))
+    (is (= "es" content-language))
+
+    (is (= "/es/index.html" content-location))
+    (is (= "accept-language" vary))))
 
 #_(deftest demo-test
   (is
