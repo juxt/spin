@@ -31,6 +31,29 @@
              "content-length"}
            (set (keys (:headers response)))))))
 
+(deftest get-with-accept-language-test
+  (let [{status :status
+         {:strs [content-language]} :headers
+         :as response}
+        (demo/handler
+         {:uri "/de/index.html"
+          :request-method :get
+          :headers {"accept-language" "es, de=0.8"}})]
+    (is (= 200 status))
+    (is (= "de" content-language))
+    (is (= #{"content-type" "content-language"
+             "last-modified" "etag"
+             "content-length"}
+           (set (keys (:headers response)))))))
+
+(deftest get-with-unacceptable-language-test
+  (let [{status :status}
+        (demo/handler
+         {:uri "/de/index.html"
+          :request-method :get
+          :headers {"accept-language" "es"}})]
+    (is (= 406 status))))
+
 (deftest get-with-proactive-content-negotiation-default-language-test
   (let [{status :status
          {:strs [content-type content-length content-language content-location vary]} :headers
@@ -62,79 +85,12 @@
     (is (= "/es/index.html" content-location))
     (is (= "accept-language" vary))))
 
+
+
+
+
 #_(deftest demo-test
-  (is
-   (=
-    {:status 200
-     :headers
-     {"vary" "accept-language"
-      "content-type" "text/html;charset=utf-8"
-      "content-language" "en-US"
-      "content-length" "165"
-      "content-location" "/en/index.html"
-      "etag" (format
-              "\"%s\""
-              (hash
-               {:content (get demo/static-representations "/en/index.html")
-                :content-type "text/html;charset=utf-8"
-                :content-language "en-US"
-                :content-encoding ""}))
-      "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
-     :body
-     "<!DOCTYPE html>\n<html><head><title>Welcome to the spin demo!</title></head><body><h1>Welcome to the spin demo!</h1><a href=\"/comments\">Comments</a></body></html>\r\n\r\n"}
 
-    (demo/handler
-     {:uri "/index.html"
-      :request-method :get})))
-
-  (testing "proactive content-negotiation on language"
-    (is
-     (=
-      {:status 200
-       :headers
-       {"vary" "accept-language"
-        "content-type" "text/html;charset=utf-8"
-        "content-language" "es"
-        "content-length" "175"
-        "content-location" "/es/index.html"
-        "etag" (format
-                "\"%s\""
-                (hash
-                 {:content (get demo/static-representations "/es/index.html")
-                  :content-type "text/html;charset=utf-8"
-                  :content-language "es"
-                  :content-encoding ""}))
-        "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
-       :body
-       "<!DOCTYPE html>\n<html><head><title>¡Bienvenida a la demo de spin!</title></head><body><h1>¡Bienvenida a la demo de spin!</h1><a href=\"/comments\">Comments</a></body></html>\r\n\r\n"}
-
-      (demo/handler
-       {:uri "/index.html"
-        :request-method :get
-        :headers {"accept-language" "es"}}))))
-
-  (testing "location of de index page"
-    (is
-     (=
-      {:status 200
-       :headers
-       {"content-type" "text/html;charset=utf-8"
-        "content-language" "de"
-        "content-length" "165"
-        "etag"  (format
-                 "\"%s\""
-                 (hash
-                  {:content (get demo/static-representations "/de/index.html")
-                   :content-type "text/html;charset=utf-8"
-                   :content-language "de"
-                   :content-encoding ""}))
-        "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
-       :body
-       "<!DOCTYPE html>\n<html><head><title>Willkommen zur Spin-Demo!</title></head><body><h1>Willkommen zur Spin-Demo!</h1><a href=\"/comments\">Comments</a></body></html>\r\n\r\n"}
-
-      (demo/handler
-       {:uri "/de/index.html"
-        :request-method :get}))))
 
   (testing "Prefer Spanish but accept German"
     (is
