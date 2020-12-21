@@ -18,7 +18,7 @@
 
 (deftest get-test
   (let [{status :status
-         {:strs [content-type content-length content-language content-location vary]} :headers
+         {:strs [content-type content-length content-language]} :headers
          :as response}
         (demo/handler {:uri "/en/index.html"
                        :request-method :get})]
@@ -31,7 +31,7 @@
              "content-length"}
            (set (keys (:headers response)))))))
 
-(deftest get-with-default-language-proactive-content-negotiation-test
+(deftest get-with-proactive-content-negotiation-default-language-test
   (let [{status :status
          {:strs [content-type content-length content-language content-location vary]} :headers
          :as response}
@@ -50,7 +50,7 @@
     (is (= "/en/index.html" content-location))
     (is (= "accept-language" vary))))
 
-(deftest get-with-accept-language-determined-proactive-content-negotiation-test
+(deftest get-with-proactive-content-negotiation-accept-language-test
   (let [{status :status
          {:strs [content-language content-location vary]} :headers}
         (demo/handler {:uri "/index.html"
