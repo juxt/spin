@@ -2,10 +2,40 @@
 
 (ns demo-test
   (:require
-   [clojure.test :refer [deftest testing is]]
+   [clojure.test :refer [deftest testing is use-fixtures]]
    [demo :as demo]))
 
-(deftest demo-test
+(def initial-db @demo/*database)
+
+(defn fix-database [f]
+  (with-redefs [demo/*database (atom initial-db)]
+    (f)))
+
+(use-fixtures :each fix-database)
+
+(with-redefs [demo/*database (atom initial-db)]
+  )
+
+(deftest get-test
+  (let [{status :status
+         {:strs [content-type content-length content-language content-location vary]} :headers
+         :as response}
+        (demo/handler {:uri "/index.html"
+                       :request-method :get})]
+    (is (= 200 status))
+    (is (= "text/html;charset=utf-8" content-type))
+    (is (= "170" content-length))
+    (is (= "en-US" content-language))
+    (is (= #{"content-type" "content-language"
+             "content-location"
+             "last-modified" "etag"
+             "content-length"
+             "vary"}
+           (set (keys (:headers response)))))
+    (is (= "/en/index.html" content-location))
+    (is (= "/en/index.html" content-location))))
+
+#_(deftest demo-test
   (is
    (=
     {:status 200
@@ -232,3 +262,14 @@
       :request-method :post
       :headers {"content-length" (str (count in))}
       :body (java.io.ByteArrayInputStream. in)})))
+
+
+#_{"content-length" "170",
+ :juxt.pick.alpha/encoding-qvalue 1.0,
+ :juxt.pick.alpha/content-type "text/html;charset=utf-8",
+ "etag" "\"1465419893\"",
+ :demo/representation #demo.StringRepresentation{:s "<!DOCTYPE html>\n<html><head><title>Welcome to the spin demo!</title></head><body><h1>Welcome to the spin demo!</h1><a href=\"/comments.html\">Comments</a></body></html>\r\n\r\n", :charset "utf-8"},
+ :juxt.pick.alpha/acceptable? true,
+ :juxt.pick.alpha/content-language "en-US", "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT", "content-location" "/en/index.html"}
+
+#_{"content-length" "170", :juxt.pick.alpha/encoding-qvalue 1.0, :juxt.pick.alpha/content-type "text/html;charset=utf-8", "etag" "\"1046352986\"", :demo/representation #demo.StringRepresentation{:s "<!DOCTYPE html>\n<html><head><title>Willkommen zur Spin-Demo!</title></head><body><h1>Willkommen zur Spin-Demo!</h1><a href=\"/comments.html\">Comments</a></body></html>\r\n\r\n", :charset "utf-8"}, :juxt.pick.alpha/acceptable? true, :juxt.pick.alpha/content-language "de", "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT", "content-location" "/de/index.html"}

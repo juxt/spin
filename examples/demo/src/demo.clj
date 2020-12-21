@@ -6,13 +6,13 @@
    [clojure.string :as str]
    [clojure.set :as set]
    [hiccup.page :as hp]
-   [juxt.pick.alpha.ring :refer [pick]]
    [juxt.spin.alpha :as spin]
    [ring.adapter.jetty :as jetty]
    [ring.core.protocols :refer [StreamableResponseBody]]
-   [juxt.pick.alpha.ring :refer [decode-maybe]]
+   [juxt.pick.alpha.ring :refer [pick decode-maybe]]
    [juxt.pick.alpha.core :refer [rate-representation]]
-   [juxt.reap.alpha.ring :refer [request->decoded-preferences]]))
+   [juxt.reap.alpha.ring :refer [request->decoded-preferences]]
+   [juxt.reap.alpha.decoders :as reap]))
 
 (defrecord ByteArrayRepresentation [bytes]
   StreamableResponseBody
@@ -122,6 +122,7 @@
          "Welcome to the spin demo!")
         (conj-meta
          {"content-language" "en-US"
+          "content-location" "/en/index.html"
           "last-modified"
           (-> "2020-12-25T09:00:00Z"
               java.time.Instant/parse
@@ -136,6 +137,7 @@
          "Willkommen zur Spin-Demo!")
         (conj-meta
          {"content-language" "de"
+          "content-location" "/de/index.html"
           "last-modified"
           (-> "2020-12-25T09:00:00Z"
               java.time.Instant/parse
@@ -150,6 +152,7 @@
          "¡Bienvenida a la demo de spin!")
         (conj-meta
          {"content-language" "es"
+          "content-location" "/es/index.html"
           "last-modified"
           (-> "2020-12-25T09:00:00Z"
               java.time.Instant/parse
@@ -181,7 +184,9 @@
                        [:a {:href location}
                         "view"]]])]])
                 "\r\n\r\n")))))
-         {"content-type" "text/html;charset=utf-8"})]}
+         {"content-type" "text/html;charset=utf-8"
+          "content-location" "/comments.html"})]}
+
 
      "/comments.txt"
      {::methods #{:get}
@@ -196,7 +201,8 @@
                (str/join
                 (for [{:keys [representation]} (get-comments db)]
                   (str (String. (:bytes representation)) "\r\n")))))))
-         {"content-type" "text/plain;charset=utf-8"})]}
+         {"content-type" "text/plain;charset=utf-8"
+          "content-location" "/comments.txt"})]}
 
      "/comments"
      {::methods #{:get :head :post :options}
@@ -238,6 +244,14 @@
        (current-representations db (get (:resources db) rep))
        [rep]))
    (::representations resource)))
+
+
+#_(map meta
+     (current-representations
+      @*database
+      (get-in @*database [:resources "/index.html"])
+
+      ))
 
 ;; ------
 
@@ -443,23 +457,11 @@
                            {:status 404
                             :body "Not Found\r\n"}})))
 
-                      (let [to-pick
-                            ;; There's some work to do on our representation
-                            ;; format to adapt it to pick's expectations.
-                            (fn [representation]
-                              (let [md (meta representation)]
-                                (->
-                                 (set/rename-keys
-                                  md
-                                  {"content-type" :juxt.pick.alpha/content-type
-                                   "content-encoding" :juxt.pick.alpha/content-encoding
-                                   "content-language" :juxt.pick.alpha/content-language})
-                                 (assoc ::representation representation))))
-
-                            negotiation-result
+                      (let [negotiation-result
                             (pick
                              request
-                             (map to-pick current)
+                             (for [rep current]
+                               (assoc (meta rep) ::representation rep))
                              {:juxt.pick.alpha/vary? true})]
 
                         (if-let [representation (::representation (:juxt.pick.alpha/representation negotiation-result))]
@@ -487,30 +489,26 @@
                 (case (:request-method request)
                   (:get :head)
                   ;; GET (or HEAD)
-                  (do
-                    (println "Representation is" (pr-str representation))
-                    (cond-> {::db db
-                             :status 200
-                             :headers
-                             (cond-> (conj
-                                      response
-                                      (select-keys
-                                       (meta representation)
-                                       ;; representation metadata
-                                       ["content-type" "content-encoding" "content-language"
-                                        ;; validators
-                                        "last-modified" "etag"
-                                        ;; payload header fields too
-                                        "content-length" "content-range"]))
+                  (cond-> { ;;::db db
+                           :status 200
+                           :headers
+                           (cond-> (conj
+                                    response
+                                    (select-keys
+                                     (meta representation)
+                                     ;; representation metadata
+                                     ["content-type" "content-encoding" "content-language"
+                                      ;; validators
+                                      "last-modified" "etag"
+                                      ;; payload header fields too
+                                      "content-length" "content-range"]))
 
-                               ;; content-location is only set if different from the effective uri
-                               (not= (get (meta representation) "content-location") (:uri request))
-                               (assoc "content-location" (get (meta representation) "content-location")))}
+                             ;; content-location is only set if different from the effective uri
+                             (not= (get (meta representation) "content-location") (:uri request))
+                             (assoc "content-location" (get (meta representation) "content-location")))}
 
-                      (= (:request-method request) :get)
-                      (assoc :body (do
-                                     (println "rep is" representation)
-                                     representation))))
+                    (= (:request-method request) :get)
+                    (assoc :body representation))
 
                   :post
                   (post! *database request resource)
@@ -532,7 +530,9 @@
            {:status 500 :body "Internal Error\r\n"}))))))
 
 (defn run [opts]
-  (prn opts)
   (jetty/run-jetty
    handler
    {:port (Integer/parseInt (get opts "--port" "8080")) :join? true}))
+
+
+;;(map to-pick current)
