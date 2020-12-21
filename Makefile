@@ -5,7 +5,7 @@ all: 	lint2 test
 test:
 	echo "spin:<span foreground='#ff3'>TEST</span>" > /tmp/spin-test-status
 	clojure -M:test && echo "spin:PASS" > /tmp/spin-test-status || echo "<span foreground='red'>spin:FAIL</span>" > /tmp/spin-test-status
-	echo "spin:<span foreground='#ff3'>TEST</span>" > /tmp/spin-demo-test-status
+	echo "spin-demo:<span foreground='#ff3'>TEST</span>" > /tmp/spin-demo-test-status
 	cd examples/demo; clojure -M:test && echo "spin-demo:PASS" > /tmp/spin-demo-test-status || echo "<span foreground='red'>spin-demo:FAIL</span>" > /tmp/spin-demo-test-status
 
 lint:
