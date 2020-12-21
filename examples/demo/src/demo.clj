@@ -31,29 +31,50 @@
        {:content bytes
         :content-type content-type}))}))
 
+(defrecord StringRepresentation [s charset]
+  StreamableResponseBody
+  (write-body-to-stream [body response output-stream]
+    (.write output-stream (.getBytes s charset))))
+
+(defn make-string-representation
+  [s content-type]
+  (let [charset
+        (get-in
+         (reap/content-type content-type)
+         [:juxt.reap.alpha.rfc7231/parameter-map "charset"] "utf-8")]
+    (with-meta
+      (->StringRepresentation s charset)
+      {"content-type" content-type
+       "content-length" (str (count (.getBytes s charset)))
+       "etag"
+       (format
+        "\"%s\""     ; etags MUST be wrapped in DQUOTEs
+        (hash        ; Clojure's hash function will do, but we could use another
+         {:content s
+          :content-type content-type}))})))
+
 (defn conj-meta [o metadata]
   (with-meta o
     (conj (meta o) metadata)))
 
 (defn make-comment [comment]
   (->
-   (make-byte-array-representation
-    (.getBytes comment)
+   (make-string-representation
+    comment
     "text/plain;charset=utf-8")
    (conj-meta {"content-language" "en-US"
                "last-modified" (spin/format-http-date (new java.util.Date))})))
 
 (defn index-page-representation [title]
-  (make-byte-array-representation
-   (.getBytes
-    (str
-     (hp/html5
-      [:head
-       [:title title]]
-      [:body
-       [:h1 title]
-       [:a {:href "/comments.html"} "Comments"]])
-     "\r\n\r\n"))
+  (make-string-representation
+   (str
+    (hp/html5
+     [:head
+      [:title title]]
+     [:body
+      [:h1 title]
+      [:a {:href "/comments.html"} "Comments"]])
+    "\r\n\r\n")
    "text/html;charset=utf-8"))
 
 (defn get-comments [db]
@@ -74,11 +95,10 @@
      {::methods #{:get}
       ::representations
       [(->
-        (make-byte-array-representation
-         (.getBytes
-          (str
-           (hp/html5 [:head [:meta {"http-equiv" "Refresh" "content" "0; URL=/index.html"}]])
-           "\r\n\r\n"))
+        (make-string-representation
+         (str
+          (hp/html5 [:head [:meta {"http-equiv" "Refresh" "content" "0; URL=/index.html"}]])
+          "\r\n\r\n")
          "text/html;charset=utf-8")
         (conj-meta
          {"last-modified"
