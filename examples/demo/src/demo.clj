@@ -208,8 +208,8 @@
       ::methods #{:get :head :put :options}
       ::representations []
       ::max-content-length 5
-      ::allowed {"accept" "text/asciidoc,text/plain"
-                 "accept-charset" "utf-8"}})))
+      ::acceptable {"accept" "text/asciidoc,text/plain"
+                    "accept-charset" "utf-8"}})))
 
 (defn current-representations [db resource]
   (mapcat
@@ -328,8 +328,8 @@
        {:status 400
         :body "Bad Request\r\n"}})))
 
-  (when-let [allowed (::allowed resource)]
-    (let [prefs (request->decoded-preferences {:headers allowed})
+  (when-let [acceptable (::acceptable resource)]
+    (let [prefs (request->decoded-preferences {:headers acceptable})
           request-rep (rate-representation
                        prefs
                        (decode-maybe (:headers request)))]
