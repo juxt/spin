@@ -104,10 +104,7 @@
 
 (defn method-not-allowed?
   [request methods]
-  (let [method
-        (if (= :head (:request-method request))
-          :get
-          (:request-method request))]
+  (let [method (:request-method request)]
     (when-not (contains? methods method)
       {:status 405
        :headers {"allow" (allow-header methods)}
