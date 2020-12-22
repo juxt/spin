@@ -127,7 +127,7 @@
   (is
    (=
     {:status 405
-     :headers {"allow" "GET, HEAD, OPTIONS"}}
+     :headers {"allow" "GET"}}
     (response-for
 
      (fn [request]
@@ -164,10 +164,10 @@
       inst? is))
 
 (deftest options-test
-  (testing "Default Allow header includes GET, HEAD and OPTIONS"
+  (testing "Default Allow header includes GET"
     (is
      (= {:status 200,
-         :headers {"allow" "GET, HEAD, OPTIONS"}}
+         :headers {"allow" "GET"}}
         (-> (fn [request]
               (case (:request-method request)
                 :options (spin/options #{:get})))
@@ -179,24 +179,13 @@
     (is
      (=
       {:status 200,
-       :headers {"allow" "DELETE, OPTIONS"}}
+       :headers {"allow" "DELETE"}}
       (-> (fn [request]
             (case (:request-method request)
               :options (spin/options #{:delete})))
           (response-for
            (request :options "/")
            [:status "allow"])))))
-
-  (testing "Allow header includes HEAD when GET declared"
-    (is (=
-         {:status 200,
-          :headers {"allow" "GET, HEAD, PUT, OPTIONS"}}
-         (-> (fn [request]
-               (case (:request-method request)
-                 :options (spin/options #{:get :put})))
-             (response-for
-              (request :options "/")
-              [:status "allow"])))))
 
   (testing "Content-Length set to 0 when no payload"
     (is (=

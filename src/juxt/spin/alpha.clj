@@ -91,13 +91,8 @@
   "Return the Allow response header value, given a set of method keywords."
   [methods]
   (->>
-   (if (and
-        methods
-        (seq (disj methods :get :head :options)))
-     (concat methods [:options])
-     [:get :options])
-   ;; if GET is included, so is HEAD
-   (mapcat (fn [method] (if (= :get method) [:get :head] [method])))
+   methods
+   seq
    distinct
    (map (comp str/upper-case name))
    (str/join ", ")))
