@@ -6,7 +6,7 @@
   hiccup/hiccup {:mvn/version "1.0.5"}
   juxt/spin {:local/root "../.."}
   juxt/pick {:git/url "https://github.com/juxt/pick.git"
-             :sha "c0b5b94d74881ccee35f7cf0f6471d8d6bbca383"}}
+             :sha "8150cd9ac33f67388db98236665ad8acbde7ca9e"}}
 
  :aliases
  {:dev {:extra-paths ["dev" "test"]}

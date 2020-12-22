@@ -11,7 +11,7 @@
    [ring.core.protocols :refer [StreamableResponseBody]]
    [juxt.pick.alpha.ring :refer [pick decode-maybe]]
    [juxt.pick.alpha.core :refer [rate-representation]]
-   [juxt.reap.alpha.ring :refer [request->decoded-preferences]]
+   [juxt.reap.alpha.ring :refer [headers->decoded-preferences]]
    [juxt.reap.alpha.decoders :as reap]))
 
 (defrecord ByteArrayRepresentation [bytes]
