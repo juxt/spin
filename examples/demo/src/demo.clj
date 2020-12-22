@@ -480,9 +480,10 @@
                     (seq vary)
                     (assoc "vary" (str/join ", " vary)))]
 
+
               ;; Conditional requests
               (if-let [not-modified-response
-                       (spin/not-modified? request representation)]
+                       (spin/not-modified? request (meta representation))]
                 not-modified-response
 
                 ;; Process the request method

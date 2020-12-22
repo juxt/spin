@@ -103,88 +103,102 @@
     (is (= "/es/index.html" content-location))
     (is (= "accept-language" vary))))
 
+(deftest get-with-if-modified-since
+  (let [{status :status}
+        (demo/handler
+         {:uri "/en/index.html"
+          :request-method :get
+          :headers {"if-modified-since" "Fri, 25 Dec 2020 09:00:00 GMT"}})]
+    (is (= 304 status)))
+  (let [{status :status}
+        (demo/handler
+         {:uri "/en/index.html"
+          :request-method :get
+          :headers {"if-modified-since" "Fri, 25 Dec 2020 08:00:00 GMT"}})]
+    (is (= 200 status))))
+
 #_(deftest demo-test
 
-  (testing "Conditional requests"
-    (testing "GET with if-modified-since"
-      (is
-       (=
-        {:status 304
-         :body "Not Modified\r\n"}
+    (testing "Conditional requests"
+      (testing "GET with if-modified-since"
+        (is
+         (=
+          {:status 304
+           :body "Not Modified\r\n"}
 
-        (demo/handler
-         {:uri "/index.html"
-          :request-method :get
-          :headers {"accept-language" "en"
-                    "if-modified-since" "Fri, 25 Dec 2020 09:00:00 GMT"}})))
+          (demo/handler
+           {:uri "/index.html"
+            :request-method :get
+            :headers {"accept-language" "en"
+                      "if-modified-since" "Fri, 25 Dec 2020 09:00:00 GMT"}})))
 
-      (is
-       (=
-        {:status 200
-         :headers
-         {"vary" "accept-language"
-          "content-type" "text/html;charset=utf-8"
-          "content-language" "en-US"
-          "content-length" "165"
-          "content-location" "/en/index.html"
-          "etag" (format
-                  "\"%s\""
-                  (hash
-                   {:content (get demo/static-representations "/en/index.html")
-                    :content-type "text/html;charset=utf-8"
-                    :content-language "en-US"
-                    :content-encoding ""}))
-          "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
-         :body
-         "<!DOCTYPE html>\n<html><head><title>Welcome to the spin demo!</title></head><body><h1>Welcome to the spin demo!</h1><a href=\"/comments\">Comments</a></body></html>\r\n\r\n"}
+        (is
+         (=
+          {:status 200
+           :headers
+           {"vary" "accept-language"
+            "content-type" "text/html;charset=utf-8"
+            "content-language" "en-US"
+            "content-length" "165"
+            "content-location" "/en/index.html"
+            "etag" (format
+                    "\"%s\""
+                    (hash
+                     {:content (get demo/static-representations "/en/index.html")
+                      :content-type "text/html;charset=utf-8"
+                      :content-language "en-US"
+                      :content-encoding ""}))
+            "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
+           :body
+           "<!DOCTYPE html>\n<html><head><title>Welcome to the spin demo!</title></head><body><h1>Welcome to the spin demo!</h1><a href=\"/comments\">Comments</a></body></html>\r\n\r\n"}
 
-        (demo/handler
-         {:uri "/index.html"
-          :request-method :get
-          :headers {"accept-language" "en"
-                    "if-modified-since" "Fri, 25 Dec 2020 08:00:00 GMT"}}))))
+          (demo/handler
+           {:uri "/index.html"
+            :request-method :get
+            :headers {"accept-language" "en"
+                      "if-modified-since" "Fri, 25 Dec 2020 08:00:00 GMT"}}))))
 
-    (testing "GET with if-none-match"
-      (is
-       (=
-        {:status 304
-         :body "Not Modified\r\n"}
-        (demo/handler
-         {:uri "/index.html"
-          :request-method :get
-          :headers {"accept-language" "en"
-                    "if-none-match" (format
-                                     "\"%s\""
-                                     (hash
-                                      {:content (get demo/static-representations "/en/index.html")
-                                       :content-type "text/html;charset=utf-8"
-                                       :content-language "en-US"
-                                       :content-encoding ""}))}})))
+      (testing "GET with if-none-match"
+        (is
+         (=
+          {:status 304
+           :body "Not Modified\r\n"}
+          (demo/handler
+           {:uri "/index.html"
+            :request-method :get
+            :headers {"accept-language" "en"
+                      "if-none-match" (format
+                                       "\"%s\""
+                                       (hash
+                                        {:content (get demo/static-representations "/en/index.html")
+                                         :content-type "text/html;charset=utf-8"
+                                         :content-language "en-US"
+                                         :content-encoding ""}))}})))
 
-      (is
-       (=
-        {:status 200
-         :headers
-         {"vary" "accept-language"
-          "content-type" "text/html;charset=utf-8"
-          "content-language" "en-US"
-          "content-length" "165"
-          "content-location" "/en/index.html"
-          "etag" (format
-                  "\"%s\""
-                  (hash
-                   {:content (get demo/static-representations "/en/index.html")
-                    :content-type "text/html;charset=utf-8"
-                    :content-language "en-US"
-                    :content-encoding ""}))
-          "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
-         :body
-         "<!DOCTYPE html>\n<html><head><title>Welcome to the spin demo!</title></head><body><h1>Welcome to the spin demo!</h1><a href=\"/comments\">Comments</a></body></html>\r\n\r\n"}
-        (demo/handler
-         {:uri "/index.html"
-          :request-method :get
-          :headers {"accept-language" "en"
-                    "if-none-match" "\"dummy\""}}))))))
+        (is
+         (=
+          {:status 200
+           :headers
+           {"vary" "accept-language"
+            "content-type" "text/html;charset=utf-8"
+            "content-language" "en-US"
+            "content-length" "165"
+            "content-location" "/en/index.html"
+            "etag" (format
+                    "\"%s\""
+                    (hash
+                     {:content (get demo/static-representations "/en/index.html")
+                      :content-type "text/html;charset=utf-8"
+                      :content-language "en-US"
+                      :content-encoding ""}))
+            "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
+           :body
+           "<!DOCTYPE html>\n<html><head><title>Welcome to the spin demo!</title></head><body><h1>Welcome to the spin demo!</h1><a href=\"/comments\">Comments</a></body></html>\r\n\r\n"}
+          (demo/handler
+           {:uri "/index.html"
+            :request-method :get
+            :headers {"accept-language" "en"
+                      "if-none-match" "\"dummy\""}}))))))
 
 ;; TODO: Test for POST on /comments, GET with conneg, and PUTs of individual
 ;; comments
