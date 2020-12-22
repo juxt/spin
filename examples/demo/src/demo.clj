@@ -178,7 +178,7 @@
                   [:ol
                    (for [{:keys [location representation]} (get-comments db)]
                      [:li
-                      (String. (:bytes representation))
+                      (:s representation)
                       "&nbsp;"
                       [:small
                        [:a {:href location}
@@ -187,7 +187,6 @@
          {"content-type" "text/html;charset=utf-8"
           "content-location" "/comments.html"})]}
 
-
      "/comments.txt"
      {::methods #{:get :head :options}
       ::representations
@@ -195,12 +194,13 @@
          (reify
            StreamableResponseBody
            (write-body-to-stream [body {::keys [db]} output-stream]
+             (assert db)
              (.write
               output-stream
               (.getBytes
                (str/join
                 (for [{:keys [representation]} (get-comments db)]
-                  (str (String. (:bytes representation)) "\r\n")))))))
+                  (str (:s representation) "\r\n")))))))
          {"content-type" "text/plain;charset=utf-8"
           "content-location" "/comments.txt"})]}
 
@@ -489,7 +489,7 @@
                 (case (:request-method request)
                   (:get :head)
                   ;; GET (or HEAD)
-                  (cond-> { ;;::db db
+                  (cond-> {::db db
                            :status 200
                            :headers
                            (cond-> (conj

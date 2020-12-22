@@ -31,13 +31,13 @@
   "Return true if the given representation's validators report that it has not
   been modified with respect to the given request. This allows a 304 response to
   be returned."
-  [request representation]
+  [request rep-meta]
   ;; "… a server MUST ignore the conditional request header fields … when
   ;; received with a request method that does not involve the selection or
   ;; modification of a selected representation, such as CONNECT, OPTIONS, or
   ;; TRACE." -- Section 5, RFC 7232
   (when (not (#{:connect :options :trace} (:request-method request)))
-    (let [last-modified (get representation "last-modified")
+    (let [last-modified (get rep-meta "last-modified")
 
           ;; TODO: See 3.3 of RFC 7232 - only do this on GET and HEAD!
 
@@ -46,7 +46,7 @@
             (some-> (get-in request [:headers "if-modified-since"])
                     parse-http-date))
 
-          entity-tag (get representation "etag")
+          entity-tag (get rep-meta "etag")
 
           if-none-match
           (when entity-tag
