@@ -103,33 +103,7 @@
     (is (= "/es/index.html" content-location))
     (is (= "accept-language" vary))))
 
-
-
-
-
 #_(deftest demo-test
-
-  (testing "HEAD"
-    (is
-     (=
-      {:status 200
-       :headers
-       {"vary" "accept-language"
-        "content-type" "text/html;charset=utf-8"
-        "content-language" "en-US"
-        "content-length" "165"
-        "content-location" "/en/index.html"
-        "etag" (format
-                "\"%s\""
-                (hash
-                 {:content (get demo/static-representations "/en/index.html")
-                  :content-type "text/html;charset=utf-8"
-                  :content-language "en-US"
-                  :content-encoding ""}))
-        "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}}
-      (demo/handler
-       {:uri "/index.html"
-        :request-method :head}))))
 
   (testing "Conditional requests"
     (testing "GET with if-modified-since"
@@ -227,14 +201,3 @@
       :request-method :post
       :headers {"content-length" (str (count in))}
       :body (java.io.ByteArrayInputStream. in)})))
-
-
-#_{"content-length" "170",
- :juxt.pick.alpha/encoding-qvalue 1.0,
- :juxt.pick.alpha/content-type "text/html;charset=utf-8",
- "etag" "\"1465419893\"",
- :demo/representation #demo.StringRepresentation{:s "<!DOCTYPE html>\n<html><head><title>Welcome to the spin demo!</title></head><body><h1>Welcome to the spin demo!</h1><a href=\"/comments.html\">Comments</a></body></html>\r\n\r\n", :charset "utf-8"},
- :juxt.pick.alpha/acceptable? true,
- :juxt.pick.alpha/content-language "en-US", "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT", "content-location" "/en/index.html"}
-
-#_{"content-length" "170", :juxt.pick.alpha/encoding-qvalue 1.0, :juxt.pick.alpha/content-type "text/html;charset=utf-8", "etag" "\"1046352986\"", :demo/representation #demo.StringRepresentation{:s "<!DOCTYPE html>\n<html><head><title>Willkommen zur Spin-Demo!</title></head><body><h1>Willkommen zur Spin-Demo!</h1><a href=\"/comments.html\">Comments</a></body></html>\r\n\r\n", :charset "utf-8"}, :juxt.pick.alpha/acceptable? true, :juxt.pick.alpha/content-language "de", "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT", "content-location" "/de/index.html"}
