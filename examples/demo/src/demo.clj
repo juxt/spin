@@ -92,7 +92,7 @@
    { ;; Resources - this contain methods, authorization details, and current representations.
     :resources
     {"/"
-     {::methods #{:get}
+     {::methods #{:get :head :options}
       ::representations
       [(->
         (make-string-representation
@@ -108,14 +108,14 @@
               spin/format-http-date)}))]}
 
      "/index.html"
-     {::methods #{:get}
+     {::methods #{:get :head :options}
       ::representations
       ["/en/index.html"
        "/de/index.html"
        "/es/index.html"]}
 
      "/en/index.html"
-     {::methods #{:get}
+     {::methods #{:get :head :options}
       ::representations
       [(->
         (index-page-representation
@@ -130,7 +130,7 @@
               spin/format-http-date)}))]}
 
      "/de/index.html"
-     {::methods #{:get}
+     {::methods #{:get :head :options}
       ::representations
       [(->
         (index-page-representation
@@ -145,7 +145,7 @@
               spin/format-http-date)}))]}
 
      "/es/index.html"
-     {::methods #{:get}
+     {::methods #{:get :head :options}
       ::representations
       [(->
         (index-page-representation
@@ -189,7 +189,7 @@
 
 
      "/comments.txt"
-     {::methods #{:get}
+     {::methods #{:get :head :options}
       ::representations
       [(with-meta
          (reify

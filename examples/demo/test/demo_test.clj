@@ -14,6 +14,7 @@
 (use-fixtures :each fix-database)
 
 (with-redefs [demo/*database (atom initial-db)]
+
   )
 
 (deftest get-test
@@ -29,7 +30,24 @@
     (is (= #{"content-type" "content-language"
              "last-modified" "etag"
              "content-length"}
-           (set (keys (:headers response)))))))
+           (set (keys (:headers response)))))
+    (is (:body response))))
+
+(deftest head-test
+  (let [{status :status
+         {:strs [content-type content-length content-language]} :headers
+         :as response}
+        (demo/handler {:uri "/en/index.html"
+                       :request-method :head})]
+    (is (= 200 status))
+    (is (= "text/html;charset=utf-8" content-type))
+    (is (= "170" content-length))
+    (is (= "en-US" content-language))
+    (is (= #{"content-type" "content-language"
+             "last-modified" "etag"
+             "content-length"}
+           (set (keys (:headers response)))))
+    (is (not (:body response)))))
 
 (deftest get-with-accept-language-test
   (let [{status :status
@@ -90,42 +108,6 @@
 
 
 #_(deftest demo-test
-
-
-  (testing "Prefer Spanish but accept German"
-    (is
-     (=
-      {:status 200
-       :headers
-       {"content-type" "text/html;charset=utf-8"
-        "content-language" "de"
-        "content-length" "165"
-        "etag" (format
-                "\"%s\""
-                (hash
-                 {:content (get demo/static-representations "/de/index.html")
-                  :content-type "text/html;charset=utf-8"
-                  :content-language "de"
-                  :content-encoding ""}))
-        "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
-       :body
-       "<!DOCTYPE html>\n<html><head><title>Willkommen zur Spin-Demo!</title></head><body><h1>Willkommen zur Spin-Demo!</h1><a href=\"/comments\">Comments</a></body></html>\r\n\r\n"}
-
-      (demo/handler
-       {:uri "/de/index.html"
-        :request-method :get
-        :headers {"accept-language" "es, de;q=0.1"}}))))
-
-  (testing "Not acceptable language"
-    (is
-     (=
-      {:status 406
-       :body "Not Acceptable\r\n"}
-
-      (demo/handler
-       {:uri "/de/index.html"
-        :request-method :get
-        :headers {"accept-language" "es"}}))))
 
   (testing "HEAD"
     (is
