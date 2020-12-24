@@ -501,104 +501,105 @@
 (defn handler [request]
   (let [db @*database]
     (try
-      ;; TODO: Too much indentation, throw ::response errors instead
 
-      ;; Check method is known
-      (if-let [response (spin/unknown-method? request)]
-        response
+      (when-let [response (spin/not-implemented? request)]
+        (throw (ex-info "Method not implemented" {::response response})))
 
-        ;; Locate the resource
-        (let [resource (locate-resource db (:uri request))]
+      ;; Locate the resource
+      (let [resource (locate-resource db (:uri request))]
 
-          ;; Check method allowed
-          (if-let [response
-                   (if resource
-                     (spin/method-not-allowed? request (::methods resource))
-                     ;; We forbid POST, PUT and DELETE on a nil resource
-                     (when (#{:put :delete :post} (:request-method request))
-                       {:status 405
-                        :headers {"allow" (spin/allow-header #{:get :head})}
-                        :body "Method Not Allowed\r\n"}))]
-            response
+        ;; Check method allowed
+        (if-let [response
+                 (if resource
+                   (spin/method-not-allowed? request (::methods resource))
+                   ;; We forbid POST, PUT and DELETE on a nil resource
+                   (when (#{:put :delete :post} (:request-method request))
+                     {:status 405
+                      :headers {"allow" (spin/allow-header #{:get :head})}
+                      :body "Method Not Allowed\r\n"}))]
+          response
 
-            ;; Select the representation (only if GET or HEAD)
-            (let [{:keys [representation vary]}
-                  (when (#{:get :head} (:request-method request))
-                    (let [current (current-representations db resource)]
-                      (when (empty? current)
+          ;; Select the representation (only if GET or HEAD)
+          (let [{:keys [representation vary]}
+                (when (#{:get :head} (:request-method request))
+                  (let [current (current-representations db resource)]
+                    (when (empty? current)
+                      (throw
+                       (ex-info
+                        "Not Found"
+                        {::response
+                         {:status 404
+                          :body "Not Found\r\n"}})))
+
+                    (let [negotiation-result
+                          (pick
+                           request
+                           (for [rep current]
+                             (assoc (meta rep) ::representation rep))
+                           {:juxt.pick.alpha/vary? true})]
+
+                      (if-let [representation
+                               (get-in
+                                negotiation-result
+                                [:juxt.pick.alpha/representation ::representation])]
+                        {:representation representation
+                         :vary (:juxt.pick.alpha/vary negotiation-result)}
                         (throw
                          (ex-info
-                          "Not Found"
-                          {::response
-                           {:status 404
-                            :body "Not Found\r\n"}})))
+                          "Not Acceptable"
+                          { ;; TODO: Must add list of available representations
+                           ::response
+                           {:status 406
+                            :body "Not Acceptable\r\n"}}))))))
 
-                      (let [negotiation-result
-                            (pick
-                             request
-                             (for [rep current]
-                               (assoc (meta rep) ::representation rep))
-                             {:juxt.pick.alpha/vary? true})]
-
-                        (if-let [representation (::representation (:juxt.pick.alpha/representation negotiation-result))]
-                          {:representation representation
-                           :vary (:juxt.pick.alpha/vary negotiation-result)}
-                          (throw
-                           (ex-info
-                            "Not Acceptable"
-                            { ;; TODO: Must add list of available representations
-                             ::response
-                             {:status 406
-                              :body "Not Acceptable\r\n"}}))))))
-
-                  response
-                  (cond-> {}
-                    (seq vary)
-                    (assoc "vary" (str/join ", " vary)))]
+                response
+                (cond-> {}
+                  (seq vary)
+                  (assoc "vary" (str/join ", " vary)))]
 
 
-              ;; Conditional requests
-              (if-let [not-modified-response
-                       (spin/not-modified? request (meta representation))]
-                not-modified-response
+            ;; Conditional requests
+            (if-let [not-modified-response
+                     (spin/not-modified? request (meta representation))]
+              not-modified-response
 
-                ;; Process the request method
-                (case (:request-method request)
-                  (:get :head)
-                  ;; GET (or HEAD)
-                  (cond-> {::db db
-                           :status 200
-                           :headers
-                           (cond-> (conj
-                                    response
-                                    (select-keys
-                                     (meta representation)
-                                     ;; representation metadata
-                                     ["content-type" "content-encoding" "content-language"
-                                      ;; validators
-                                      "last-modified" "etag"
-                                      ;; payload header fields too
-                                      "content-length" "content-range"]))
+              ;; Process the request method
+              (case (:request-method request)
+                (:get :head)
+                ;; GET (or HEAD)
+                (cond-> {::db db
+                         :status 200
+                         :headers
+                         (cond-> (conj
+                                  response
+                                  (select-keys
+                                   (meta representation)
+                                   ;; representation metadata
+                                   ["content-type" "content-encoding" "content-language"
+                                    ;; validators
+                                    "last-modified" "etag"
+                                    ;; payload header fields too
+                                    "content-length" "content-range"]))
 
-                             ;; content-location is only set if different from the effective uri
-                             (not= (get (meta representation) "content-location") (:uri request))
-                             (assoc "content-location" (get (meta representation) "content-location")))}
+                           ;; content-location is only set if different from the effective uri
+                           (not= (get (meta representation) "content-location") (:uri request))
+                           (assoc "content-location" (get (meta representation) "content-location")))}
 
-                    (= (:request-method request) :get)
-                    (assoc :body representation))
+                  (= (:request-method request) :get)
+                  (assoc :body representation))
 
-                  :post
-                  (post! *database request resource)
+                :post
+                (post! *database request resource)
 
-                  :put
-                  (put! *database request resource)
+                :put
+                (put! *database request resource)
 
-                  :delete
-                  (delete! *database (:uri request))
+                :delete
+                (delete! *database (:uri request))
 
-                  :options
-                  ;; TODO: Allow user to take control of this, e.g. WebDAV
-                  (spin/options (::methods resource))))))))
+                :options
+                ;; TODO: Allow user to take control of this, e.g. WebDAV
+                (spin/options (::methods resource)))))))
 
       (catch clojure.lang.ExceptionInfo e
         (tap> e)
