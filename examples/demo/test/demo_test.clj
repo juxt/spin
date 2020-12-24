@@ -31,12 +31,20 @@
 
 (use-fixtures :each fix-database tap-errors)
 
+(deftest not-implemented-test
+  (let [{status :status}
+        (demo/handler
+         {:uri "/index.html"
+          :request-method :brew})]
+    (is (= 501 status))))
+
 (deftest get-test
   (let [{status :status
          {:strs [content-type content-length content-language]} :headers
          :as response}
-        (demo/handler {:uri "/en/index.html"
-                       :request-method :get})]
+        (demo/handler
+         {:uri "/en/index.html"
+          :request-method :get})]
     (is (= 200 status))
     (is (= "text/html;charset=utf-8" content-type))
     (is (= "170" content-length))
