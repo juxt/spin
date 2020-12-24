@@ -4,7 +4,6 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
-   [clojure.set :as set]
    [hiccup.page :as hp]
    [juxt.spin.alpha :as spin]
    [ring.adapter.jetty :as jetty]
@@ -233,9 +232,10 @@
      {::path path
       ::methods #{:get :head :put :options}
       ::representations []
-      ::max-content-length 5
-      ::acceptable {"accept" "text/asciidoc,text/plain"
-                    "accept-charset" "utf-8"}})))
+      ::max-content-length 1024
+      ::acceptable
+      {"accept" "text/asciidoc,text/plain"
+       "accept-charset" "utf-8"}})))
 
 (defn current-representations [db resource]
   (mapcat
@@ -362,28 +362,111 @@
        {:status 400
         :body "Bad Request\r\n"}})))
 
+  ;; TODO: Rework this, add some tests, how to restrict a PUT?
+  ;; If the resource configuration specifies an accept, then a content-type is required
   (when-let [acceptable (::acceptable resource)]
-    (let [prefs (request->decoded-preferences {:headers acceptable})
-          request-rep (rate-representation
-                       prefs
-                       (decode-maybe (:headers request)))]
-      (when-not (:juxt.pick.alpha/acceptable? request-rep)
-        (throw
-         (ex-info
-          "No body in request"
-          {::representation-in-request request-rep
-           ::response
-           (if (= (:juxt.pick.alpha/content-type-qvalue request-rep) 0.0)
+    (let [prefs (headers->decoded-preferences acceptable)
+          request-rep
+          (rate-representation
+           prefs
+           (decode-maybe
+            (select-keys
+             (merge {"content-encoding" "identity"} (:headers request))
+             ["content-type"
+              "content-encoding"
+              "content-language"])))]
+
+      (when (or (get prefs "accept") (get prefs "accept-charset"))
+        (cond
+          (not (contains? (:headers request) "content-type"))
+          (throw
+           (ex-info
+            "Request must contain Content-Type header"
+            {::response
              {:status 415
-              :body "Unsupported Media Type\r\n"}
+              :body "Unsupported Media Type\r\n"}}))
+
+          (= (:juxt.pick.alpha/content-type-qvalue request-rep) 0.0)
+          (throw
+           (ex-info
+            "The content-type of the request payload is not supported by the resource"
+            {::request request
+             ::resource resource
+             ::acceptable acceptable
+             ::content-type (get request-rep "content-type")
+             ::response
+             {:status 415
+              :body "Unsupported Media Type\r\n"}}))
+
+          (and
+           (= "text" (get-in request-rep [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/type]))
+           (get prefs "accept-charset")
+           (not (contains? (get-in request-rep [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map]) "charset")))
+          (throw
+           (ex-info
+            "The Content-Type header in the request is a text type and is required to specify its charset as a media-type parameter"
+            {::request request
+             ::resource resource
+             ::acceptable acceptable
+             ::content-type (get request-rep "content-type")
+             ::response
+             {:status 415
+              :body "Unsupported Media Type\r\n"}}))
+
+          (= (:juxt.pick.alpha/charset-qvalue request-rep) 0.0)
+          (throw
+           (ex-info
+            "The charset of the Content-Type header in the request is not supported by the resource"
+            {::request request
+             ::resource resource
+             ::acceptable acceptable
+             ::content-type (get request-rep "content-type")
+             ::response
+             {:status 415
+              :body "Unsupported Media Type\r\n"}}))))
+
+      (when (get prefs "accept-encoding")
+        (cond
+          (= (:juxt.pick.alpha/content-encoding-qvalue request-rep) 0.0)
+          (throw
+           (ex-info
+            "The content-encoding in the request is not supported by the resource"
+            {::request request
+             ::resource resource
+             ::acceptable acceptable
+             ::content-language (get-in request [:headers "content-encoding"] "identity")
+             ::response
              {:status 409
-              :body "Conflict\r\n"})})))))
+              :body "Conflict\r\n"}}))))
+
+      (when (get prefs "accept-language")
+        (cond
+          (not (contains? (:headers request) "content-language"))
+          (throw
+           (ex-info
+            "Request must contain Content-Language header"
+            {::response
+             {:status 409
+              :body "Conflict\r\n"}}))
+
+          (= (:juxt.pick.alpha/content-language-qvalue request-rep) 0.0)
+          (throw
+           (ex-info
+            "The content-language in the request is not supported by the resource"
+            {::request request
+             ::resource resource
+             ::acceptable acceptable
+             ::content-language (get-in request [:headers "content-language"])
+             ::response
+             {:status 415
+              :body "Unsupported Media Type\r\n"}}))))))
 
   (let [out (java.io.ByteArrayOutputStream.)]
     (with-open [in (:body request)]
       (io/copy in out))
 
     (let [content-type (get-in request [:headers "content-type"])
+
           representation
           (->
            (make-byte-array-representation
@@ -397,9 +480,13 @@
              ;; Add validators
              {"last-modified" (spin/format-http-date (new java.util.Date))})))
 
+          ;; TODO: Model representations at atom in a resource
+
           new-resource (-> resource
                            (assoc ::representations [representation])
                            (dissoc ::path))]
+
+      ;;(tap> {:message "swapping in to database!"})
 
       (swap!
        *db
@@ -408,6 +495,7 @@
           db [:resources (:uri request)] new-resource)))
 
       ;; TODO: Return 201
+      ;;(tap> {:db @*db})
 
       {:status 200}))
 
@@ -427,6 +515,8 @@
 (defn handler [request]
   (let [db @*database]
     (try
+      ;; TODO: Too much indentation, throw ::response errors instead
+
       ;; Check method is known
       (if-let [response (spin/unknown-method? request)]
         response
@@ -525,6 +615,7 @@
                   (spin/options (::methods resource))))))))
 
       (catch clojure.lang.ExceptionInfo e
+        ;;(tap> e)
         (let [exdata (ex-data e)]
           (or
            (::response exdata)
