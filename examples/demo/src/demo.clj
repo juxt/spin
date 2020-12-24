@@ -245,16 +245,6 @@
        [rep]))
    (::representations resource)))
 
-
-#_(map meta
-     (current-representations
-      @*database
-      (get-in @*database [:resources "/index.html"])
-
-      ))
-
-;; ------
-
 (defn add-comment [{:keys [next-comment-id] :as db} comment]
   (let [location (format "/comments/%d" next-comment-id)]
     (-> db
@@ -486,8 +476,6 @@
                            (assoc ::representations [representation])
                            (dissoc ::path))]
 
-      ;;(tap> {:message "swapping in to database!"})
-
       (swap!
        *db
        (fn [db]
@@ -495,8 +483,6 @@
           db [:resources (:uri request)] new-resource)))
 
       ;; TODO: Return 201
-      ;;(tap> {:db @*db})
-
       {:status 200}))
 
   ;; TODO: Must read 6.3.2 and 7.2 to properly understand 201, especially: "The
@@ -615,7 +601,7 @@
                   (spin/options (::methods resource))))))))
 
       (catch clojure.lang.ExceptionInfo e
-        ;;(tap> e)
+        (tap> e)
         (let [exdata (ex-data e)]
           (or
            (::response exdata)
@@ -625,6 +611,3 @@
   (jetty/run-jetty
    handler
    {:port (Integer/parseInt (get opts "--port" "8080")) :join? true}))
-
-
-;;(map to-pick current)

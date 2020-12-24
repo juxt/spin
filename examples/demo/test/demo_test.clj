@@ -212,7 +212,7 @@
 
 (deftest put-but-bad-content-type-charset-test
   (let [article "= Test Article\r\n"
-        {status :status :as response}
+        {status :status}
         (demo/handler
          {:uri "/articles/test.adoc"
           :request-method :put
@@ -223,7 +223,7 @@
 
 (deftest put-with-body-test
   (let [article "= Test Article\r\n"
-        {status :status :as response}
+        {status :status}
         (demo/handler
          {:uri "/articles/test.adoc"
           :request-method :put
@@ -261,10 +261,7 @@
 
     (is (= 200 status-1))
     (is (= 200 status-2))
-    ;; TODO: Fix this test, got some issue with put here
-    (is (= article (get-body-str response)))
-    ))
-
+    (is (= article (get-body-str response)))))
 
 #_(with-redefs [demo/*database (atom initial-db)]
   (let [article "= Test Article\r\n"
