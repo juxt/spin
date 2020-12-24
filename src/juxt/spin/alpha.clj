@@ -67,10 +67,10 @@
           ;; TODO: Need to distinguish which
           {:status 304 :body "Not Modified\r\n"})))))
 
-(defn unknown-method?
-  "When the request method is unknown, return a 501 response."
+(defn not-implemented?
+  "When the request method is not implemented, return a 501 response."
   ([request]
-   (unknown-method? request #{:get :head :put :post :delete :options :trace :connect}))
+   (not-implemented? request #{:get :head :put :post :delete :options :trace :connect}))
   ([request methods]
    (when-not
        (contains?

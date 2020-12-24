@@ -26,14 +26,14 @@
        (seq (filter string? keyseq))
        (update :headers select-keys (filter string? keyseq))))))
 
-(deftest unknown-method-test
-  (testing "501 response for unknown method"
+(deftest not-implemented-test
+  (testing "501 response for not implemented method"
     (is
      (=
       {:status 501}
       (response-for
        (fn [request]
-         (when-let [response (spin/unknown-method? request)]
+         (when-let [response (spin/not-implemented? request)]
            response))
        (request :brew "/")
        [:status])))))
@@ -46,7 +46,7 @@
       (response-for
        (fn [request]
          (or
-          (when-let [response (spin/unknown-method? request)]
+          (when-let [response (spin/not-implemented? request)]
             response)
           (case (:request-method request)
             (:head :get)
