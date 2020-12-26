@@ -564,35 +564,34 @@
                 (seq vary)
                 (assoc "vary" (str/join ", " vary)))]
 
-          ;; Conditional requests
-          (when-let [not-modified-response
-                     (spin/not-modified? request (meta representation))]
-            (throw (ex-info "Not modified" {::response not-modified-response})))
-
           ;; Process the request method
           (case (:request-method request)
             (:get :head)
             ;; GET (or HEAD)
-            (cond-> {::db db
-                     :status 200
-                     :headers
-                     (cond-> (conj
-                              response
-                              (select-keys
-                               (meta representation)
-                               ;; representation metadata
-                               ["content-type" "content-encoding" "content-language"
-                                ;; validators
-                                "last-modified" "etag"
-                                ;; payload header fields too
-                                "content-length" "content-range"]))
+            ;; Conditional requests
+            (if-let [not-modified-response
+                     (spin/not-modified? request (meta representation))]
+              (throw (ex-info "Not modified" {::response not-modified-response}))
+              (cond-> {::db db
+                       :status 200
+                       :headers
+                       (cond-> (conj
+                                response
+                                (select-keys
+                                 (meta representation)
+                                 ;; representation metadata
+                                 ["content-type" "content-encoding" "content-language"
+                                  ;; validators
+                                  "last-modified" "etag"
+                                  ;; payload header fields too
+                                  "content-length" "content-range"]))
 
-                       ;; content-location is only set if different from the effective uri
-                       (not= (get (meta representation) "content-location") (:uri request))
-                       (assoc "content-location" (get (meta representation) "content-location")))}
+                         ;; content-location is only set if different from the effective uri
+                         (not= (get (meta representation) "content-location") (:uri request))
+                         (assoc "content-location" (get (meta representation) "content-location")))}
 
-              (= (:request-method request) :get)
-              (assoc :body representation))
+                (= (:request-method request) :get)
+                (assoc :body representation)))
 
             :post
             (post! *database request resource)
