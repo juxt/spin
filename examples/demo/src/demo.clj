@@ -455,13 +455,21 @@
     (with-open [in (:body request)]
       (io/copy in out))
 
-    (let [content-type (get-in request [:headers "content-type"])
+    (let [content-type (:juxt.reap.alpha.rfc7231/content-type decoded-representation)
+          charset (get-in decoded-representation [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map "charset"])
 
           representation
           (->
-           (make-byte-array-representation
-            (.toByteArray out)
-            content-type)
+           (case (:juxt.reap.alpha.rfc7231/type content-type)
+             "text"
+             (make-string-representation
+              (new String (.toByteArray out) charset)
+              (get decoded-representation "content-type"))
+
+             (make-byte-array-representation
+              (.toByteArray out)
+              (get decoded-representation "content-type")))
+
            (conj-meta
             (merge
              (select-keys
