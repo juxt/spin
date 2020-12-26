@@ -352,104 +352,102 @@
        {:status 400
         :body "Bad Request\r\n"}})))
 
-  ;; TODO: Rework this, add some tests, how to restrict a PUT?
-  ;; If the resource configuration specifies an accept, then a content-type is required
-  (when-let [acceptable (::acceptable resource)]
-    (let [prefs (headers->decoded-preferences acceptable)
-          request-rep
-          (rate-representation
-           prefs
-           (decode-maybe
-            (select-keys
-             (merge {"content-encoding" "identity"} (:headers request))
-             ["content-type"
-              "content-encoding"
-              "content-language"])))]
+  (let [decoded-representation
+        (decode-maybe
+         (select-keys
+          (merge {"content-encoding" "identity"} (:headers request))
+          ["content-type"
+           "content-encoding"
+           "content-language"]))]
 
-      (when (or (get prefs "accept") (get prefs "accept-charset"))
-        (cond
-          (not (contains? (:headers request) "content-type"))
-          (throw
-           (ex-info
-            "Request must contain Content-Type header"
-            {::response
-             {:status 415
-              :body "Unsupported Media Type\r\n"}}))
+    (when-let [acceptable (::acceptable resource)]
+      (let [prefs (headers->decoded-preferences acceptable)
+            request-rep (rate-representation prefs decoded-representation)]
 
-          (= (:juxt.pick.alpha/content-type-qvalue request-rep) 0.0)
-          (throw
-           (ex-info
-            "The content-type of the request payload is not supported by the resource"
-            {::request request
-             ::resource resource
-             ::acceptable acceptable
-             ::content-type (get request-rep "content-type")
-             ::response
-             {:status 415
-              :body "Unsupported Media Type\r\n"}}))
+        (when (or (get prefs "accept") (get prefs "accept-charset"))
+          (cond
+            (not (contains? (:headers request) "content-type"))
+            (throw
+             (ex-info
+              "Request must contain Content-Type header"
+              {::response
+               {:status 415
+                :body "Unsupported Media Type\r\n"}}))
 
-          (and
-           (= "text" (get-in request-rep [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/type]))
-           (get prefs "accept-charset")
-           (not (contains? (get-in request-rep [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map]) "charset")))
-          (throw
-           (ex-info
-            "The Content-Type header in the request is a text type and is required to specify its charset as a media-type parameter"
-            {::request request
-             ::resource resource
-             ::acceptable acceptable
-             ::content-type (get request-rep "content-type")
-             ::response
-             {:status 415
-              :body "Unsupported Media Type\r\n"}}))
+            (= (:juxt.pick.alpha/content-type-qvalue request-rep) 0.0)
+            (throw
+             (ex-info
+              "The content-type of the request payload is not supported by the resource"
+              {::request request
+               ::resource resource
+               ::acceptable acceptable
+               ::content-type (get request-rep "content-type")
+               ::response
+               {:status 415
+                :body "Unsupported Media Type\r\n"}}))
 
-          (= (:juxt.pick.alpha/charset-qvalue request-rep) 0.0)
-          (throw
-           (ex-info
-            "The charset of the Content-Type header in the request is not supported by the resource"
-            {::request request
-             ::resource resource
-             ::acceptable acceptable
-             ::content-type (get request-rep "content-type")
-             ::response
-             {:status 415
-              :body "Unsupported Media Type\r\n"}}))))
+            (and
+             (= "text" (get-in request-rep [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/type]))
+             (get prefs "accept-charset")
+             (not (contains? (get-in request-rep [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map]) "charset")))
+            (throw
+             (ex-info
+              "The Content-Type header in the request is a text type and is required to specify its charset as a media-type parameter"
+              {::request request
+               ::resource resource
+               ::acceptable acceptable
+               ::content-type (get request-rep "content-type")
+               ::response
+               {:status 415
+                :body "Unsupported Media Type\r\n"}}))
 
-      (when (get prefs "accept-encoding")
-        (cond
-          (= (:juxt.pick.alpha/content-encoding-qvalue request-rep) 0.0)
-          (throw
-           (ex-info
-            "The content-encoding in the request is not supported by the resource"
-            {::request request
-             ::resource resource
-             ::acceptable acceptable
-             ::content-language (get-in request [:headers "content-encoding"] "identity")
-             ::response
-             {:status 409
-              :body "Conflict\r\n"}}))))
+            (= (:juxt.pick.alpha/charset-qvalue request-rep) 0.0)
+            (throw
+             (ex-info
+              "The charset of the Content-Type header in the request is not supported by the resource"
+              {::request request
+               ::resource resource
+               ::acceptable acceptable
+               ::content-type (get request-rep "content-type")
+               ::response
+               {:status 415
+                :body "Unsupported Media Type\r\n"}}))))
 
-      (when (get prefs "accept-language")
-        (cond
-          (not (contains? (:headers request) "content-language"))
-          (throw
-           (ex-info
-            "Request must contain Content-Language header"
-            {::response
-             {:status 409
-              :body "Conflict\r\n"}}))
+        (when (get prefs "accept-encoding")
+          (cond
+            (= (:juxt.pick.alpha/content-encoding-qvalue request-rep) 0.0)
+            (throw
+             (ex-info
+              "The content-encoding in the request is not supported by the resource"
+              {::request request
+               ::resource resource
+               ::acceptable acceptable
+               ::content-language (get-in request [:headers "content-encoding"] "identity")
+               ::response
+               {:status 409
+                :body "Conflict\r\n"}}))))
 
-          (= (:juxt.pick.alpha/content-language-qvalue request-rep) 0.0)
-          (throw
-           (ex-info
-            "The content-language in the request is not supported by the resource"
-            {::request request
-             ::resource resource
-             ::acceptable acceptable
-             ::content-language (get-in request [:headers "content-language"])
-             ::response
-             {:status 415
-              :body "Unsupported Media Type\r\n"}}))))))
+        (when (get prefs "accept-language")
+          (cond
+            (not (contains? (:headers request) "content-language"))
+            (throw
+             (ex-info
+              "Request must contain Content-Language header"
+              {::response
+               {:status 409
+                :body "Conflict\r\n"}}))
+
+            (= (:juxt.pick.alpha/content-language-qvalue request-rep) 0.0)
+            (throw
+             (ex-info
+              "The content-language in the request is not supported by the resource"
+              {::request request
+               ::resource resource
+               ::acceptable acceptable
+               ::content-language (get-in request [:headers "content-language"])
+               ::response
+               {:status 415
+                :body "Unsupported Media Type\r\n"}})))))))
 
   (let [out (java.io.ByteArrayOutputStream.)]
     (with-open [in (:body request)]
