@@ -27,7 +27,7 @@
      (format
       "\"%s\""      ; etags MUST be wrapped in DQUOTEs
       (hash         ; Clojure's hash function will do, but we could use another
-       {:content bytes
+       {:content (vec bytes)
         :content-type content-type}))}))
 
 (defrecord StringRepresentation [s charset]
