@@ -766,7 +766,7 @@
             (spin/options (::methods resource)))))
 
       (catch clojure.lang.ExceptionInfo e
-        (tap> e)
+        ;;(tap> e)
         (let [exdata (ex-data e)]
           (or
            (::response exdata)
