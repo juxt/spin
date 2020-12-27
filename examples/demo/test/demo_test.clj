@@ -310,6 +310,12 @@
         ;; TODO: There are opportunities here for using if-match in GETs to
         ;; ensure the representation has been applied.
 
+        ;; Note Section 3.1, RFC 7232 states that If-Match "can also be used
+        ;; with safe methods to abort a request if the selected representation
+        ;; does not match one already stored (or partially stored) from a prior
+        ;; request". This is what we test for here. By sending the 'old'
+        ;; entity-tag (from response-2) in an If-Match header, we should cause
+        ;; the precondition to fail and receive a 412.
         response-4
         (demo/handler
          {:uri "/articles/test.adoc"
@@ -332,7 +338,7 @@
     (is (= 200 (:status response-2)))
     (is (= "\"-73628034\"" (get-in response-2 [:headers "etag"])))
     (is (= 200 (:status response-3)))
-    (is (= 200 (:status response-4)))
+    (is (= 412 (:status response-4)))
     (is (= 412 (:status response-5)))))
 
 
