@@ -155,14 +155,6 @@
          (request :post "/")
          [:status "location"]))))))
 
-(deftest response-header-date-test
-  (-> (fn [_] (spin/ok))
-      spin/wrap-add-date
-      (response-for (request :get "/"))
-      (get-in [:headers "date"])
-      spin/parse-http-date
-      inst? is))
-
 (deftest options-test
   (testing "Default Allow header includes GET"
     (is
@@ -197,69 +189,3 @@
              (response-for
               (request :options "/")
               [:status "content-length"]))))))
-
-(deftest conditional-if-modified-since-test
-  (let [h (fn [request]
-            (let [representation
-                  {"last-modified" "Tue, 24 Nov 2020 09:00:00 GMT"}]
-              (or
-               (when-let [response (spin/not-modified? request representation)]
-                 response)
-               (assoc (spin/ok) :headers representation))))]
-
-    (testing "Representation was modified since 8am. Let the request through."
-      (is
-       (=
-        {:status 200
-         :headers {"last-modified" "Tue, 24 Nov 2020 09:00:00 GMT"}}
-        (response-for
-         h
-         (-> (request :get "/")
-             (header "if-modified-since" "Tue, 24 Nov 2020 08:00:00 GMT"))
-         [:status "last-modified"]))))
-
-    (testing "Representation was modified at exactly 9am. Return 304."
-      (is
-       (=
-        {:status 304}
-        (response-for
-         h
-         (-> (request :get "/")
-             (header "if-modified-since" "Tue, 24 Nov 2020 09:00:00 GMT"))
-         [:status]))))
-
-    (testing "Representation was not modified since 10am. Return 304."
-      (is
-       (=
-        {:status 304}
-        (response-for
-         h
-         (-> (request :get "/")
-             (header "if-modified-since" "Tue, 24 Nov 2020 10:00:00 GMT"))
-         [:status]))))))
-
-(deftest conditional-if-none-match-test
-  (let [h (fn [request]
-            (let [representation {"etag" "\"abc\""}]
-              (or
-               (when-let [response (spin/not-modified? request representation)]
-                 response)
-               (assoc (spin/ok) :headers representation))))]
-    (is
-     (=
-      {:status 200
-       :headers {"etag" "\"abc\""}}
-      (response-for
-       h
-       (-> (request :get "/")
-           (header "if-none-match" "\"def\""))
-       [:status "etag"])))
-
-    (is
-     (=
-      {:status 304}
-      (response-for
-       h
-       (-> (request :get "/")
-           (header "if-none-match" "\"abc\", \"def\""))
-       [:status])))))
