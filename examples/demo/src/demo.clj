@@ -309,23 +309,24 @@
 (comment
   (evaluate-if-match! "\"abc\",\"def\"" {::representations [^{"etag" "\"abc\""} {}]}))
 
-(defn evaluate-if-none-match! [if-none-match resource selected-representation]
-  (let [parsed (reap/if-none-match if-none-match)]
+(defn evaluate-if-none-match!
+  "Evaluate an If-None-Match precondition header field in the context of a
+  resource and, if possibly, a selected representation. If the precondition is
+  found to be false, an exception is thrown with ex-data containing the proper
+  response."
+  [request resource selected-representation]
+  ;; (All quotes in this function's comments are from Section 3.2, RFC 7232,
+  ;; unless otherwise stated).
+  (let [header-field (reap/if-none-match (get-in request [:headers "if-none-match"]))]
     (cond
-      (and (map? parsed) (::rfc7232/wildcard parsed))
-      (when (seq (::representations resource))
-        (throw
-         (ex-info
-          "If-None-Match precondition failed"
-          {::message "At least one representation already exists for this resource"
-           ::resource resource
-           ::response
-           {:status 412
-            :body "Precondition Failed\r\n"}})))
-
-      (sequential? parsed)
+      (sequential? header-field)
       (when-let [rep-etag (some-> (get (meta selected-representation) "etag") reap/entity-tag)]
-        (doseq [etag (map ::rfc7232/entity-tag parsed)]
+        ;; "If the field-value is a list of entity-tags, the condition is false
+        ;; if one of the listed tags match the entity-tag of the selected
+        ;; representation."
+        (doseq [etag (map ::rfc7232/entity-tag header-field)]
+          ;; "A recipient MUST use the weak comparison function when comparing
+          ;; entity-tags …"
           (when (rfc7232/weak-compare-match? etag rep-etag)
             (throw
              (ex-info
@@ -334,18 +335,46 @@
                ::entity-tag etag
                ::representation selected-representation
                ::response
-               {:status 412
-                :body "Precondition Failed\r\n"}}))))))))
+               ;; "the origin server MUST respond with either a) the 304 (Not
+               ;; Modified) status code if the request method is GET or HEAD …"
+               (if (#{:get :head} (:request-method request))
+                 {:status 304
+                  :body "Not Modified\r\n"}
+                 ;; "… or 412 (Precondition Failed) status code for all other
+                 ;; request methods."
+                 {:status 304
+                  :body "Precondition Failed\r\n"})})))))
+
+      ;; "If-None-Match can also be used with a value of '*' …"
+      (and (map? header-field) (::rfc7232/wildcard header-field))
+      ;; "… the condition is false if the origin server has a current
+      ;; representation for the target resource."
+      (when (seq (::representations resource))
+        (throw
+         (ex-info
+          "If-None-Match precondition failed"
+          {::message "At least one representation already exists for this resource"
+           ::resource resource
+           ::response
+           ;; "the origin server MUST respond with either a) the 304 (Not
+           ;; Modified) status code if the request method is GET or HEAD …"
+           (if (#{:get :head} (:request-method request))
+             {:status 304
+              :body "Not Modified\r\n"}
+             ;; "… or 412 (Precondition Failed) status code for all other
+             ;; request methods."
+             {:status 304
+              :body "Precondition Failed\r\n"})}))))))
 
 (comment
   (evaluate-if-none-match!
-   "\"abc\",\"def\""
+   {:headers {"if-none-match" "\"abc\",\"def\""}}
    {::representations [^{"etag" "\"abc\""} {}]}
    ^{"etag" "\"abc\""} {}))
 
 (comment
   (evaluate-if-none-match!
-   "*"
+   {:headers {"if-none-match" "*"}}
    {::representations [^{"etag" "\"abc\""} {}]}
    ^{"etag" "\"abc\""} {}))
 
@@ -407,7 +436,7 @@
         (evaluate-if-unmodified-since! if-unmodified-since selected-representation)))
     ;; Step 3
     (if-let [if-none-match (get-in request [:headers "if-none-match"])]
-      (evaluate-if-none-match! if-none-match resource selected-representation)
+      (evaluate-if-none-match! request resource selected-representation)
       ;; Step 4, else branch: if-none-match is not present
       (when (#{:get :head} (:request-method request))
         (when-let [if-modified-since (get-in request [:headers "if-modified-since"])]
