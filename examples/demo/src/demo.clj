@@ -10,6 +10,9 @@
    [ring.core.protocols :refer [StreamableResponseBody]]
    [juxt.pick.alpha.ring :refer [pick decode-maybe]]
    [juxt.pick.alpha.core :refer [rate-representation]]
+   [juxt.reap.alpha.encoders :refer [format-http-date]]
+   [juxt.reap.alpha.rfc7231 :as rfc7231]
+   [juxt.reap.alpha.rfc7232 :as rfc7232]
    [juxt.reap.alpha.ring :refer [headers->decoded-preferences]]
    [juxt.reap.alpha.decoders :as reap]))
 
@@ -62,7 +65,7 @@
     comment
     "text/plain;charset=utf-8")
    (conj-meta {"content-language" "en-US"
-               "last-modified" (spin/format-http-date (new java.util.Date))})))
+               "last-modified" (format-http-date (new java.util.Date))})))
 
 (defn index-page-representation [title]
   (make-string-representation
@@ -104,7 +107,7 @@
           (-> "2020-12-01T09:00:00Z"
               java.time.Instant/parse
               java.util.Date/from
-              spin/format-http-date)}))]}
+              format-http-date)}))]}
 
      "/index.html"
      {::methods #{:get :head :options}
@@ -126,7 +129,7 @@
           (-> "2020-12-25T09:00:00Z"
               java.time.Instant/parse
               java.util.Date/from
-              spin/format-http-date)}))]}
+              format-http-date)}))]}
 
      "/de/index.html"
      {::methods #{:get :head :options}
@@ -141,7 +144,7 @@
           (-> "2020-12-25T09:00:00Z"
               java.time.Instant/parse
               java.util.Date/from
-              spin/format-http-date)}))]}
+              format-http-date)}))]}
 
      "/es/index.html"
      {::methods #{:get :head :options}
@@ -156,7 +159,7 @@
           (-> "2020-12-25T09:00:00Z"
               java.time.Instant/parse
               java.util.Date/from
-              spin/format-http-date)}))]}
+              format-http-date)}))]}
 
      "/comments.html"
      {::methods #{:get :head :options}
@@ -262,6 +265,161 @@
                       (add-comment "Here is the first comment")
                       (add-comment "Here is another comment")))
 
+
+;; -------
+
+(defn evaluate-if-match! [if-match resource]
+  (let [parsed (reap/if-match if-match)]
+    (cond
+      (and (map? parsed) (::rfc7232/wildcard parsed))
+      (when (empty? (::representations resource))
+        (throw
+         (ex-info
+          "If-Match precondition failed"
+          {::message "No current representations for resource, so * doesn't match"
+           ::response
+           {:status 412
+            :body "Precondition Failed\r\n"}})))
+
+      (sequential? parsed)
+      (let [result
+            (seq
+             (for [if-match-etag (map ::rfc7232/entity-tag parsed)
+                   rep (::representations resource)
+                   :let [rep-etag (get (meta rep) "etag")]
+                   :when rep-etag
+                   :when
+                   (rfc7232/strong-compare-match?
+                    if-match-etag (reap/entity-tag rep-etag))]
+               [if-match-etag rep]))]
+        (when (empty? result)
+          ;; TODO: "unless it can be determined that the state-changing request has
+          ;; already succeeded (see Section 3.1)"
+          (throw
+           (ex-info
+            "If-Match precondition failed"
+            {::message "No strong matches between if-match and current representations"
+             ::if-match parsed
+             ::response
+             {:status 412
+              :body "Precondition Failed\r\n"}})))
+        result))))
+
+;; TODO: Make a test from this:
+(comment
+  (evaluate-if-match! "\"abc\",\"def\"" {::representations [^{"etag" "\"abc\""} {}]}))
+
+(defn evaluate-if-none-match! [if-none-match resource selected-representation]
+  (let [parsed (reap/if-none-match if-none-match)]
+    (cond
+      (and (map? parsed) (::rfc7232/wildcard parsed))
+      (when (seq (::representations resource))
+        (throw
+         (ex-info
+          "If-None-Match precondition failed"
+          {::message "At least one representation already exists for this resource"
+           ::resource resource
+           ::response
+           {:status 412
+            :body "Precondition Failed\r\n"}})))
+
+      (sequential? parsed)
+      (when-let [rep-etag (some-> (get (meta selected-representation) "etag") reap/entity-tag)]
+        (doseq [etag (map ::rfc7232/entity-tag parsed)]
+          (when (rfc7232/weak-compare-match? etag rep-etag)
+            (throw
+             (ex-info
+              "If-None-Match precondition failed"
+              {::message "One of the etags in the if-none-match header matches the selected representation"
+               ::entity-tag etag
+               ::representation selected-representation
+               ::response
+               {:status 412
+                :body "Precondition Failed\r\n"}}))))))))
+
+(comment
+  (evaluate-if-none-match!
+   "\"abc\",\"def\""
+   {::representations [^{"etag" "\"abc\""} {}]}
+   ^{"etag" "\"abc\""} {}))
+
+(comment
+  (evaluate-if-none-match!
+   "*"
+   {::representations [^{"etag" "\"abc\""} {}]}
+   ^{"etag" "\"abc\""} {}))
+
+(defn evaluate-if-unmodified-since! [if-unmodified-since selected-representation]
+  (let [if-unmodified-since-date (::rfc7231/date (reap/http-date if-unmodified-since))
+        rep-last-modified-date (some-> (get (meta selected-representation) "last-modified") reap/http-date ::rfc7231/date)]
+    (when (.isAfter
+           (.toInstant rep-last-modified-date)
+           (.toInstant if-unmodified-since-date))
+      (throw
+       (ex-info
+        "Precondition failed"
+        {::representation selected-representation
+         ::response
+         {:status 412 :body "Precondition Failed\r\n"}})))))
+
+(comment
+  (nil?
+   (evaluate-if-unmodified-since!
+    "Sat, 26 Dec 2020 17:08:50 GMT"
+    ^{"last-modified" "Sat, 26 Dec 2020 17:08:50 GMT"} {})))
+
+(comment
+  (evaluate-if-unmodified-since!
+   "Sat, 26 Dec 2020 17:08:40 GMT"
+   ^{"last-modified" "Sat, 26 Dec 2020 17:08:50 GMT"} {}))
+
+(defn evaluate-if-modified-since! [if-modified-since selected-representation]
+  (let [if-modified-since-date (::rfc7231/date (reap/http-date if-modified-since))
+        rep-last-modified-date (some-> (get (meta selected-representation) "last-modified") reap/http-date ::rfc7231/date)]
+    (when-not (.isAfter
+               (.toInstant rep-last-modified-date)
+               (.toInstant if-modified-since-date))
+      (throw
+       (ex-info
+        "Not modified"
+        {::representation selected-representation
+         ::response
+         {:status 304 :body "Not Modified\r\n"}})))))
+
+(comment
+  (evaluate-if-modified-since!
+   "Sat, 26 Dec 2020 17:00:00 GMT"
+   ^{"last-modified" "Sat, 26 Dec 2020 17:00:00 GMT"} {}))
+
+(defn evaluate-preconditions!
+  "Implementation of Section 6 of RFC 7232."
+  [request resource selected-representation]
+  ;; "… a server MUST ignore the conditional request header fields … when
+  ;; received with a request method that does not involve the selection or
+  ;; modification of a selected representation, such as CONNECT, OPTIONS, or
+  ;; TRACE." -- Section 5, RFC 7232
+  (when (not (#{:connect :options :trace} (:request-method request)))
+    (if-let [if-match (get-in request [:headers "if-match"])]
+      ;; Step 1
+      (evaluate-if-match! if-match resource)
+      ;; Step 2
+      (when-let [if-unmodified-since (get-in request [:headers "if-match"])]
+        (evaluate-if-unmodified-since! if-unmodified-since selected-representation)))
+    ;; Step 3
+    (if-let [if-none-match (get-in request [:headers "if-none-match"])]
+      (evaluate-if-none-match! if-none-match resource selected-representation)
+      ;; Step 4, else branch: if-none-match is not present
+      (when (#{:get :head} (:request-method request))
+        (when-let [if-modified-since (get-in request [:headers "if-modified-since"])]
+          (evaluate-if-modified-since! if-modified-since selected-representation))))
+
+    ;; Step 5 (range requests)
+    ;; (TODO)
+
+    ;; Step 6: continue
+    ;; TODO: We should attempt to run this in a transaction when modifying the resource
+    ))
+
 (defn post! [*db request resource]
   (assert (= (:uri request) (::path resource)))
   (case (:uri request)
@@ -334,7 +492,8 @@
             "Bad content length"
             {::response
              {:status 400
-              :body "Bad Request\r\n"}})))))
+              :body "Bad Request\r\n"}}
+            e)))))
 
     ;; No content-length
     (throw
@@ -447,49 +606,49 @@
                ::content-language (get-in request [:headers "content-language"])
                ::response
                {:status 415
-                :body "Unsupported Media Type\r\n"}})))))))
+                :body "Unsupported Media Type\r\n"}}))))))
 
-  (let [out (java.io.ByteArrayOutputStream.)]
-    (with-open [in (:body request)]
-      (io/copy in out))
+    (let [out (java.io.ByteArrayOutputStream.)]
+      (with-open [in (:body request)]
+        (io/copy in out))
 
-    (let [content-type (:juxt.reap.alpha.rfc7231/content-type decoded-representation)
-          charset (get-in decoded-representation [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map "charset"])
+      (let [content-type (:juxt.reap.alpha.rfc7231/content-type decoded-representation)
+            charset (get-in decoded-representation [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map "charset"])
 
-          representation
-          (->
-           (case (:juxt.reap.alpha.rfc7231/type content-type)
-             "text"
-             (make-string-representation
-              (new String (.toByteArray out) charset)
-              (get decoded-representation "content-type"))
+            representation
+            (->
+             (case (:juxt.reap.alpha.rfc7231/type content-type)
+               "text"
+               (make-string-representation
+                (new String (.toByteArray out) charset)
+                (get decoded-representation "content-type"))
 
-             (make-byte-array-representation
-              (.toByteArray out)
-              (get decoded-representation "content-type")))
+               (make-byte-array-representation
+                (.toByteArray out)
+                (get decoded-representation "content-type")))
 
-           (conj-meta
-            (merge
-             (select-keys
-              (:headers request)
-              ["content-language" "content-encoding"])
-             ;; Add validators
-             {"last-modified" (spin/format-http-date (new java.util.Date))})))
+             (conj-meta
+              (merge
+               (select-keys
+                (:headers request)
+                ["content-language" "content-encoding"])
+               ;; Add validators
+               {"last-modified" (format-http-date (new java.util.Date))})))
 
-          ;; TODO: Model representations at atom in a resource
+            ;; TODO: Model representations at atom in a resource
 
-          new-resource (-> resource
-                           (assoc ::representations [representation])
-                           (dissoc ::path))]
+            new-resource (-> resource
+                             (assoc ::representations [representation])
+                             (dissoc ::path))]
 
-      (swap!
-       *db
-       (fn [db]
-         (assoc-in
-          db [:resources (:uri request)] new-resource)))
+        (swap!
+         *db
+         (fn [db]
+           (assoc-in
+            db [:resources (:uri request)] new-resource)))
 
-      ;; TODO: Return 201
-      {:status 200}))
+        ;; TODO: Return 201
+        {:status 200})))
 
   ;; TODO: Must read 6.3.2 and 7.2 to properly understand 201, especially: "The
   ;; 201 response payload typically describes and links to the resource(s)
@@ -569,9 +728,9 @@
             (:get :head)
             ;; GET (or HEAD)
             ;; Conditional requests
-            (if-let [not-modified-response
-                     (spin/not-modified? request (meta representation))]
-              (throw (ex-info "Not modified" {::response not-modified-response}))
+            (do
+              (evaluate-preconditions! request resource representation)
+
               (cond-> {::db db
                        :status 200
                        :headers

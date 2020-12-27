@@ -244,10 +244,6 @@
 ;; over /es/index.html? perhaps locate-resource can add accept-language="es"
 ;; there?
 
-#_(with-redefs [demo/*database (atom initial-db)]
-
-  )
-
 (defn get-body-str [response]
   (let [out (new java.io.ByteArrayOutputStream)]
     (write-body-to-stream (:body response) response out)
@@ -271,15 +267,90 @@
     (is (= 200 status-2))
     (is (= article (get-body-str response)))))
 
-#_(with-redefs [demo/*database (atom initial-db)]
-  (let [article "= Test Article\r\n"
-        {status :status}
+(deftest if-match-precondition-star-test
+  (let [article-v1 "= Test Article\r\n"
+
+        response-1
         (demo/handler
          {:uri "/articles/test.adoc"
           :request-method :put
-          :headers {"content-length" (str (count (.getBytes article)))}
-          :body (new java.io.ByteArrayInputStream (.getBytes article))})]
-    (is (= 200 status))))
+          :headers {"content-length" (str (count (.getBytes article-v1)))
+                    "content-type" "text/asciidoc;charset=utf-8"
+                    "if-match" "*"}
+          :body (new java.io.ByteArrayInputStream (.getBytes article-v1))})
+
+        ]
+
+    (is (= 412 (:status response-1)))))
+
+(deftest if-match-precondition-test
+  (let [article-v1 "= Test Article\r\n"
+
+        response-1
+        (demo/handler
+         {:uri "/articles/test.adoc"
+          :request-method :put
+          :headers {"content-length" (str (count (.getBytes article-v1)))
+                    "content-type" "text/asciidoc;charset=utf-8"}
+          :body (new java.io.ByteArrayInputStream (.getBytes article-v1))})
+
+        response-2
+        (demo/handler
+         {:uri "/articles/test.adoc"
+          :request-method :get})
+
+        article-v2 "= Test Article V2\r\n"
+
+        response-3
+        (demo/handler
+         {:uri "/articles/test.adoc"
+          :request-method :put
+          :headers {"content-length" (str (count (.getBytes article-v2)))
+                    "content-type" "text/asciidoc;charset=utf-8"
+                    "if-match" (get-in response-2 [:headers "etag"])}
+          :body (new java.io.ByteArrayInputStream (.getBytes article-v2))})
+
+        ;; TODO: There are opportunities here for using if-match in GETs to
+        ;; ensure the representation has been applied.
+
+        response-4
+        (demo/handler
+         {:uri "/articles/test.adoc"
+          :request-method :get
+          :headers {"if-match" (get-in response-2 [:headers "etag"])}
+          :body (new java.io.ByteArrayInputStream (.getBytes article-v2))})
+
+        article-v3 "= Test Article V2 (avoid lost update)\r\n"
+
+        response-5
+        (demo/handler
+         {:uri "/articles/test.adoc"
+          :request-method :put
+          :headers {"content-length" (str (count (.getBytes article-v3)))
+                    "content-type" "text/asciidoc;charset=utf-8"
+                    "if-match" (get-in response-2 [:headers "etag"])}
+          :body (new java.io.ByteArrayInputStream (.getBytes article-v3))})]
+
+    (is (= 200 (:status response-1)))
+    (is (= 200 (:status response-2)))
+    (is (= 200 (:status response-3)))
+    (is (= 200 (:status response-4)))
+    (is (= 412 (:status response-5)))))
+
+
+(with-redefs [demo/*database (atom initial-db)]
+  )
+
+
+#_(with-redefs [demo/*database (atom initial-db)]
+    (let [article "= Test Article\r\n"
+          {status :status}
+          (demo/handler
+           {:uri "/articles/test.adoc"
+            :request-method :put
+            :headers {"content-length" (str (count (.getBytes article)))}
+            :body (new java.io.ByteArrayInputStream (.getBytes article))})]
+      (is (= 200 status))))
 
 
 #_(with-redefs [demo/*database (atom initial-db)]

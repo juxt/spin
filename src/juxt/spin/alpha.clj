@@ -3,69 +3,7 @@
 (ns juxt.spin.alpha
   (:require
    [clojure.string :as str]
-   [juxt.reap.alpha.regex :as re]
-   [juxt.reap.alpha.decoders.rfc7231 :as rfc7231-dec]
-   [juxt.reap.alpha.encoders.rfc7231 :as rfc7231-enc]
-   [juxt.reap.alpha.decoders.rfc7232 :as rfc7232-dec]
-   [juxt.spin.alpha :as spin])
-  (:import
-   (java.util Date)))
-
-(def ^:private date-decoder (rfc7231-dec/http-date {}))
-(def ^:private date-encoder (rfc7231-enc/http-date {}))
-
-(defn ^Date parse-http-date [s]
-  (when s
-    (:juxt.reap.alpha.rfc7231/date (date-decoder (re/input s)))))
-
-(defn format-http-date [^Date inst]
-  (assert (instance? java.util.Date inst) (format "Type is %s" (type inst)))
-  (date-encoder {:juxt.reap.alpha.rfc7231/date inst}))
-
-(def ^:private if-none-match-decoded (rfc7232-dec/if-none-match {}))
-
-(defn parse-if-none-match [v]
-  (if-none-match-decoded (re/input v)))
-
-(defn not-modified?
-  "Return true if the given representation's validators report that it has not
-  been modified with respect to the given request. This allows a 304 response to
-  be returned."
-  [request rep-meta]
-  ;; "… a server MUST ignore the conditional request header fields … when
-  ;; received with a request method that does not involve the selection or
-  ;; modification of a selected representation, such as CONNECT, OPTIONS, or
-  ;; TRACE." -- Section 5, RFC 7232
-  (when (not (#{:connect :options :trace} (:request-method request)))
-    (let [last-modified (get rep-meta "last-modified")
-
-          ;; TODO: See 3.3 of RFC 7232 - only do this on GET and HEAD!
-
-          if-modified-since
-          (when last-modified
-            (some-> (get-in request [:headers "if-modified-since"])
-                    parse-http-date))
-
-          entity-tag (get rep-meta "etag")
-
-          if-none-match
-          (when entity-tag
-            (some->>
-             (get-in request [:headers "if-none-match"])
-             parse-if-none-match
-             (map (comp :juxt.reap.alpha.rfc7232/opaque-tag :juxt.reap.alpha.rfc7232/entity-tag))
-             set))]
-      (cond
-        (and (seq if-none-match) entity-tag)
-        (when (contains? if-none-match entity-tag)
-          {:status 304 :body "Not Modified\r\n"})
-
-        (and if-modified-since last-modified)
-        (when-not (.isAfter
-                   (.toInstant (parse-http-date last-modified))
-                   (.toInstant if-modified-since))
-          ;; TODO: Need to distinguish which
-          {:status 304 :body "Not Modified\r\n"})))))
+   [juxt.spin.alpha :as spin]))
 
 (defn not-implemented?
   "When the request method is not implemented, return a 501 response."
@@ -135,7 +73,7 @@
     ;; middleware, which can set the content-length header accordingly?
     "content-length" "0"}})
 
-(defn wrap-add-date
+#_(defn wrap-add-date
   "Compute and add a Date header to the response."
   [h]
   (fn
