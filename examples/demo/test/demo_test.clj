@@ -269,7 +269,6 @@
 
 (deftest if-match-precondition-star-test
   (let [article-v1 "= Test Article\r\n"
-
         response-1
         (demo/handler
          {:uri "/articles/test.adoc"
@@ -277,9 +276,7 @@
           :headers {"content-length" (str (count (.getBytes article-v1)))
                     "content-type" "text/asciidoc;charset=utf-8"
                     "if-match" "*"}
-          :body (new java.io.ByteArrayInputStream (.getBytes article-v1))})
-
-        ]
+          :body (new java.io.ByteArrayInputStream (.getBytes article-v1))})]
 
     (is (= 412 (:status response-1)))))
 
@@ -333,6 +330,7 @@
 
     (is (= 200 (:status response-1)))
     (is (= 200 (:status response-2)))
+    (is (= "\"-73628034\"" (get-in response-2 [:headers "etag"])))
     (is (= 200 (:status response-3)))
     (is (= 200 (:status response-4)))
     (is (= 412 (:status response-5)))))

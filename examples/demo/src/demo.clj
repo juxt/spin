@@ -265,55 +265,58 @@
                       (add-comment "Here is the first comment")
                       (add-comment "Here is another comment")))
 
-
 ;; -------
 
-(defn evaluate-if-match! [if-match resource]
-  (let [parsed (reap/if-match if-match)]
+(defn evaluate-if-match!
+  "Evaluate an If-None-Match precondition header field in the context of a
+  resource. If the precondition is found to be false, an exception is thrown
+  with ex-data containing the proper response."
+  [request resource selected-representation]
+  ;; (All quotes in this function's comments are from Section 3.2, RFC 7232,
+  ;; unless otherwise stated).
+  (let [header-field (reap/if-match (get-in request [:headers "if-match"]))]
     (cond
-      (and (map? parsed) (::rfc7232/wildcard parsed))
+      ;; "If the field-value is '*' …"
+      (and (map? header-field) (::rfc7232/wildcard header-field))
+      ;; "… the condition is false if the origin server does not have a current
+      ;; representation for the target resource."
       (when (empty? (::representations resource))
         (throw
          (ex-info
           "If-Match precondition failed"
           {::message "No current representations for resource, so * doesn't match"
-           ::response
-           {:status 412
-            :body "Precondition Failed\r\n"}})))
+           ::response {:status 412
+                       :body "Precondition Failed\r\n"}})))
 
-      (sequential? parsed)
-      (let [result
-            (seq
-             (for [if-match-etag (map ::rfc7232/entity-tag parsed)
-                   rep (::representations resource)
-                   :let [rep-etag (get (meta rep) "etag")]
-                   :when rep-etag
-                   :when
-                   (rfc7232/strong-compare-match?
-                    if-match-etag (reap/entity-tag rep-etag))]
-               [if-match-etag rep]))]
-        (when (empty? result)
-          ;; TODO: "unless it can be determined that the state-changing request has
-          ;; already succeeded (see Section 3.1)"
-          (throw
-           (ex-info
-            "If-Match precondition failed"
-            {::message "No strong matches between if-match and current representations"
-             ::if-match parsed
-             ::response
-             {:status 412
-              :body "Precondition Failed\r\n"}})))
-        result))))
+      (sequential? header-field)
+      (when-let [rep-etag (some-> (get (meta selected-representation) "etag") reap/entity-tag)]
+        (doseq [etag (map ::rfc7232/entity-tag header-field)]
+          ;; "An origin server MUST use the strong comparison function
+          ;; when comparing entity-tags"
+          (when (rfc7232/strong-compare-match? etag rep-etag)
+            (throw
+             (ex-info
+              "If-Match precondition failed"
+              {::message "No strong matches between if-match and current representations"
+               ::if-match header-field
+               ::response
+               ;; TODO: "unless it can be determined that the state-changing
+               ;; request has already succeeded (see Section 3.1)"
+               {:status 412
+                :body "Precondition Failed\r\n"}}))))))))
 
 ;; TODO: Make a test from this:
 (comment
-  (evaluate-if-match! "\"abc\",\"def\"" {::representations [^{"etag" "\"abc\""} {}]}))
+  (evaluate-if-match!
+   {:headers {"if-match" "\"abc\",\"def\""}}
+   {::representations [^{"etag" "\"abc\""} {}]}
+   nil))
 
 (defn evaluate-if-none-match!
   "Evaluate an If-None-Match precondition header field in the context of a
-  resource and, if possibly, a selected representation. If the precondition is
-  found to be false, an exception is thrown with ex-data containing the proper
-  response."
+  resource and, when applicable, a selected representation. If the precondition
+  is found to be false, an exception is thrown with ex-data containing the
+  proper response."
   [request resource selected-representation]
   ;; (All quotes in this function's comments are from Section 3.2, RFC 7232,
   ;; unless otherwise stated).
@@ -428,14 +431,14 @@
   ;; modification of a selected representation, such as CONNECT, OPTIONS, or
   ;; TRACE." -- Section 5, RFC 7232
   (when (not (#{:connect :options :trace} (:request-method request)))
-    (if-let [if-match (get-in request [:headers "if-match"])]
+    (if (get-in request [:headers "if-match"])
       ;; Step 1
-      (evaluate-if-match! if-match resource)
+      (evaluate-if-match! request resource selected-representation)
       ;; Step 2
       (when-let [if-unmodified-since (get-in request [:headers "if-match"])]
         (evaluate-if-unmodified-since! if-unmodified-since selected-representation)))
     ;; Step 3
-    (if-let [if-none-match (get-in request [:headers "if-none-match"])]
+    (if (get-in request [:headers "if-none-match"])
       (evaluate-if-none-match! request resource selected-representation)
       ;; Step 4, else branch: if-none-match is not present
       (when (#{:get :head} (:request-method request))
@@ -489,7 +492,7 @@
 (defn put!
   "Replace the state of a resource with the state defined by the representation
   enclosed in the request message payload. Neither argument can be nil."
-  [*db request resource]
+  [*db request resource selected-representation]
   (assert (= (:uri request) (::path resource)))
 
   ;; If resource just has one representation, we wish to put over it. We should
@@ -644,7 +647,7 @@
       (let [content-type (:juxt.reap.alpha.rfc7231/content-type decoded-representation)
             charset (get-in decoded-representation [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map "charset"])
 
-            representation
+            new-representation
             (->
              (case (:juxt.reap.alpha.rfc7231/type content-type)
                "text"
@@ -667,12 +670,13 @@
             ;; TODO: Model representations at atom in a resource
 
             new-resource (-> resource
-                             (assoc ::representations [representation])
+                             (assoc ::representations [new-representation])
                              (dissoc ::path))]
 
         (swap!
          *db
          (fn [db]
+           (evaluate-preconditions! request resource selected-representation)
            (assoc-in
             db [:resources (:uri request)] new-resource)))
 
@@ -715,7 +719,8 @@
           (throw (ex-info "Method not allowed" {::response response})))
 
         ;; Select the current representation (only if GET or HEAD)
-        (let [{:keys [representation vary]}
+        (let [{selected-representation :representation
+               vary :vary}
               (when (#{:get :head} (:request-method request))
                 (let [current (current-representations db resource)]
                   (when (empty? current)
@@ -748,6 +753,7 @@
                           :body "Not Acceptable\r\n"}}))))))
 
               response
+              ;; TODO: Could we add the Date header here?
               (cond-> {}
                 (seq vary)
                 (assoc "vary" (str/join ", " vary)))]
@@ -757,8 +763,10 @@
             (:get :head)
             ;; GET (or HEAD)
             ;; Conditional requests
-            (do
-              (evaluate-preconditions! request resource representation)
+            (let [content-location
+                  (get (meta selected-representation) "content-location")]
+
+              (evaluate-preconditions! request resource selected-representation)
 
               (cond-> {::db db
                        :status 200
@@ -766,7 +774,7 @@
                        (cond-> (conj
                                 response
                                 (select-keys
-                                 (meta representation)
+                                 (meta selected-representation)
                                  ;; representation metadata
                                  ["content-type" "content-encoding" "content-language"
                                   ;; validators
@@ -775,17 +783,17 @@
                                   "content-length" "content-range"]))
 
                          ;; content-location is only set if different from the effective uri
-                         (not= (get (meta representation) "content-location") (:uri request))
-                         (assoc "content-location" (get (meta representation) "content-location")))}
+                         (not= content-location (:uri request))
+                         (assoc "content-location" content-location))}
 
                 (= (:request-method request) :get)
-                (assoc :body representation)))
+                (assoc :body selected-representation)))
 
             :post
             (post! *database request resource)
 
             :put
-            (put! *database request resource)
+            (put! *database request resource selected-representation)
 
             :delete
             (delete! *database (:uri request))
