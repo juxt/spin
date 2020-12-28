@@ -16,27 +16,34 @@
    [juxt.reap.alpha.ring :refer [headers->decoded-preferences]]
    [juxt.reap.alpha.decoders :as reap]))
 
-(defrecord ByteArrayRepresentation [bytes]
+(defprotocol IRepresentationMetadata
+  (metadata [_] "Return a map containing representation metadata"))
+
+(defrecord ByteArrayRepresentation [bytes metadata]
   StreamableResponseBody
-  (write-body-to-stream [body response output-stream]
-    (.write output-stream bytes)))
+  (write-body-to-stream [_ response output-stream]
+    (.write output-stream bytes))
+  IRepresentationMetadata
+  (metadata [_] metadata))
 
 (defn make-byte-array-representation [bytes content-type]
-  (with-meta
-    (->ByteArrayRepresentation bytes)
-    {"content-type" content-type
-     "content-length" (str (count bytes))
-     "etag"
-     (format
-      "\"%s\""      ; etags MUST be wrapped in DQUOTEs
-      (hash         ; Clojure's hash function will do, but we could use another
-       {:content (vec bytes)
-        :content-type content-type}))}))
+  (->ByteArrayRepresentation
+   bytes
+   {"content-type" content-type
+    "content-length" (str (count bytes))
+    "etag"
+    (format
+     "\"%s\""        ; etags MUST be wrapped in DQUOTEs
+     (hash           ; Clojure's hash function will do, but we could use another
+      {:content (vec bytes)
+       :content-type content-type}))}))
 
-(defrecord StringRepresentation [s charset]
+(defrecord StringRepresentation [s charset metadata]
   StreamableResponseBody
   (write-body-to-stream [body response output-stream]
-    (.write output-stream (.getBytes s charset))))
+    (.write output-stream (.getBytes s charset)))
+  IRepresentationMetadata
+  (metadata [_] metadata))
 
 (defn make-string-representation
   [s content-type]
@@ -44,28 +51,39 @@
         (get-in
          (reap/content-type content-type)
          [:juxt.reap.alpha.rfc7231/parameter-map "charset"] "utf-8")]
-    (with-meta
-      (->StringRepresentation s charset)
-      {"content-type" content-type
-       "content-length" (str (count (.getBytes s charset)))
-       "etag"
-       (format
-        "\"%s\""     ; etags MUST be wrapped in DQUOTEs
-        (hash        ; Clojure's hash function will do, but we could use another
-         {:content s
-          :content-type content-type}))})))
+    (->StringRepresentation
+     s
+     charset
+     {"content-type" content-type
+      "content-length" (str (count (.getBytes s charset)))
+      "etag"
+      (format
+       "\"%s\""      ; etags MUST be wrapped in DQUOTEs
+       (hash         ; Clojure's hash function will do, but we could use another
+        {:content s
+         :content-type content-type}))})))
 
-(defn conj-meta [o metadata]
-  (with-meta o
-    (conj (meta o) metadata)))
+(defrecord CustomRepresentation [f metadata]
+  StreamableResponseBody
+  (write-body-to-stream [body response output-stream]
+    (f body response output-stream))
+  IRepresentationMetadata
+  (metadata [_] metadata))
+
+(defn make-custom-representation [f metadata]
+  (->CustomRepresentation f metadata))
+
+(defn conj-metadata [o metadata]
+  (update o :metadata conj metadata))
 
 (defn make-comment [comment]
   (->
    (make-string-representation
     comment
     "text/plain;charset=utf-8")
-   (conj-meta {"content-language" "en-US"
-               "last-modified" (format-http-date (new java.util.Date))})))
+   (conj-metadata
+    {"content-language" "en-US"
+     "last-modified" (format-http-date (new java.util.Date))})))
 
 (defn index-page-representation [title]
   (make-string-representation
@@ -102,7 +120,7 @@
           (hp/html5 [:head [:meta {"http-equiv" "Refresh" "content" "0; URL=/index.html"}]])
           "\r\n\r\n")
          "text/html;charset=utf-8")
-        (conj-meta
+        (conj-metadata
          {"last-modified"
           (-> "2020-12-01T09:00:00Z"
               java.time.Instant/parse
@@ -122,7 +140,7 @@
       [(->
         (index-page-representation
          "Welcome to the spin demo!")
-        (conj-meta
+        (conj-metadata
          {"content-language" "en-US"
           "content-location" "/en/index.html"
           "last-modified"
@@ -137,7 +155,7 @@
       [(->
         (index-page-representation
          "Willkommen zur Spin-Demo!")
-        (conj-meta
+        (conj-metadata
          {"content-language" "de"
           "content-location" "/de/index.html"
           "last-modified"
@@ -152,7 +170,7 @@
       [(->
         (index-page-representation
          "¡Bienvenida a la demo de spin!")
-        (conj-meta
+        (conj-metadata
          {"content-language" "es"
           "content-location" "/es/index.html"
           "last-modified"
@@ -164,47 +182,43 @@
      "/comments.html"
      {::methods #{:get :head :options}
       ::representations
-      [(with-meta
-         (reify
-           StreamableResponseBody
-           (write-body-to-stream [body {::keys [db]} output-stream]
-             (.write
-              output-stream
-              (.getBytes
-               (str
-                (hp/html5
-                 [:head
-                  [:title "Comments"]]
-                 [:body
-                  [:h1 "Comments"]
-                  [:ol
-                   (for [{:keys [location representation]} (get-comments db)]
-                     [:li
-                      (:s representation)
-                      "&nbsp;"
-                      [:small
-                       [:a {:href location}
-                        "view"]]])]])
-                "\r\n\r\n")))))
-         {"content-type" "text/html;charset=utf-8"
-          "content-location" "/comments.html"})]}
+      [(make-custom-representation
+        (fn [_ {::keys [db]} output-stream]
+          (.write
+           output-stream
+           (.getBytes
+            (str
+             (hp/html5
+              [:head
+               [:title "Comments"]]
+              [:body
+               [:h1 "Comments"]
+               [:ol
+                (for [{:keys [location representation]} (get-comments db)]
+                  [:li
+                   (:s representation)
+                   "&nbsp;"
+                   [:small
+                    [:a {:href location}
+                     "view"]]])]])
+             "\r\n\r\n"))))
+        {"content-type" "text/html;charset=utf-8"
+         "content-location" "/comments.html"})]}
 
      "/comments.txt"
      {::methods #{:get :head :options}
       ::representations
-      [(with-meta
-         (reify
-           StreamableResponseBody
-           (write-body-to-stream [body {::keys [db]} output-stream]
-             (assert db)
-             (.write
-              output-stream
-              (.getBytes
-               (str/join
-                (for [{:keys [representation]} (get-comments db)]
-                  (str (:s representation) "\r\n")))))))
-         {"content-type" "text/plain;charset=utf-8"
-          "content-location" "/comments.txt"})]}
+      [(make-custom-representation
+        (fn [_ {::keys [db]} output-stream]
+          (assert db)
+          (.write
+           output-stream
+           (.getBytes
+            (str/join
+             (for [{:keys [representation]} (get-comments db)]
+               (str (:s representation) "\r\n"))))))
+        {"content-type" "text/plain;charset=utf-8"
+         "content-location" "/comments.txt"})]}
 
      "/comments"
      {::methods #{:get :head :post :options}
@@ -289,7 +303,7 @@
                        :body "Precondition Failed\r\n"}})))
 
       (sequential? header-field)
-      (when-let [rep-etag (some-> (get (meta selected-representation) "etag") reap/entity-tag)]
+      (when-let [rep-etag (some-> (get (metadata selected-representation) "etag") reap/entity-tag)]
         (when-not (seq
                    (for [etag (map ::rfc7232/entity-tag header-field)
                          ;; "An origin server MUST use the strong comparison function
@@ -325,7 +339,7 @@
   (let [header-field (reap/if-none-match (get-in request [:headers "if-none-match"]))]
     (cond
       (sequential? header-field)
-      (when-let [rep-etag (some-> (get (meta selected-representation) "etag") reap/entity-tag)]
+      (when-let [rep-etag (some-> (get (metadata selected-representation) "etag") reap/entity-tag)]
         ;; "If the field-value is a list of entity-tags, the condition is false
         ;; if one of the listed tags match the entity-tag of the selected
         ;; representation."
@@ -385,7 +399,7 @@
 
 (defn evaluate-if-unmodified-since! [if-unmodified-since selected-representation]
   (let [if-unmodified-since-date (::rfc7231/date (reap/http-date if-unmodified-since))
-        rep-last-modified-date (some-> (get (meta selected-representation) "last-modified") reap/http-date ::rfc7231/date)]
+        rep-last-modified-date (some-> (get (metadata selected-representation) "last-modified") reap/http-date ::rfc7231/date)]
     (when (.isAfter
            (.toInstant rep-last-modified-date)
            (.toInstant if-unmodified-since-date))
@@ -409,7 +423,7 @@
 
 (defn evaluate-if-modified-since! [if-modified-since selected-representation]
   (let [if-modified-since-date (::rfc7231/date (reap/http-date if-modified-since))
-        rep-last-modified-date (some-> (get (meta selected-representation) "last-modified") reap/http-date ::rfc7231/date)]
+        rep-last-modified-date (some-> (get (metadata selected-representation) "last-modified") reap/http-date ::rfc7231/date)]
     (when-not (.isAfter
                (.toInstant rep-last-modified-date)
                (.toInstant if-modified-since-date))
@@ -483,14 +497,14 @@
     (evaluate-preconditions! request resource selected-representation)
 
     (let [content-location
-          (get (meta selected-representation) "content-location")]
+          (get (metadata selected-representation) "content-location")]
       (cond-> {::db db
                :status 200
                :headers
                (cond-> (conj
                         response
                         (select-keys
-                         (meta selected-representation)
+                         (metadata selected-representation)
                          ;; representation metadata
                          ["content-type" "content-encoding" "content-language"
                           ;; validators
@@ -712,7 +726,7 @@
                 (.toByteArray out)
                 (get decoded-representation "content-type")))
 
-             (conj-meta
+             (conj-metadata
               (merge
                (select-keys
                 (:headers request)
@@ -780,7 +794,7 @@
                 (pick
                  request
                  (for [rep current]
-                   (assoc (meta rep) ::representation rep))
+                   (assoc (metadata rep) ::representation rep))
                  {:juxt.pick.alpha/vary? true}))
 
               selected-representation
