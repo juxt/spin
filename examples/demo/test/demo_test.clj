@@ -1,7 +1,5 @@
 ;; Copyright © 2020, JUXT LTD.
 
-;; (remove-ns 'demo-test)
-
 (ns demo-test
   (:require
    [clojure.string :as str]
@@ -283,7 +281,15 @@
 (deftest if-match-precondition-test
   (let [article-v1 "= Test Article\r\n"
 
-        response-1
+        ;; Should be a 404, document doesn't yet exist
+        initial-get
+        (demo/handler
+         {:uri "/articles/test.adoc"
+          :request-method :get})
+
+        _ (is (= 404 (:status initial-get)))
+
+        put-v1
         (demo/handler
          {:uri "/articles/test.adoc"
           :request-method :put
@@ -291,21 +297,36 @@
                     "content-type" "text/asciidoc;charset=utf-8"}
           :body (new java.io.ByteArrayInputStream (.getBytes article-v1))})
 
-        response-2
+        _ (is (= 200 (:status put-v1)))
+
+        get-v1
         (demo/handler
          {:uri "/articles/test.adoc"
           :request-method :get})
 
+        _ (is (= 200 (:status get-v1)))
+        _ (is (= "\"-73628034\"" (get-in get-v1 [:headers "etag"])))
+
         article-v2 "= Test Article V2\r\n"
 
-        response-3
+        put-v2
         (demo/handler
          {:uri "/articles/test.adoc"
           :request-method :put
           :headers {"content-length" (str (count (.getBytes article-v2)))
                     "content-type" "text/asciidoc;charset=utf-8"
-                    "if-match" (get-in response-2 [:headers "etag"])}
+                    "if-match" (get-in get-v1 [:headers "etag"])}
           :body (new java.io.ByteArrayInputStream (.getBytes article-v2))})
+
+        _ (is (= 200 (:status put-v2)))
+
+        get-v2
+        (demo/handler
+         {:uri "/articles/test.adoc"
+          :request-method :get})
+
+        _ (is (= 200 (:status get-v2)))
+        _ (is (= "\"-1459800632\"" (get-in get-v2 [:headers "etag"])))
 
         ;; TODO: There are opportunities here for using if-match in GETs to
         ;; ensure the representation has been applied.
@@ -316,181 +337,38 @@
         ;; request". This is what we test for here. By sending the 'old'
         ;; entity-tag (from response-2) in an If-Match header, we should cause
         ;; the precondition to fail and receive a 412.
-        response-4
+        get-v1-stale
         (demo/handler
          {:uri "/articles/test.adoc"
           :request-method :get
-          :headers {"if-match" (get-in response-2 [:headers "etag"])}
-          :body (new java.io.ByteArrayInputStream (.getBytes article-v2))})
+          :headers {"if-match" (get-in get-v1 [:headers "etag"])}})
+
+        _ (is (= 412 (:status get-v1-stale)))
 
         article-v3 "= Test Article V2 (avoid lost update)\r\n"
 
-        response-5
+        put-v3-fail
         (demo/handler
          {:uri "/articles/test.adoc"
           :request-method :put
           :headers {"content-length" (str (count (.getBytes article-v3)))
                     "content-type" "text/asciidoc;charset=utf-8"
-                    "if-match" (get-in response-2 [:headers "etag"])}
-          :body (new java.io.ByteArrayInputStream (.getBytes article-v3))})]
+                    "if-match" (get-in get-v1 [:headers "etag"])}
+          :body (new java.io.ByteArrayInputStream (.getBytes article-v3))})
 
-    (is (= 200 (:status response-1)))
-    (is (= 200 (:status response-2)))
-    (is (= "\"-73628034\"" (get-in response-2 [:headers "etag"])))
-    (is (= 200 (:status response-3)))
-    (is (= 412 (:status response-4)))
-    (is (= 412 (:status response-5)))))
+        _ (is (= 412 (:status put-v3-fail)))
 
-
-(with-redefs [demo/*database (atom initial-db)]
-  )
-
-
-#_(with-redefs [demo/*database (atom initial-db)]
-    (let [article "= Test Article\r\n"
-          {status :status}
-          (demo/handler
-           {:uri "/articles/test.adoc"
-            :request-method :put
-            :headers {"content-length" (str (count (.getBytes article)))}
-            :body (new java.io.ByteArrayInputStream (.getBytes article))})]
-      (is (= 200 status))))
-
-
-#_(with-redefs [demo/*database (atom initial-db)]
-  (let [article "= Test Article\r\n"
-        {status :status}
+        put-v3-succeed
         (demo/handler
          {:uri "/articles/test.adoc"
           :request-method :put
-          :headers {"content-length" (str (count (.getBytes article)))}
-          :body (new java.io.ByteArrayInputStream (.getBytes article))})]
-    (is (= 200 status)))
+          :headers {"content-length" (str (count (.getBytes article-v3)))
+                    "content-type" "text/asciidoc;charset=utf-8"
+                    "if-match" (get-in get-v2 [:headers "etag"])}
+          :body (new java.io.ByteArrayInputStream (.getBytes article-v3))})
 
+        _ (is (= 200 (:status put-v3-succeed)))]))
 
-  (let [comment "this is a test"
-        {status-on-put :status}
-        (demo/handler
-         {:uri "/comments/1"
-          :request-method :put
-          :headers {"content-length" (str (count (.getBytes comment)))}
-          :body (new java.io.ByteArrayInputStream (.getBytes comment))})
-        {status-on-get :status :as response}
-        (demo/handler
-         {:uri "/comments/1"
-          :request-method :get})
-        body (String. (:bytes (:body response)))
-        {status-on-index-get :status :as response}
-        (demo/handler
-         {:uri "/comments.txt"
-          :request-method :get})
-        ]
-    (is (= comment body))
-    (body->str response)
-    )
-  )
-
-;; TODO: Test adoc resource config restriction (then commit)
-
-;; TODO: GET, then PUT over, then repeat PUT again with failure
-
-;; Add conditional tests for weak/strong comparisons, PUTs, etc.
-
-#_(deftest demo-test
-
-    (testing "Conditional requests"
-      (testing "GET with if-modified-since"
-        (is
-         (=
-          {:status 304
-           :body "Not Modified\r\n"}
-
-          (demo/handler
-           {:uri "/index.html"
-            :request-method :get
-            :headers {"accept-language" "en"
-                      "if-modified-since" "Fri, 25 Dec 2020 09:00:00 GMT"}})))
-
-        (is
-         (=
-          {:status 200
-           :headers
-           {"vary" "accept-language"
-            "content-type" "text/html;charset=utf-8"
-            "content-language" "en-US"
-            "content-length" "165"
-            "content-location" "/en/index.html"
-            "etag" (format
-                    "\"%s\""
-                    (hash
-                     {:content (get demo/static-representations "/en/index.html")
-                      :content-type "text/html;charset=utf-8"
-                      :content-language "en-US"
-                      :content-encoding ""}))
-            "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
-           :body
-           "<!DOCTYPE html>\n<html><head><title>Welcome to the spin demo!</title></head><body><h1>Welcome to the spin demo!</h1><a href=\"/comments\">Comments</a></body></html>\r\n\r\n"}
-
-          (demo/handler
-           {:uri "/index.html"
-            :request-method :get
-            :headers {"accept-language" "en"
-                      "if-modified-since" "Fri, 25 Dec 2020 08:00:00 GMT"}}))))
-
-      (testing "GET with if-none-match"
-        (is
-         (=
-          {:status 304
-           :body "Not Modified\r\n"}
-          (demo/handler
-           {:uri "/index.html"
-            :request-method :get
-            :headers {"accept-language" "en"
-                      "if-none-match" (format
-                                       "\"%s\""
-                                       (hash
-                                        {:content (get demo/static-representations "/en/index.html")
-                                         :content-type "text/html;charset=utf-8"
-                                         :content-language "en-US"
-                                         :content-encoding ""}))}})))
-
-        (is
-         (=
-          {:status 200
-           :headers
-           {"vary" "accept-language"
-            "content-type" "text/html;charset=utf-8"
-            "content-language" "en-US"
-            "content-length" "165"
-            "content-location" "/en/index.html"
-            "etag" (format
-                    "\"%s\""
-                    (hash
-                     {:content (get demo/static-representations "/en/index.html")
-                      :content-type "text/html;charset=utf-8"
-                      :content-language "en-US"
-                      :content-encoding ""}))
-            "last-modified" "Fri, 25 Dec 2020 09:00:00 GMT"}
-           :body
-           "<!DOCTYPE html>\n<html><head><title>Welcome to the spin demo!</title></head><body><h1>Welcome to the spin demo!</h1><a href=\"/comments\">Comments</a></body></html>\r\n\r\n"}
-          (demo/handler
-           {:uri "/index.html"
-            :request-method :get
-            :headers {"accept-language" "en"
-                      "if-none-match" "\"dummy\""}}))))))
-
-;; TODO: Test for POST on /comments, GET with conneg, and PUTs of individual
-;; comments
-
-#_(comment
-  (demo/handler
-   {:uri "/comments.txt"
-    :request-method :get}))
-
-#_(comment
-  (let [in (.getBytes "This is another comment")]
-    (demo/handler
-     {:uri "/comments"
-      :request-method :post
-      :headers {"content-length" (str (count in))}
-      :body (java.io.ByteArrayInputStream. in)})))
+(comment
+  (with-redefs [demo/*database (atom initial-db)]
+    ))

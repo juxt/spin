@@ -290,20 +290,22 @@
 
       (sequential? header-field)
       (when-let [rep-etag (some-> (get (meta selected-representation) "etag") reap/entity-tag)]
-        (doseq [etag (map ::rfc7232/entity-tag header-field)]
-          ;; "An origin server MUST use the strong comparison function
-          ;; when comparing entity-tags"
-          (when (rfc7232/strong-compare-match? etag rep-etag)
-            (throw
-             (ex-info
-              "If-Match precondition failed"
-              {::message "No strong matches between if-match and current representations"
-               ::if-match header-field
-               ::response
-               ;; TODO: "unless it can be determined that the state-changing
-               ;; request has already succeeded (see Section 3.1)"
-               {:status 412
-                :body "Precondition Failed\r\n"}}))))))))
+        (when-not (seq
+                   (for [etag (map ::rfc7232/entity-tag header-field)
+                         ;; "An origin server MUST use the strong comparison function
+                         ;; when comparing entity-tags"
+                         :when (rfc7232/strong-compare-match? etag rep-etag)]
+                     etag))
+          (throw
+           (ex-info
+            "If-Match precondition failed"
+            {::message "No strong matches between if-match and current representations"
+             ::if-match header-field
+             ::response
+             ;; TODO: "unless it can be determined that the state-changing
+             ;; request has already succeeded (see Section 3.1)"
+             {:status 412
+              :body "Precondition Failed\r\n"}})))))))
 
 ;; TODO: Make a test from this:
 (comment
@@ -452,7 +454,58 @@
     ;; TODO: We should attempt to run this in a transaction when modifying the resource
     ))
 
-(defn post! [*db request resource]
+(defn GET [db request resource selected-representation current-representations vary]
+  ;; GET (or HEAD)
+  ;; Conditional requests
+  (let [response
+        ;; TODO: Could we add the Date header here?
+        (cond-> {}
+          (seq vary)
+          (assoc "vary" (str/join ", " vary)))]
+
+    (when (empty? current-representations)
+      (throw
+       (ex-info
+        "Not Found"
+        {::response
+         {:status 404
+          :body "Not Found\r\n"}})))
+
+    (when-not selected-representation
+      (throw
+       (ex-info
+        "Not Acceptable"
+        { ;; TODO: Must add list of available representations
+         ::response
+         {:status 406
+          :body "Not Acceptable\r\n"}})))
+
+    (evaluate-preconditions! request resource selected-representation)
+
+    (let [content-location
+          (get (meta selected-representation) "content-location")]
+      (cond-> {::db db
+               :status 200
+               :headers
+               (cond-> (conj
+                        response
+                        (select-keys
+                         (meta selected-representation)
+                         ;; representation metadata
+                         ["content-type" "content-encoding" "content-language"
+                          ;; validators
+                          "last-modified" "etag"
+                          ;; payload header fields too
+                          "content-length" "content-range"]))
+
+                 ;; content-location is only set if different from the effective uri
+                 (not= content-location (:uri request))
+                 (assoc "content-location" content-location))}
+
+        (= (:request-method request) :get)
+        (assoc :body selected-representation)))))
+
+(defn POST [*db request resource]
   (assert (= (:uri request) (::path resource)))
   (case (:uri request)
     ;; TODO: Should look at some hint in the resource as to functionality,
@@ -489,7 +542,7 @@
            add-comment
            (String. (.toByteArray out)))))))))
 
-(defn put!
+(defn PUT
   "Replace the state of a resource with the state defined by the representation
   enclosed in the request message payload. Neither argument can be nil."
   [*db request resource selected-representation]
@@ -692,8 +745,8 @@
   ;; by sending a 201 (Created) response."
   )
 
-(defn delete! [*db path]
-  (swap! *db #(update % :resources dissoc path))
+(defn DELETE [*db request resource selected-representation]
+  (swap! *db #(update % :resources dissoc (::path resource)))
   {:status 200 :body "Deleted\r\n"})
 
 (defn handler [request]
@@ -718,85 +771,39 @@
                         :body "Method Not Allowed\r\n"}))]
           (throw (ex-info "Method not allowed" {::response response})))
 
-        ;; Select the current representation (only if GET or HEAD)
-        (let [{selected-representation :representation
-               vary :vary}
-              (when (#{:get :head} (:request-method request))
-                (let [current (current-representations db resource)]
-                  (when (empty? current)
-                    (throw
-                     (ex-info
-                      "Not Found"
-                      {::response
-                       {:status 404
-                        :body "Not Found\r\n"}})))
+        ;; Select the current representation
+        (let [current (current-representations db resource)
 
-                  (let [negotiation-result
-                        (pick
-                         request
-                         (for [rep current]
-                           (assoc (meta rep) ::representation rep))
-                         {:juxt.pick.alpha/vary? true})]
+              ;; Negotiate best representation
+              negotiation-result
+              (when (seq current)
+                (pick
+                 request
+                 (for [rep current]
+                   (assoc (meta rep) ::representation rep))
+                 {:juxt.pick.alpha/vary? true}))
 
-                    (if-let [representation
-                             (get-in
-                              negotiation-result
-                              [:juxt.pick.alpha/representation ::representation])]
-                      {:representation representation
-                       :vary (:juxt.pick.alpha/vary negotiation-result)}
-                      (throw
-                       (ex-info
-                        "Not Acceptable"
-                        { ;; TODO: Must add list of available representations
-                         ::response
-                         {:status 406
-                          :body "Not Acceptable\r\n"}}))))))
+              selected-representation
+              (get-in
+               negotiation-result
+               [:juxt.pick.alpha/representation ::representation])
 
-              response
-              ;; TODO: Could we add the Date header here?
-              (cond-> {}
-                (seq vary)
-                (assoc "vary" (str/join ", " vary)))]
+              vary
+              (:juxt.pick.alpha/vary negotiation-result)]
 
           ;; Process the request method
           (case (:request-method request)
             (:get :head)
-            ;; GET (or HEAD)
-            ;; Conditional requests
-            (let [content-location
-                  (get (meta selected-representation) "content-location")]
-
-              (evaluate-preconditions! request resource selected-representation)
-
-              (cond-> {::db db
-                       :status 200
-                       :headers
-                       (cond-> (conj
-                                response
-                                (select-keys
-                                 (meta selected-representation)
-                                 ;; representation metadata
-                                 ["content-type" "content-encoding" "content-language"
-                                  ;; validators
-                                  "last-modified" "etag"
-                                  ;; payload header fields too
-                                  "content-length" "content-range"]))
-
-                         ;; content-location is only set if different from the effective uri
-                         (not= content-location (:uri request))
-                         (assoc "content-location" content-location))}
-
-                (= (:request-method request) :get)
-                (assoc :body selected-representation)))
+            (GET db request resource selected-representation current vary)
 
             :post
-            (post! *database request resource)
+            (POST *database request resource)
 
             :put
-            (put! *database request resource selected-representation)
+            (PUT *database request resource selected-representation)
 
             :delete
-            (delete! *database (:uri request))
+            (DELETE *database request resource selected-representation)
 
             :options
             ;; TODO: Allow user to take control of this, e.g. WebDAV
