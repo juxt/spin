@@ -16,19 +16,24 @@
    [juxt.reap.alpha.ring :refer [headers->decoded-preferences]]
    [juxt.reap.alpha.decoders :as reap]))
 
-(defprotocol IRepresentationMetadata
-  (metadata [_] "Return a map containing representation metadata"))
+(defprotocol IRepresentation
+  (metadata [_] "Return a map containing representation metadata.")
+  (body [_ db] "Return a StreamableResponseBody, providing a snapshot of the
+  database."))
 
-(defrecord ByteArrayRepresentation [bytes metadata]
-  StreamableResponseBody
-  (write-body-to-stream [_ response output-stream]
-    (.write output-stream bytes))
-  IRepresentationMetadata
-  (metadata [_] metadata))
+(defrecord ByteArrayRepresentation [metadata bytes]
+  IRepresentation
+  (metadata [_] metadata)
+  (body [_ _]
+    (reify
+      StreamableResponseBody
+      (write-body-to-stream [_ response output-stream]
+        (.write output-stream bytes)))))
+
+;; TODO: Override printing so we don't see the bytes
 
 (defn make-byte-array-representation [bytes content-type]
   (->ByteArrayRepresentation
-   bytes
    {"content-type" content-type
     "content-length" (str (count bytes))
     "etag"
@@ -36,39 +41,46 @@
      "\"%s\""        ; etags MUST be wrapped in DQUOTEs
      (hash           ; Clojure's hash function will do, but we could use another
       {:content (vec bytes)
-       :content-type content-type}))}))
+       :content-type content-type}))}
+   bytes))
 
-(defrecord StringRepresentation [s charset metadata]
-  StreamableResponseBody
-  (write-body-to-stream [body response output-stream]
-    (.write output-stream (.getBytes s charset)))
-  IRepresentationMetadata
-  (metadata [_] metadata))
+(defrecord CharSequenceRepresentation [metadata char-sequence charset]
+  IRepresentation
+  (metadata [_] metadata)
+  (body [_ _]
+    (reify
+      StreamableResponseBody
+      (write-body-to-stream [_ response output-stream]
+        (.write output-stream (.getBytes char-sequence charset))))))
 
-(defn make-string-representation
-  [s content-type]
+(defn make-char-sequence-representation
+  [char-sequence content-type]
   (let [charset
         (get-in
          (reap/content-type content-type)
          [:juxt.reap.alpha.rfc7231/parameter-map "charset"] "utf-8")]
-    (->StringRepresentation
-     s
-     charset
+    (->CharSequenceRepresentation
      {"content-type" content-type
-      "content-length" (str (count (.getBytes s charset)))
+      "content-length" (str (count (.getBytes char-sequence charset)))
       "etag"
       (format
        "\"%s\""      ; etags MUST be wrapped in DQUOTEs
        (hash         ; Clojure's hash function will do, but we could use another
-        {:content s
-         :content-type content-type}))})))
+        {:content char-sequence
+         :content-type content-type}))}
+     char-sequence
+     charset)))
 
+;; The function provided takes 3 args: the db snapshot, the response and the
+;; response output-stream.
 (defrecord CustomRepresentation [f metadata]
-  StreamableResponseBody
-  (write-body-to-stream [body response output-stream]
-    (f body response output-stream))
-  IRepresentationMetadata
-  (metadata [_] metadata))
+  IRepresentation
+  (metadata [_] metadata)
+  (body [this db]
+    (reify
+      StreamableResponseBody
+      (write-body-to-stream [body response output-stream]
+        (f this db response output-stream)))))
 
 (defn make-custom-representation [f metadata]
   (->CustomRepresentation f metadata))
@@ -78,7 +90,7 @@
 
 (defn make-comment [comment]
   (->
-   (make-string-representation
+   (make-char-sequence-representation
     comment
     "text/plain;charset=utf-8")
    (conj-metadata
@@ -86,7 +98,7 @@
      "last-modified" (format-http-date (new java.util.Date))})))
 
 (defn index-page-representation [title]
-  (make-string-representation
+  (make-char-sequence-representation
    (str
     (hp/html5
      [:head
@@ -115,7 +127,7 @@
      {::methods #{:get :head :options}
       ::representations
       [(->
-        (make-string-representation
+        (make-char-sequence-representation
          (str
           (hp/html5 [:head [:meta {"http-equiv" "Refresh" "content" "0; URL=/index.html"}]])
           "\r\n\r\n")
@@ -183,7 +195,7 @@
      {::methods #{:get :head :options}
       ::representations
       [(make-custom-representation
-        (fn [_ {::keys [db]} output-stream]
+        (fn [_ db _ output-stream]
           (.write
            output-stream
            (.getBytes
@@ -196,7 +208,7 @@
                [:ol
                 (for [{:keys [location representation]} (get-comments db)]
                   [:li
-                   (:s representation)
+                   (:char-sequence representation)
                    "&nbsp;"
                    [:small
                     [:a {:href location}
@@ -209,14 +221,14 @@
      {::methods #{:get :head :options}
       ::representations
       [(make-custom-representation
-        (fn [_ {::keys [db]} output-stream]
+        (fn [_ db _ output-stream]
           (assert db)
           (.write
            output-stream
            (.getBytes
             (str/join
              (for [{:keys [representation]} (get-comments db)]
-               (str (:s representation) "\r\n"))))))
+               (str (:char-sequence representation) "\r\n"))))))
         {"content-type" "text/plain;charset=utf-8"
          "content-location" "/comments.txt"})]}
 
@@ -498,8 +510,7 @@
 
     (let [content-location
           (get (metadata selected-representation) "content-location")]
-      (cond-> {::db db
-               :status 200
+      (cond-> {:status 200
                :headers
                (cond-> (conj
                         response
@@ -517,7 +528,7 @@
                  (assoc "content-location" content-location))}
 
         (= (:request-method request) :get)
-        (assoc :body selected-representation)))))
+        (assoc :body (body selected-representation db))))))
 
 (defn POST [*db request resource]
   (assert (= (:uri request) (::path resource)))
@@ -718,7 +729,7 @@
             (->
              (case (:juxt.reap.alpha.rfc7231/type content-type)
                "text"
-               (make-string-representation
+               (make-char-sequence-representation
                 (new String (.toByteArray out) charset)
                 (get decoded-representation "content-type"))
 
