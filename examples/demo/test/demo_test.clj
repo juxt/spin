@@ -6,9 +6,10 @@
    [clojure.test :refer [deftest is use-fixtures]]
    [ring.core.protocols :refer [write-body-to-stream]]
    [clojure.pprint :refer [pprint]]
-   [demo :as demo]))
+   [demo :as demo]
+   [demo.app :as app]))
 
-(def initial-db @demo/*database)
+(def initial-db @demo.app/*database)
 
 (defmacro run [& body]
   `(do
@@ -18,7 +19,7 @@
      (remove-tap pprint)))
 
 (defn fix-database [f]
-  (with-redefs [demo/*database (atom initial-db)]
+  (with-redefs [app/*database (atom initial-db)]
     (f)))
 
 (defn tap-errors [f]
@@ -47,7 +48,8 @@
     (is (= "text/html;charset=utf-8" content-type))
     (is (= "170" content-length))
     (is (= "en-US" content-language))
-    (is (= #{"content-type" "content-language"
+    (is (= #{"date"
+             "content-type" "content-language"
              "last-modified" "etag"
              "content-length"}
            (set (keys (:headers response)))))
@@ -63,7 +65,8 @@
     (is (= "text/html;charset=utf-8" content-type))
     (is (= "170" content-length))
     (is (= "en-US" content-language))
-    (is (= #{"content-type" "content-language"
+    (is (= #{"date"
+             "content-type" "content-language"
              "last-modified" "etag"
              "content-length"}
            (set (keys (:headers response)))))
@@ -76,10 +79,11 @@
         (demo/handler
          {:uri "/de/index.html"
           :request-method :get
-          :headers {"accept-language" "es, de=0.8"}})]
+          :headers {"accept-language" "es, de;q=0.8"}})]
     (is (= 200 status))
     (is (= "de" content-language))
-    (is (= #{"content-type" "content-language"
+    (is (= #{"date"
+             "content-type" "content-language"
              "last-modified" "etag"
              "content-length"}
            (set (keys (:headers response)))))))
@@ -102,7 +106,8 @@
     (is (= "text/html;charset=utf-8" content-type))
     (is (= "170" content-length))
     (is (= "en-US" content-language))
-    (is (= #{"content-type" "content-language"
+    (is (= #{"date"
+             "content-type" "content-language"
              "content-location"
              "last-modified" "etag"
              "content-length"
@@ -369,6 +374,163 @@
 
         _ (is (= 200 (:status put-v3-succeed)))]))
 
-(comment
-  (with-redefs [demo/*database (atom initial-db)]
-    ))
+(deftest accept-ranges-test
+  (let [{:keys [headers]}
+        (demo/handler
+         {:uri "/bytes.txt"
+          :request-method :get})]
+    (is (= "bytes, lines" (get headers "accept-ranges")))))
+
+(deftest single-byte-range-set-byte-range-spec-test
+  (let [{:keys [status headers]}
+        (demo/handler
+         {:uri "/bytes.txt"
+          :request-method :get
+          :headers {"range" "bytes=8-15"}})]
+    (is (= 206 status))
+    (is (= "8" (get headers "content-length")))
+    (is (= "bytes 8-15/800" (get headers "content-range")))))
+
+(deftest single-byte-range-set-suffix-byte-range-spec-test
+  (let [{:keys [status headers]}
+        (demo/handler
+         {:uri "/bytes.txt"
+          :request-method :get
+          :headers {"range" "bytes=-16"}})]
+    (is (= 206 status))
+    (is (= "16" (get headers "content-length")))
+    (is (= "bytes 784-799/800" (get headers "content-range")))))
+
+;; A single range spanning the whole representation is still served as a range
+(deftest single-byte-range-set-whole-representation-test
+  (let [{:keys [status headers]}
+        (demo/handler
+         {:uri "/bytes.txt"
+          :request-method :get
+          :headers {"range" "bytes=0-799"}})]
+    (is (= 206 status))
+    (is (= "800" (get headers "content-length")))
+    (is (= "bytes 0-799/800" (get headers "content-range")))))
+
+(deftest single-byte-range-absent-last-byte-pos-test
+  (let [{:keys [status headers] :as response}
+        (demo/handler
+         {:uri "/bytes.txt"
+          :request-method :get
+          :headers {"range" "bytes=10-"}})]
+    (is (= 206 status))
+    (is (= "790" (get headers "content-length")))
+    (is (= "bytes 10-799/800" (get headers "content-range")))
+    response))
+
+;; TODO: "A byte-range-spec is invalid if the last-byte-pos value is present and
+;; less than the first-byte-pos."
+
+(deftest single-byte-range-invalid-byte-pos-test
+  (let [{:keys [status headers] :as response}
+        (demo/handler
+         {:uri "/bytes.txt"
+          :request-method :get
+          :headers {"range" "bytes=20-10"}})]
+    (is (= 400 status))
+    response))
+
+(deftest if-range-test
+  (let [{:keys [status headers] :as response}
+        (demo/handler
+         {:uri "/bytes.txt"
+          :request-method :get
+          :headers {"if-range" "\"abc\""
+                    "range" "bytes=10-20"}})]
+    (is (= 206 status))))
+
+;; if-range doesn't match etag, therefore, return a full response (200)
+(deftest if-range-unmatched-test
+  (let [{:keys [status headers] :as response}
+        (demo/handler
+         {:uri "/bytes.txt"
+          :request-method :get
+          :headers {"if-range" "\"xyz\""
+                    "range" "bytes=10-20"}})]
+
+    (is (= 200 status))))
+
+(deftest if-range-weak-comparison-test
+  (let [{:keys [status]}
+        (demo/handler
+         {:uri "/bytes.txt"
+          :request-method :get
+          :headers {"if-range" "W/\"abc\""
+                    "range" "bytes=10-20"}})]
+    ;; if-range does match etag, but is weak, return a full response (200)
+    (is (= 200 status))))
+
+;; if-range does match date, return a partial response (206)
+(deftest if-range-date-matches-test
+  (let [{:keys [status]}
+        (demo/handler
+         {:uri "/bytes.txt"
+          :request-method :get
+          :headers {"if-range" "Thu, 31 Dec 2020 16:00:00 GMT"
+                    "range" "bytes=10-20"}})]
+    (is (= 206 status))))
+
+;; slightly earlier time in if-range, means client has not got the most recent
+;; representation, so a full one is served.
+(deftest if-range-date-not-matches-test
+  (let [{:keys [status]}
+        (demo/handler
+         {:uri "/bytes.txt"
+          :request-method :get
+          :headers {"if-range" "Thu, 31 Dec 2020 12:00:00 GMT"
+                    "range" "bytes=10-20"}})]
+    (is (= 200 status))))
+
+;; TODO: Now go back and read through all of RFC 7232 and RFC 7233, check and
+;; annotate source code. (pay attention to strong/weak comparison of if-range)
+
+(with-redefs [demo.app/*database (atom initial-db)]
+  )
+
+;;
+
+;; Need a lot more tests, below are some snippets and ideas.
+
+#_(comment
+  (evaluate-if-none-match!
+   {:headers {"if-none-match" "\"abc\",\"def\""}}
+   {::representations [^{"etag" "\"abc\""} {}]}
+   ^{"etag" "\"abc\""} {}))
+
+#_(comment
+  (evaluate-if-none-match!
+   {:headers {"if-none-match" "*"}}
+   {::representations [^{"etag" "\"abc\""} {}]}
+   ^{"etag" "\"abc\""} {}))
+
+#_(comment
+  (nil?
+   (evaluate-if-unmodified-since!
+    "Sat, 26 Dec 2020 17:08:50 GMT"
+    ^{"last-modified" "Sat, 26 Dec 2020 17:08:50 GMT"} {})))
+
+#_(comment
+  (evaluate-if-unmodified-since!
+   "Sat, 26 Dec 2020 17:08:40 GMT"
+   ^{"last-modified" "Sat, 26 Dec 2020 17:08:50 GMT"} {}))
+
+#_(comment
+  (evaluate-if-modified-since!
+   "Sat, 26 Dec 2020 17:00:00 GMT"
+   {"last-modified" "Sat, 26 Dec 2020 17:00:00 GMT"}))
+
+#_(comment
+  (evaluate-if-match!
+   {:headers {"if-match" "\"abc\",\"def\""}}
+   {::representations [(reify IRepresentation (metadata [_] {"etag" "\"abc\""}))]}
+   nil))
+
+(with-redefs [app/*database (atom initial-db)]
+  (demo/handler
+   {:uri "/en/index.html"
+    :request-method :get}))
