@@ -63,7 +63,7 @@
        :headers {"allow" (allow-header #{:get :head})}
        :body "Method Not Allowed\r\n"})))
 
-(defn check-current-representations! [current-representations]
+(defn check-not-found! [current-representations]
   (when (empty? current-representations)
     (throw
      (ex-info
@@ -72,7 +72,7 @@
        {:status 404
         :body "Not Found\r\n"}}))))
 
-(defn check-acceptable! [selected-representation]
+(defn check-not-acceptable! [selected-representation]
   (when-not selected-representation
     (throw
      (ex-info

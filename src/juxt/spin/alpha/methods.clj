@@ -8,15 +8,20 @@
     :refer [payload]]
    [juxt.reap.alpha.encoders :refer [format-http-date]]))
 
-(defn GET [request resource
-           date selected-representation selected-representation-metadata
-           current-representations vary
-           opts]
+(defn GET
+  "The GET method."
+  [request resource
+   date selected-representation selected-representation-metadata
+   current-representations vary
+   opts]
 
-  (spin/check-current-representations! current-representations)
+  ;; Check for a 404 Not Found
+  (spin/check-not-found! current-representations)
 
-  (spin/check-acceptable! selected-representation)
+  ;; Check for a 406 Not Acceptable
+  (spin/check-not-acceptable! selected-representation)
 
+  ;; Check for a 304 Not Modified
   (spin/evaluate-preconditions! request resource selected-representation-metadata)
 
   ;; "The Range header field is evaluated after evaluating the precondition
@@ -27,6 +32,8 @@
 
   (let [ranges-specifier (spin/request-range request resource selected-representation-metadata)
 
+        ;; Here we determine the status (optional), payload headers and body of
+        ;; the representation.
         {status :status
          payload-headers :headers
          body :body}
