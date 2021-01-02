@@ -8,6 +8,7 @@
             IRepresentation]]
    [clojure.string :as str]
    [hiccup.page :as hp]
+   [juxt.spin.alpha :as spin]
    [juxt.reap.alpha.encoders :refer [format-http-date]]
    [ring.core.protocols :refer [StreamableResponseBody]]))
 
@@ -38,7 +39,7 @@
          :let [n (second (re-matches #"/comments/(\d+)" path))]
          :when n]
      {:location path
-      :representation (first (::representations res))
+      :representation (first (::spin/representations res))
       :ordinal n})
    (sort-by :ordinal)))
 
@@ -50,8 +51,8 @@
          :resources
          assoc
          location
-         {::methods #{:get :put :delete}
-          ::representations [(make-comment comment)]})
+         {::spin/methods #{:get :put :delete}
+          ::spin/representations [(make-comment comment)]})
         (update :next-comment-id inc)
         (assoc :last-location location))))
 
@@ -64,15 +65,15 @@
   (or
    (some->
     (get-in db [:resources path])
-    (assoc ::path path))
+    (assoc ::spin/path path))
    (when (re-matches #"/articles/[a-z][a-z0-9-]*.adoc" path)
      ;; Return a resource that represents the missing article. This is the
      ;; resource that will be added to the database
-     {::path path
-      ::methods #{:get :head :put :options}
-      ::representations []
-      ::max-content-length 1024
-      ::acceptable
+     {::spin/path path
+      ::spin/methods #{:get :head :put :options}
+      ::spin/representations []
+      ::spin/max-content-length 1024
+      ::spin/acceptable
       {"accept" "text/asciidoc,text/plain"
        "accept-charset" "utf-8"}})))
 
@@ -82,15 +83,15 @@
      (if (string? rep)
        (current-representations db (get (:resources db) rep))
        [rep]))
-   (::representations resource)))
+   (::spin/representations resource)))
 
 (def *database
   (atom
    { ;; Resources - this contain methods, authorization details, and current representations.
     :resources
     {"/"
-     {::methods #{:get :head :options}
-      ::representations
+     {::spin/methods #{:get :head :options}
+      ::spin/representations
       [(make-char-sequence-representation
         (str
          (hp/html5 [:head [:meta {"http-equiv" "Refresh" "content" "0; URL=/index.html"}]])
@@ -102,15 +103,15 @@
                              format-http-date)})]}
 
      "/index.html"
-     {::methods #{:get :head :options}
-      ::representations
+     {::spin/methods #{:get :head :options}
+      ::spin/representations
       ["/en/index.html"
        "/de/index.html"
        "/es/index.html"]}
 
      "/en/index.html"
-     {::methods #{:get :head :options}
-      ::representations
+     {::spin/methods #{:get :head :options}
+      ::spin/representations
       [(index-page-representation
         "Welcome to the spin demo!"
         {"content-language" "en-US"
@@ -121,8 +122,8 @@
                              format-http-date)})]}
 
      "/de/index.html"
-     {::methods #{:get :head :options}
-      ::representations
+     {::spin/methods #{:get :head :options}
+      ::spin/representations
       [(index-page-representation
         "Willkommen zur Spin-Demo!"
         {"content-language" "de"
@@ -134,8 +135,8 @@
              format-http-date)})]}
 
      "/es/index.html"
-     {::methods #{:get :head :options}
-      ::representations
+     {::spin/methods #{:get :head :options}
+      ::spin/representations
       [(index-page-representation
         "¡Bienvenida a la demo de spin!"
         {"content-language" "es"
@@ -147,8 +148,8 @@
              format-http-date)})]}
 
      "/comments.html"
-     {::methods #{:get :head :options}
-      ::representations
+     {::spin/methods #{:get :head :options}
+      ::spin/representations
       [(reify
          IRepresentation
          (representation-metadata [_ date _]
@@ -177,8 +178,8 @@
                         (.write output-stream bytes)))})))]}
 
      "/comments.txt"
-     {::methods #{:get :head :options}
-      ::representations
+     {::spin/methods #{:get :head :options}
+      ::spin/representations
       [(reify
          IRepresentation
          (representation-metadata [_ date opts]
@@ -194,16 +195,16 @@
               :body (reify StreamableResponseBody
                       (write-body-to-stream [_ response output-stream]
                         (.write output-stream bytes)))})))]
-      ::accept-ranges ["bytes" "comments"]}
+      ::spin/accept-ranges ["bytes" "comments"]}
 
      "/comments"
-     {::methods #{:get :head :post :options}
-      ::representations
+     {::spin/methods #{:get :head :post :options}
+      ::spin/representations
       ["/comments.html" "/comments.txt"]}
 
      "/bytes.txt"
-     {::methods #{:get :head :options}
-      ::representations
+     {::spin/methods #{:get :head :options}
+      ::spin/representations
       [(let [limit (* 8 100)]
          (reify
            IRepresentation
@@ -235,7 +236,7 @@
 
       ;; to "indicate that it supports range requests for the target resource."
       ;; -- Section 2.3, RFC 7233
-      ::accept-ranges ["bytes" "lines"]}}
+      ::spin/accept-ranges ["bytes" "lines"]}}
 
     :next-comment-id 1}))
 

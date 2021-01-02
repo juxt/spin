@@ -32,7 +32,7 @@
       (and (map? header-field) (::rfc7232/wildcard header-field))
       ;; "… the condition is false if the origin server does not have a current
       ;; representation for the target resource."
-      (when (empty? (:demo.app/representations resource))
+      (when (empty? (::spin/representations resource))
         (throw
          (ex-info
           "If-Match precondition failed"
@@ -99,7 +99,7 @@
       (and (map? header-field) (::rfc7232/wildcard header-field))
       ;; "… the condition is false if the origin server has a current
       ;; representation for the target resource."
-      (when (seq (:demo.app/representations resource))
+      (when (seq (::spin/representations resource))
         (throw
          (ex-info
           "If-None-Match precondition failed"
@@ -175,7 +175,7 @@
     ))
 
 (defn request-range [request
-                     {:demo.app/keys [accept-ranges] :as resource}
+                     {::spin/keys [accept-ranges] :as resource}
                      selected-representation-metadata]
   (assert resource)
   (when-let [range-header-value (get-in request [:headers "range"])]
@@ -268,8 +268,8 @@
              (cond-> {}
                date (assoc "date" (format-http-date date))
 
-               (:demo.app/accept-ranges resource)
-               (assoc "accept-ranges" (str/join ", " (:demo.app/accept-ranges resource)))
+               (::spin/accept-ranges resource)
+               (assoc "accept-ranges" (str/join ", " (::spin/accept-ranges resource)))
 
                (seq vary) (assoc "vary" (str/join ", " vary))
 
@@ -283,9 +283,9 @@
       ;; Don't add body for a HEAD method
       (= (:request-method request) :get) (assoc :body body))))
 
-(defn POST [request resource date {:demo.app/keys [db-atom]}]
+(defn POST [request resource date {::spin/keys [db-atom]}]
 
-  (assert (= (:uri request) (:demo.app/path resource)))
+  (assert (= (:uri request) (::spin/path resource)))
 
   ;; Revisit - we should not encode knowledge of the URI structure here.
   (case (:uri request)
@@ -332,7 +332,7 @@
   enclosed in the request message payload. Neither argument can be nil."
   [request resource selected-representation-metadata date {:demo.app/keys [db-atom]}]
 
-  (assert (= (:uri request) (:demo.app/path resource)))
+  (assert (= (:uri request) (::spin/path resource)))
 
   ;; If resource just has one representation, we wish to put over it. We should
   ;; be able to do this in the general case.
@@ -346,7 +346,7 @@
         :body "Length Required\r\n"}})))
 
   (if-let [content-length (get-in request [:headers "content-length"])]
-    (when-let [max-content-length (:demo.app/max-content-length resource)]
+    (when-let [max-content-length (::spin/max-content-length resource)]
       (try
         (let [content-length (Long/parseLong content-length)]
           (when (> content-length max-content-length)
@@ -390,7 +390,7 @@
            "content-encoding"
            "content-language"]))]
 
-    (when-let [acceptable (:demo.app/acceptable resource)]
+    (when-let [acceptable (::spin/acceptable resource)]
       (let [prefs (headers->decoded-preferences acceptable)
             request-rep (rate-representation prefs decoded-representation)]
 
@@ -506,8 +506,8 @@
 
             new-resource
             (-> resource
-                (assoc :demo.app/representations [new-representation])
-                (dissoc :demo.app/path))]
+                (assoc ::spin/representations [new-representation])
+                (dissoc ::spin/path))]
 
         (swap!
          db-atom
@@ -530,14 +530,14 @@
 (defn DELETE [request resource selected-representation-metadata date {:demo.app/keys [db-atom]}]
   (swap! db-atom #(do
                     (evaluate-preconditions! request resource selected-representation-metadata)
-                    (update % :resources dissoc (:demo.app/path resource))))
+                    (update % :resources dissoc (::spin/path resource))))
   (cond-> {:status 200}
     date (assoc "date" (format-http-date date))
     true (assoc :body "Deleted\r\n")))
 
 (defn OPTIONS [_ resource _ _]
   ;; TODO: Implement *
-  (spin/options (:demo.app/methods resource)))
+  (spin/options (::spin/methods resource)))
 
 (defn make-handler [*database]
   (fn [request]
@@ -553,7 +553,7 @@
           ;; Check method allowed
           (when-let [response
                      (if resource
-                       (spin/method-not-allowed? request (:demo.app/methods resource))
+                       (spin/method-not-allowed? request (::spin/methods resource))
                        ;; We forbid POST, PUT and DELETE on a nil resource
                        (when (#{:put :delete :post} (:request-method request))
                          {:status 405

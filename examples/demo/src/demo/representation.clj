@@ -3,8 +3,7 @@
 (ns demo.representation
   (:require
    [clojure.pprint :as pp]
-   [juxt.reap.alpha.decoders :as reap]
-   ))
+   [juxt.reap.alpha.decoders :as reap]))
 
 ;; The separation of representation-metadata and payload is to allow
 ;; representation-metadata to be relatively inexpensive—it is called against
