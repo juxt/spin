@@ -4,7 +4,6 @@
 
 (ns demo.ranges
   (:require
-   [clojure.string :as str]
    [juxt.reap.alpha.encoders :refer [format-content-range]]
    [juxt.reap.alpha.rfc7233 :as rfc7233]))
 
@@ -31,7 +30,9 @@
   requiring the entire byte-array of the representation, therefore do not use
   for large byte arrays and instead implement a more efficient custom
   implementation (perhaps using this as a guide)."
-  [bytes {:juxt.reap.alpha.rfc7233/keys [units byte-range-set] :as range}]
+  [bytes
+   {::rfc7233/keys [units byte-range-set]}
+   representation-metadata]
 
   (assert range)
   (assert (= units "bytes"))
@@ -67,7 +68,7 @@
                               (->
                                (str
                                 (format "--%s\r\n" boundary)
-                                "Content-Type: text/plain;charset=US-ASCII\r\n"
+                                (format "Content-Type: %s\r\n" (get representation-metadata "content-type"))
                                 "Content-Range:"
                                 (format-content-range
                                  #:juxt.reap.alpha.rfc7233

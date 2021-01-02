@@ -252,9 +252,16 @@
   ;; words, Range is ignored when a conditional GET would result in a 304
   ;; (Not Modified) response.
 
-  (let [range (request-range request resource selected-representation-metadata)
-        {status :status payload-headers :headers body :body}
-        (payload selected-representation date range {:demo.app/db db})]
+  (let [ranges-specifier (request-range request resource selected-representation-metadata)
+
+        {status :status
+         payload-headers :headers
+         body :body}
+        (payload selected-representation
+                 selected-representation-metadata
+                 date
+                 ranges-specifier
+                 {:demo.app/db db})]
 
     (cond-> {:status (or status 200)
              :headers

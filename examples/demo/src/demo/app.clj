@@ -154,7 +154,7 @@
          (representation-metadata [_ date _]
            {"content-type" "text/html;charset=utf-8"
             "content-location" "/comments.html"})
-         (payload [_ date range {::keys [db]}]
+         (payload [_ _ date ranges-specifier {::keys [db]}]
            (let [bytes (.getBytes
                         (str
                          (hp/html5
@@ -184,7 +184,7 @@
          (representation-metadata [_ date opts]
            {"content-type" "text/plain;charset=utf-8"
             "content-location" "/comments.txt"})
-         (payload [_ date range {::keys [db]}]
+         (payload [_ _ date ranges-specifier {::keys [db]}]
            (assert db)
            (let [bytes (.getBytes
                         (str/join
@@ -211,13 +211,19 @@
              {"content-type" "text/plain;charset=US-ASCII"
               "etag" "\"abc\""
               "last-modified" (format-http-date #inst "2020-12-31T16:00:00Z")})
-           (payload [_ date {:juxt.reap.alpha.rfc7233/keys [units byte-range-set] :as range} {::keys [db]}]
+           (payload [_
+                     representation-metadata
+                     date
+                     {:juxt.reap.alpha.rfc7233/keys [units byte-range-set]
+                      :as ranges-specifier}
+                     {::keys [db]}]
              (let [bytes (.getBytes
                           (str/join (map #(format "%08d" %) (clojure.core/range 0 limit 8)))
                           "US-ASCII")]
-               (if range
+               (if ranges-specifier
                  (case units
-                   "bytes" (demo.ranges/byte-ranges-payload bytes range)
+                   "bytes" (demo.ranges/byte-ranges-payload
+                            bytes ranges-specifier representation-metadata)
                    "lines" (throw
                             (ex-info
                              "Unsupported range units (TODO)"

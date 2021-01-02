@@ -18,20 +18,22 @@
      metadata (etag, last-modified) that can be used as a 'validator' in a
      precondition. See Section 7.2 of RFC 7231 and all of RFC 7232.")
 
-  (payload [_ date range opts] "Return a map containing the representation data,
-  at the given date, as a StreamableResponseBody in :body and payload header
-  fields in :headers, including content-length, content-range, trailer and
-  transfer-encoding, see Sections 3.2 and 3.3 of RFC 7231. In some cases (such
-  as for multipart range responses) it is permissable to also provide
-  content-type. Usually the date is the time of 'message origination'.  is not
-  nil, return a partial payload."))
+  (payload [_ metadata date ranges-specifier opts]
+    "Return a map containing the representation data, at the given date, as a
+     StreamableResponseBody in :body and payload header fields in :headers,
+     including content-length, content-range, trailer and transfer-encoding, see
+     Sections 3.2 and 3.3 of RFC 7231. In some cases (such as for
+     multipart/byteranges responses) it is permissable to also override the
+     content-type. The representation's content-type is passed in the
+     representation-metadata argument. Usually the date is the time of 'message
+     origination'. If ranges-specifier is not nil, return a partial payload."))
 
 (defrecord ByteArrayRepresentation [representation-metadata
                                     payload-header-fields
                                     bytes]
   IRepresentation
   (representation-metadata [_ date opts] representation-metadata)
-  (payload [_ date range opts]
+  (payload [_ _ date range opts]
     {:headers payload-header-fields
      :body bytes}))
 
@@ -58,7 +60,7 @@
                                        charset]
   IRepresentation
   (representation-metadata [_ date opts] representation-metadata)
-  (payload [_ date range opts]
+  (payload [_ _ date range opts]
     {:headers payload-header-fields
      :body (.getBytes char-sequence charset)}))
 
