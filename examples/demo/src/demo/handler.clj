@@ -338,22 +338,13 @@
     (let [db @*database]
       (try
         ;; Check method implemented
-        (when-let [response (spin/not-implemented? request)]
-          (throw (ex-info "Method not implemented" {::spin/response response})))
+        (spin/check-method-not-implemented! request)
 
         ;; Locate the resource
         (let [resource (app/locate-resource db (:uri request))]
 
           ;; Check method allowed
-          (when-let [response
-                     (if resource
-                       (spin/method-not-allowed? request (::spin/methods resource))
-                       ;; We forbid POST, PUT and DELETE on a nil resource
-                       (when (#{:put :delete :post} (:request-method request))
-                         {:status 405
-                          :headers {"allow" (spin/allow-header #{:get :head})}
-                          :body "Method Not Allowed\r\n"}))]
-            (throw (ex-info "Method not allowed" {::spin/response response})))
+          (spin/check-method-not-allowed! request resource)
 
           (let [ ;; Fix the date, this will be used as the message origination
                  ;; date.
@@ -409,8 +400,7 @@
               (OPTIONS request resource date opts))))
 
         (catch clojure.lang.ExceptionInfo e
-          (tap> e)
-          (prn e)
+;;          (tap> e)
           (let [exdata (ex-data e)]
             (or
              (::spin/response exdata)

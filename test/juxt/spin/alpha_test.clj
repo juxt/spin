@@ -17,7 +17,12 @@
 
 (defn response-for
   ([h request]
-   (h request))
+   (try
+     (h request)
+     (catch clojure.lang.ExceptionInfo e
+       (if-let [exdata (ex-data e)]
+         (::spin/response exdata)
+         (throw e)))))
   ([h request keyseq]
    (let [keyseq (cond-> keyseq (seq (filter string? keyseq)) (conj :headers))]
      (cond-> (response-for h request)
@@ -26,19 +31,18 @@
        (seq (filter string? keyseq))
        (update :headers select-keys (filter string? keyseq))))))
 
-(deftest not-implemented-test
+(deftest check-not-implemented-test
   (testing "501 response for not implemented method"
     (is
      (=
       {:status 501}
       (response-for
        (fn [request]
-         (when-let [response (spin/not-implemented? request)]
-           response))
+         (spin/check-method-not-implemented! request))
        (request :brew "/")
        [:status])))))
 
-(deftest not-found-test
+(deftest check-not-found-test
   (testing "a 404 response if resource is an empty map"
     (is
      (=
@@ -46,36 +50,30 @@
       (response-for
        (fn [request]
          (or
-          (when-let [response (spin/not-implemented? request)]
-            response)
+          (spin/check-method-not-implemented! request)
           (case (:request-method request)
             (:head :get)
             (let [representation nil]
-              (when-let [response (spin/not-found? representation)]
-                response)))))
+              (spin/check-not-found! representation)))))
        (request :get "/")
        [:status])))))
 
-(deftest method-not-allowed-test
+(deftest check-method-not-allowed-test
   (testing "a 405 response if method not allowed"
-    (is
-     (=
-      {:status 405}
-
-      (response-for
-       (fn [request]
-
-         (when-let [response (spin/method-not-allowed? request #{:get})]
-           response))
-
-       (request :post "/")
-       [:status])))))
+    (let [resource {::spin/methods #{:get}}]
+      (is
+       (=
+        {:status 405 :headers {"allow" "GET"}}
+        (response-for
+         (fn [request]
+           (spin/check-method-not-allowed! request resource))
+         (request :post "/")
+         [:status "allow"]))))))
 
 (deftest get-and-head-test
-  (let [h (fn [request]
-
-            (when-let [response (spin/method-not-allowed? request #{:get})]
-              response)
+  (let [resource {::spin/methods #{:get :head}}
+        h (fn [request]
+            (spin/check-method-not-allowed! request resource)
 
             (case (:request-method request)
               (:head :get)
@@ -123,26 +121,11 @@
        (request :get "/")
        [:status])))))
 
-(deftest allow-test
-  (is
-   (=
-    {:status 405
-     :headers {"allow" "GET"}}
-    (response-for
-
-     (fn [request]
-       (when-let [response (spin/method-not-allowed? request #{:get})]
-         response))
-
-     (request :post "/")
-     [:status "allow"]))))
-
 (deftest post-test
-  (let [h (fn [request]
+  (let [resource {::spin/methods #{:post}}
+        h (fn [request]
             (or
-             (when-let [response (spin/method-not-allowed? request #{:post})]
-               response)
-
+             (spin/check-method-not-allowed! request resource)
              (spin/created "/new-resource")))]
 
     (testing "responds with 201 when new resource created"

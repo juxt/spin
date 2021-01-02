@@ -7,25 +7,32 @@
    [juxt.reap.alpha.rfc7231 :as rfc7231]
    [juxt.reap.alpha.rfc7232 :as rfc7232]))
 
-(defn not-implemented?
+(defn check-method-not-implemented!
   "When the request method is not implemented, return a 501 response."
   ([request]
-   (not-implemented? request #{:get :head :put :post :delete :options :trace :connect}))
+   (check-method-not-implemented! request #{:get :head :put :post :delete :options :trace :connect}))
   ([request methods]
-   (when-not
-       (contains?
-        methods
-        (:request-method request))
-     {:status 501 :body "Not Implemented\r\n"})))
+   (when-not (contains?
+              methods
+              (:request-method request))
+     (throw
+      (ex-info
+       "Method not implemented"
+       {::response
+        {:status 501 :body "Not Implemented\r\n"}})))))
 
 (defn ok []
   {:status 200})
 
-(defn not-found?
+(defn check-not-found!
   "When representation is nil, return a 404 response."
   [representation]
   (when-not representation
-    {:status 404 :body "Not Found\r\n"}))
+    (throw
+     (ex-info
+      "Not found"
+      {::response
+       {:status 404 :body "Not Found\r\n"}}))))
 
 (defn allow-header
   "Return the Allow response header value, given a set of method keywords."
@@ -37,12 +44,23 @@
    (map (comp str/upper-case name))
    (str/join ", ")))
 
-(defn method-not-allowed?
-  [request methods]
-  (let [method (:request-method request)]
-    (when-not (contains? methods method)
+(defn check-method-not-allowed!
+  [request resource]
+  (if resource
+    (let [methods (::methods resource)
+          method (:request-method request)]
+      (when-not (contains? methods method)
+        (throw
+         (ex-info
+          "Method not allowed"
+          {::response
+           {:status 405
+            :headers {"allow" (allow-header methods)}
+            :body "Method Not Allowed\r\n"}}))))
+    ;; We forbid POST, PUT and DELETE on a nil resource
+    (when (#{:put :delete :post} (:request-method request))
       {:status 405
-       :headers {"allow" (allow-header methods)}
+       :headers {"allow" (allow-header #{:get :head})}
        :body "Method Not Allowed\r\n"})))
 
 (defn head? [request]
