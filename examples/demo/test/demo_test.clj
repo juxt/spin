@@ -426,7 +426,7 @@
     response))
 
 (deftest single-byte-range-invalid-byte-pos-test
-  (let [{:keys [status headers] :as response}
+  (let [{:keys [status] :as response}
         (demo/handler
          {:uri "/bytes.txt"
           :request-method :get
@@ -435,7 +435,7 @@
     response))
 
 (deftest if-range-test
-  (let [{:keys [status headers] :as response}
+  (let [{:keys [status]}
         (demo/handler
          {:uri "/bytes.txt"
           :request-method :get
@@ -445,7 +445,7 @@
 
 ;; if-range doesn't match etag, therefore, return a full response (200)
 (deftest if-range-unmatched-test
-  (let [{:keys [status headers] :as response}
+  (let [{:keys [status]}
         (demo/handler
          {:uri "/bytes.txt"
           :request-method :get

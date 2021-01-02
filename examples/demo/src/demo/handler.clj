@@ -17,7 +17,6 @@
    [juxt.reap.alpha.encoders :refer [format-http-date]]
    [juxt.reap.alpha.rfc7231 :as rfc7231]
    [juxt.reap.alpha.rfc7232 :as rfc7232]
-   [juxt.reap.alpha.rfc7233 :as rfc7233]
    [juxt.spin.alpha :as spin]))
 
 (defn evaluate-if-match!
@@ -178,6 +177,7 @@
 (defn request-range [request
                      {:demo.app/keys [accept-ranges] :as resource}
                      selected-representation-metadata]
+  (assert resource)
   (when-let [range-header-value (get-in request [:headers "range"])]
     (let [parsed-range
           (try
@@ -222,10 +222,10 @@
           ;; No If-Range header.
           parsed-range)))))
 
-(defn GET [request {:demo.app/keys [accept-ranges] :as resource}
+(defn GET [request resource
            date selected-representation selected-representation-metadata
            current-representations vary
-           {:demo.app/keys [db]}]
+           opts]
 
   (when (empty? current-representations)
     (throw
@@ -261,7 +261,7 @@
                  selected-representation-metadata
                  date
                  ranges-specifier
-                 {:demo.app/db db})]
+                 opts)]
 
     (cond-> {:status (or status 200)
              :headers
