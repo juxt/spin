@@ -498,48 +498,5 @@
 ;; TODO: Now go back and read through all of RFC 7232 and RFC 7233, check and
 ;; annotate source code. (pay attention to strong/weak comparison of if-range)
 
-(with-redefs [demo.app/*database (atom initial-db)]
+#_(with-redefs [demo.app/*database (atom initial-db)]
   )
-
-;;
-
-;; Need a lot more tests, below are some snippets and ideas.
-
-#_(comment
-    (evaluate-if-none-match!
-     {:headers {"if-none-match" "\"abc\",\"def\""}}
-     {::representations [^{"etag" "\"abc\""} {}]}
-     ^{"etag" "\"abc\""} {}))
-
-#_(comment
-  (evaluate-if-none-match!
-   {:headers {"if-none-match" "*"}}
-   {::representations [^{"etag" "\"abc\""} {}]}
-   ^{"etag" "\"abc\""} {}))
-
-#_(comment
-  (nil?
-   (evaluate-if-unmodified-since!
-    "Sat, 26 Dec 2020 17:08:50 GMT"
-    ^{"last-modified" "Sat, 26 Dec 2020 17:08:50 GMT"} {})))
-
-#_(comment
-  (evaluate-if-unmodified-since!
-   "Sat, 26 Dec 2020 17:08:40 GMT"
-   ^{"last-modified" "Sat, 26 Dec 2020 17:08:50 GMT"} {}))
-
-#_(comment
-  (evaluate-if-modified-since!
-   "Sat, 26 Dec 2020 17:00:00 GMT"
-   {"last-modified" "Sat, 26 Dec 2020 17:00:00 GMT"}))
-
-#_(comment
-  (evaluate-if-match!
-   {:headers {"if-match" "\"abc\",\"def\""}}
-   {::representations [(reify IRepresentation (metadata [_] {"etag" "\"abc\""}))]}
-   nil))
-
-(with-redefs [app/*database (atom initial-db)]
-  (demo/handler
-   {:uri "/en/index.html"
-    :request-method :get}))
