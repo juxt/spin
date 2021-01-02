@@ -253,8 +253,3 @@
        (add-comment "How about a form?"))))
 
 "ns successfully loaded"
-
-;; TODO: Multiple ranges
-;; TODO: If-Range
-;; TODO: Tests for all in demo-test !!
-;; TODO: Promote code from demo to spin

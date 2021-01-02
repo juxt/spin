@@ -271,17 +271,40 @@
     (is (= article (get-body-str response)))))
 
 (deftest if-match-precondition-star-test
-  (let [article-v1 "= Test Article\r\n"
-        response-1
+  (let [article "= Test Article\r\n"
+        response
         (demo/handler
          {:uri "/articles/test.adoc"
           :request-method :put
-          :headers {"content-length" (str (count (.getBytes article-v1)))
+          :headers {"content-length" (str (count (.getBytes article)))
                     "content-type" "text/asciidoc;charset=utf-8"
                     "if-match" "*"}
-          :body (new java.io.ByteArrayInputStream (.getBytes article-v1))})]
+          :body (new java.io.ByteArrayInputStream (.getBytes article))})]
 
-    (is (= 412 (:status response-1)))))
+    (is (= 412 (:status response))))
+
+  (let [article "= Test Article\r\n"
+        response
+        (demo/handler
+         {:uri "/articles/test.adoc"
+          :request-method :put
+          :headers {"content-length" (str (count (.getBytes article)))
+                    "content-type" "text/asciidoc;charset=utf-8"}
+          :body (new java.io.ByteArrayInputStream (.getBytes article))})]
+
+    (is (= 200 (:status response))))
+
+  (let [article "= Test Article\r\n"
+        response
+        (demo/handler
+         {:uri "/articles/test.adoc"
+          :request-method :put
+          :headers {"content-length" (str (count (.getBytes article)))
+                    "content-type" "text/asciidoc;charset=utf-8"
+                    "if-match" "*"}
+          :body (new java.io.ByteArrayInputStream (.getBytes article))})]
+
+    (is (= 200 (:status response)))))
 
 (deftest if-match-precondition-test
   (let [article-v1 "= Test Article\r\n"
@@ -373,6 +396,31 @@
           :body (new java.io.ByteArrayInputStream (.getBytes article-v3))})
 
         _ (is (= 200 (:status put-v3-succeed)))]))
+
+(deftest if-none-match-start-test
+  (let [article "= Test Article\r\n"
+        response
+        (demo/handler
+         {:uri "/articles/test.adoc"
+          :request-method :put
+          :headers {"content-length" (str (count (.getBytes article)))
+                    "content-type" "text/asciidoc;charset=utf-8"
+                    "if-none-match" "*"}
+          :body (new java.io.ByteArrayInputStream (.getBytes article))})]
+
+    (is (= 200 (:status response))))
+
+  (let [article "= Test Article\r\n"
+        response
+        (demo/handler
+         {:uri "/articles/test.adoc"
+          :request-method :put
+          :headers {"content-length" (str (count (.getBytes article)))
+                    "content-type" "text/asciidoc;charset=utf-8"
+                    "if-none-match" "*"}
+          :body (new java.io.ByteArrayInputStream (.getBytes article))})]
+
+    (is (= 412 (:status response)))))
 
 ;; RFC 7233 tests
 
@@ -497,6 +545,7 @@
 
 ;; TODO: Now go back and read through all of RFC 7232 and RFC 7233, check and
 ;; annotate source code. (pay attention to strong/weak comparison of if-range)
+
 
 #_(with-redefs [demo.app/*database (atom initial-db)]
   )

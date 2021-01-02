@@ -32,7 +32,7 @@
       (and (map? header-field) (::rfc7232/wildcard header-field))
       ;; "… the condition is false if the origin server does not have a current
       ;; representation for the target resource."
-      (when (empty? (::representations resource))
+      (when (empty? (:demo.app/representations resource))
         (throw
          (ex-info
           "If-Match precondition failed"
@@ -99,7 +99,7 @@
       (and (map? header-field) (::rfc7232/wildcard header-field))
       ;; "… the condition is false if the origin server has a current
       ;; representation for the target resource."
-      (when (seq (::representations resource))
+      (when (seq (:demo.app/representations resource))
         (throw
          (ex-info
           "If-None-Match precondition failed"
@@ -113,7 +113,7 @@
               :body "Not Modified\r\n"}
              ;; "… or 412 (Precondition Failed) status code for all other
              ;; request methods."
-             {:status 304
+             {:status 412
               :body "Precondition Failed\r\n"})}))))))
 
 (defn evaluate-if-unmodified-since! [if-unmodified-since representation-metadata]
