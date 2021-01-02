@@ -188,7 +188,7 @@
               (throw
                (ex-info
                 "Bad Range header value"
-                {:range range-header-value
+                {::range range-header-value
                  ::response {:status 400
                              :body "Bad Range header value\r\n"}}
                 e))))]
