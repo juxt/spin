@@ -57,39 +57,48 @@
                :body body}))
 
     ;; There are multiple ranges requested
-    (let [boundary (apply str (map char (repeatedly 32 #(rand-nth (clojure.core/range (int \a) (inc (int \z)))))))]
-      {:status 206
-       :headers {"content-type" (format "multipart/byteranges; boundary=%s" boundary)}
-       :body (new java.io.SequenceInputStream
-                  (java.util.Collections/enumeration
-                   (concat
+    (let [boundary (apply str (map char (repeatedly 32 #(rand-nth (clojure.core/range (int \a) (inc (int \z)))))))
+          segments (concat
                     (mapcat
                      seq
                      (for [spec byte-range-set
                            :let [{:keys [first-byte-pos last-byte-pos]} (evaluate-spec spec (count bytes))]]
-                       [(new java.io.ByteArrayInputStream
-                             (->
-                              (str
-                               (format "--%s\r\n" boundary)
-                               "Content-Type: text/plain;charset=US-ASCII\r\n"
-                               "Content-Range:"
-                               (format-content-range
-                                #:juxt.reap.alpha.rfc7233
-                                {:units "bytes"
-                                 :first-byte-pos first-byte-pos
-                                 :last-byte-pos last-byte-pos
-                                 :complete-length (count bytes)})
-                               "\r\n"
-                               "\r\n")
-                              (.getBytes "US-ASCII")))
+                       [(let [part-bytes
+                              (->
+                               (str
+                                (format "--%s\r\n" boundary)
+                                "Content-Type: text/plain;charset=US-ASCII\r\n"
+                                "Content-Range:"
+                                (format-content-range
+                                 #:juxt.reap.alpha.rfc7233
+                                 {:units "bytes"
+                                  :first-byte-pos first-byte-pos
+                                  :last-byte-pos last-byte-pos
+                                  :complete-length (count bytes)})
+                                "\r\n"
+                                "\r\n")
+                               (.getBytes "US-ASCII"))]
+                          {:length (count part-bytes)
+                           :stream (new java.io.ByteArrayInputStream part-bytes)})
 
-                        (new java.io.ByteArrayInputStream
-                             bytes first-byte-pos (inc (- last-byte-pos first-byte-pos)))
+                        (let [len (inc (- last-byte-pos first-byte-pos))]
+                          {:length len
+                           :stream (new java.io.ByteArrayInputStream bytes first-byte-pos len)})
 
-                        (new java.io.ByteArrayInputStream
-                             (.getBytes "\r\n" "US-ASCII"))]))
+                        {:length 2
+                         :stream (new java.io.ByteArrayInputStream (.getBytes "\r\n" "US-ASCII"))}]))
 
-                    [(new java.io.ByteArrayInputStream
-                          (->
-                           (format "--%s--\r\n" boundary)
-                           (.getBytes "US-ASCII")))])))})))
+                    [(let [part-bytes (->
+                                       (format "--%s--\r\n" boundary)
+                                       (.getBytes "US-ASCII"))]
+                       {:length (count part-bytes)
+                        :stream (new java.io.ByteArrayInputStream part-bytes)})])
+          content-length (reduce + (map :length segments))]
+
+      {:status 206
+       :headers {"content-type" (format "multipart/byteranges; boundary=%s" boundary)
+                 "content-length" (str content-length)}
+       :body (new java.io.SequenceInputStream
+                  (java.util.Collections/enumeration
+                   (map :stream segments)
+                   ))})))

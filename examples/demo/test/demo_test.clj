@@ -493,7 +493,7 @@
 
     (is (= 206 status))
     (is (re-matches #"^multipart/byteranges; boundary=.*" (get-in response [:headers "content-type"])))
-    response))
+    (is (=  "288" (get-in response [:headers "content-length"])))))
 
 ;; TODO: Now go back and read through all of RFC 7232 and RFC 7233, check and
 ;; annotate source code. (pay attention to strong/weak comparison of if-range)
