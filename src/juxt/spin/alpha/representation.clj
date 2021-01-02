@@ -1,6 +1,6 @@
 ;; Copyright © 2020, JUXT LTD.
 
-(ns demo.representation
+(ns juxt.spin.alpha.representation
   (:require
    [clojure.pprint :as pp]
    [juxt.reap.alpha.decoders :as reap]))

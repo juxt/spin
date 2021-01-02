@@ -2,8 +2,8 @@
 
 (ns demo.app
   (:require
-   demo.ranges
-   [demo.representation
+   [juxt.spin.alpha.ranges :as ranges]
+   [juxt.spin.alpha.representation
     :refer [make-char-sequence-representation
             IRepresentation]]
    [clojure.string :as str]
@@ -223,7 +223,7 @@
                           "US-ASCII")]
                (if ranges-specifier
                  (case units
-                   "bytes" (demo.ranges/byte-ranges-payload
+                   "bytes" (ranges/byte-ranges-payload
                             bytes ranges-specifier representation-metadata)
                    "lines" (throw
                             (ex-info

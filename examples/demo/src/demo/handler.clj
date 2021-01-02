@@ -3,79 +3,18 @@
 (ns demo.handler
   (:require
    [demo.app :as app]
-   [clojure.string :as str]
    [clojure.java.io :as io]
-   [demo.representation
+   [juxt.spin.alpha.representation
     :refer [make-byte-array-representation
             make-char-sequence-representation
-            representation-metadata
-            payload]]
+            representation-metadata]]
+   [juxt.spin.alpha.methods
+    :refer [GET]]
    [juxt.pick.alpha.core :refer [rate-representation]]
    [juxt.pick.alpha.ring :refer [pick decode-maybe]]
    [juxt.reap.alpha.ring :refer [headers->decoded-preferences]]
    [juxt.reap.alpha.encoders :refer [format-http-date]]
    [juxt.spin.alpha :as spin]))
-
-(defn GET [request resource
-           date selected-representation selected-representation-metadata
-           current-representations vary
-           opts]
-
-  (when (empty? current-representations)
-    (throw
-     (ex-info
-      "Not Found"
-      {::spin/response
-       {:status 404
-        :body "Not Found\r\n"}})))
-
-  (when-not selected-representation
-    (throw
-     (ex-info
-      "Not Acceptable"
-      { ;; TODO: Must add list of available representations
-       ::spin/response
-       {:status 406
-        :body "Not Acceptable\r\n"}})))
-
-  (spin/evaluate-preconditions! request resource selected-representation-metadata)
-
-  ;; "The Range header field is evaluated after evaluating the precondition
-  ;; header fields defined in [RFC7232], and only if the result in absence
-  ;; of the Range header field would be a 200 (OK) response.  In other
-  ;; words, Range is ignored when a conditional GET would result in a 304
-  ;; (Not Modified) response.
-
-  (let [ranges-specifier (spin/request-range request resource selected-representation-metadata)
-
-        {status :status
-         payload-headers :headers
-         body :body}
-        (payload selected-representation
-                 selected-representation-metadata
-                 date
-                 ranges-specifier
-                 opts)]
-
-    (cond-> {:status (or status 200)
-             :headers
-             (cond-> {}
-               date (assoc "date" (format-http-date date))
-
-               (::spin/accept-ranges resource)
-               (assoc "accept-ranges" (str/join ", " (::spin/accept-ranges resource)))
-
-               (seq vary) (assoc "vary" (str/join ", " vary))
-
-               selected-representation-metadata (merge selected-representation-metadata)
-
-               (= (get selected-representation-metadata "content-location") (:uri request))
-               (dissoc "content-location")
-
-               payload-headers (merge payload-headers))}
-
-      ;; Don't add body for a HEAD method
-      (= (:request-method request) :get) (assoc :body body))))
 
 (defn POST [request resource date {::spin/keys [db-atom]}]
 

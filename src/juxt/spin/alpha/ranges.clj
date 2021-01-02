@@ -1,8 +1,6 @@
 ;; Copyright © 2020, JUXT LTD.
 
-;; The intention here is to promote this into skip
-
-(ns demo.ranges
+(ns juxt.spin.alpha.ranges
   (:require
    [juxt.reap.alpha.encoders :refer [format-content-range]]
    [juxt.reap.alpha.rfc7233 :as rfc7233]
