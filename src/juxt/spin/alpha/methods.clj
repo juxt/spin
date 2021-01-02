@@ -15,14 +15,7 @@
 
   (spin/check-current-representations! current-representations)
 
-  (when-not selected-representation
-    (throw
-     (ex-info
-      "Not Acceptable"
-      { ;; TODO: Must add list of available representations
-       ::spin/response
-       {:status 406
-        :body "Not Acceptable\r\n"}})))
+  (spin/check-acceptable! selected-representation)
 
   (spin/evaluate-preconditions! request resource selected-representation-metadata)
 

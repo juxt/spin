@@ -72,6 +72,16 @@
        {:status 404
         :body "Not Found\r\n"}}))))
 
+(defn check-acceptable! [selected-representation]
+  (when-not selected-representation
+    (throw
+     (ex-info
+      "Not Acceptable"
+      { ;; TODO: Must add list of available representations
+       ::response
+       {:status 406
+        :body "Not Acceptable\r\n"}}))))
+
 (defn head? [request]
   (= (:request-method request) :head))
 
