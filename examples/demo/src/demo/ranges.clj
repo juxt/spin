@@ -5,7 +5,8 @@
 (ns demo.ranges
   (:require
    [juxt.reap.alpha.encoders :refer [format-content-range]]
-   [juxt.reap.alpha.rfc7233 :as rfc7233]))
+   [juxt.reap.alpha.rfc7233 :as rfc7233]
+   [juxt.spin.alpha :as spin]))
 
 (defn evaluate-spec [{:juxt.reap.alpha.rfc7233/keys [first-byte-pos last-byte-pos suffix-length]} total-byte-count]
   (let [first-byte-pos (or first-byte-pos (- total-byte-count suffix-length))
@@ -17,7 +18,7 @@
       (throw
        (ex-info
         "Invalid range"
-        {:demo.handler/response
+        {::spin/response
          {:status 400
           :body "Invalid range\r\n"}})))
 

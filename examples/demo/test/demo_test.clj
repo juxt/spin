@@ -548,4 +548,8 @@
 
 
 #_(with-redefs [demo.app/*database (atom initial-db)]
+  (demo/handler
+         {:uri "/en/index.html"
+          :request-method :get
+          :headers {"if-modified-since" "Fri, 25 Dec 2020 09:00:00 GMT"}})
   )
