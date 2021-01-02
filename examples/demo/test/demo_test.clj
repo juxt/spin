@@ -374,6 +374,8 @@
 
         _ (is (= 200 (:status put-v3-succeed)))]))
 
+;; RFC 7233 tests
+
 (deftest accept-ranges-test
   (let [{:keys [headers]}
         (demo/handler
@@ -423,9 +425,6 @@
     (is (= "bytes 10-799/800" (get headers "content-range")))
     response))
 
-;; TODO: "A byte-range-spec is invalid if the last-byte-pos value is present and
-;; less than the first-byte-pos."
-
 (deftest single-byte-range-invalid-byte-pos-test
   (let [{:keys [status headers] :as response}
         (demo/handler
@@ -452,7 +451,6 @@
           :request-method :get
           :headers {"if-range" "\"xyz\""
                     "range" "bytes=10-20"}})]
-
     (is (= 200 status))))
 
 (deftest if-range-weak-comparison-test
@@ -486,16 +484,22 @@
                     "range" "bytes=10-20"}})]
     (is (= 200 status))))
 
-;; TODO: Now go back and read through all of RFC 7232 and RFC 7233, check and
-;; annotate source code. (pay attention to strong/weak comparison of if-range)
-
-(with-redefs [demo.app/*database (atom initial-db)]
+(deftest multiple-byte-specs-test
   (let [{:keys [status] :as response}
         (demo/handler
          {:uri "/bytes.txt"
           :request-method :get
-          :headers {"range" "bytes=20-40,60-100"}})]
+          :headers {"range" "bytes=10-20,30-40"}})]
+
+    (is (= 206 status))
+    (is (re-matches #"^multipart/byteranges; boundary=.*" (get-in response [:headers "content-type"])))
     response))
+
+;; TODO: Now go back and read through all of RFC 7232 and RFC 7233, check and
+;; annotate source code. (pay attention to strong/weak comparison of if-range)
+
+(with-redefs [demo.app/*database (atom initial-db)]
+  )
 
 ;;
 
