@@ -2,12 +2,13 @@
 
 (ns demo.app
   (:require
+   demo.ranges
    [demo.representation
     :refer [make-char-sequence-representation
             IRepresentation]]
    [clojure.string :as str]
    [hiccup.page :as hp]
-   [juxt.reap.alpha.encoders :refer [format-http-date format-content-range]]
+   [juxt.reap.alpha.encoders :refer [format-http-date]]
    [ring.core.protocols :refer [StreamableResponseBody]]))
 
 (defn make-comment [comment]
@@ -216,55 +217,12 @@
                           "US-ASCII")]
                (if range
                  (case units
-                   "bytes"
-                   (if (= (count byte-range-set) 1)
-                     (let [{:juxt.reap.alpha.rfc7233/keys
-                            [first-byte-pos last-byte-pos suffix-length]} (first byte-range-set)
-                           first-byte-pos (or first-byte-pos (- (count bytes) suffix-length))
-                           last-byte-pos (if (or (nil? last-byte-pos) (>= last-byte-pos (count bytes)))
-                                           (dec (count bytes))
-                                           last-byte-pos)
-
-                           _ (when (< last-byte-pos first-byte-pos)
-                               (throw
-                                (ex-info
-                                 "Invalid range"
-                                 {:demo.handler/response
-                                  {:status 400
-                                   :body "Invalid range\r\n"}})))
-
-                           len (or suffix-length (inc (- last-byte-pos first-byte-pos)))
-
-                           body (.toByteArray
-                                 (doto (new java.io.ByteArrayOutputStream)
-                                   (.write bytes first-byte-pos len)))]
-
-
-                       (cond-> {:status 206
-                                :headers
-                                {"content-length" (str len)
-                                 "content-range"
-                                 (format-content-range
-                                  #:juxt.reap.alpha.rfc7233{:units "bytes"
-                                                            :first-byte-pos first-byte-pos
-                                                            :last-byte-pos last-byte-pos
-                                                            :complete-length (count bytes)})}
-                                :body body}))
-
-                     ;; There are multiple ranges requested
-                     (throw
-                      (ex-info
-                       "Don't yet do multiple ranges"
-                       {:demo.handler/response
-                        {:status 501
-                         :body "Don't yet do multiple ranges\r\n"}})))
-
-                   ;; Units is not 'bytes'
-                   (throw
-                    (ex-info
-                     "Unsupported range units (TODO)"
-                     {:demo.handler/response
-                      {:status 500 :body (format "TODO: Suppose range units of %s\r\n" units)}})))
+                   "bytes" (demo.ranges/byte-ranges-payload bytes range)
+                   "lines" (throw
+                            (ex-info
+                             "Unsupported range units (TODO)"
+                             {:demo.handler/response
+                              {:status 500 :body (format "TODO: Support range units of %s\r\n" units)}})))
 
                  {:headers {"content-length" (str (count bytes))}
                   :body bytes})))))]

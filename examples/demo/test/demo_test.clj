@@ -490,17 +490,22 @@
 ;; annotate source code. (pay attention to strong/weak comparison of if-range)
 
 (with-redefs [demo.app/*database (atom initial-db)]
-  )
+  (let [{:keys [status] :as response}
+        (demo/handler
+         {:uri "/bytes.txt"
+          :request-method :get
+          :headers {"range" "bytes=20-40,60-100"}})]
+    response))
 
 ;;
 
 ;; Need a lot more tests, below are some snippets and ideas.
 
 #_(comment
-  (evaluate-if-none-match!
-   {:headers {"if-none-match" "\"abc\",\"def\""}}
-   {::representations [^{"etag" "\"abc\""} {}]}
-   ^{"etag" "\"abc\""} {}))
+    (evaluate-if-none-match!
+     {:headers {"if-none-match" "\"abc\",\"def\""}}
+     {::representations [^{"etag" "\"abc\""} {}]}
+     ^{"etag" "\"abc\""} {}))
 
 #_(comment
   (evaluate-if-none-match!

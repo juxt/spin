@@ -21,8 +21,10 @@
   (payload [_ date range opts] "Return a map containing the representation data,
   at the given date, as a StreamableResponseBody in :body and payload header
   fields in :headers, including content-length, content-range, trailer and
-  transfer-encoding, see Sections 3.2 and 3.3 of RFC 7231. Usually the date is
-  the time of 'message origination'.  is not nil, return a partial payload."))
+  transfer-encoding, see Sections 3.2 and 3.3 of RFC 7231. In some cases (such
+  as for multipart range responses) it is permissable to also provide
+  content-type. Usually the date is the time of 'message origination'.  is not
+  nil, return a partial payload."))
 
 (defrecord ByteArrayRepresentation [representation-metadata
                                     payload-header-fields
