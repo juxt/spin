@@ -13,13 +13,7 @@
            current-representations vary
            opts]
 
-  (when (empty? current-representations)
-    (throw
-     (ex-info
-      "Not Found"
-      {::spin/response
-       {:status 404
-        :body "Not Found\r\n"}})))
+  (spin/check-current-representations! current-representations)
 
   (when-not selected-representation
     (throw
