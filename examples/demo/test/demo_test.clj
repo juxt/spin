@@ -6,10 +6,9 @@
    [clojure.test :refer [deftest is use-fixtures]]
    [ring.core.protocols :refer [write-body-to-stream]]
    [clojure.pprint :refer [pprint]]
-   [demo :as demo]
-   [demo.app :as app]))
+   [demo :as demo]))
 
-(def initial-db @demo.app/*database)
+(def initial-db @demo/*database)
 
 (defmacro run [& body]
   `(do
@@ -19,7 +18,7 @@
      (remove-tap pprint)))
 
 (defn fix-database [f]
-  (with-redefs [app/*database (atom initial-db)]
+  (with-redefs [demo/*database (atom initial-db)]
     (f)))
 
 (defn tap-errors [f]
