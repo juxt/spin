@@ -261,14 +261,7 @@
   "The GET method."
   [request resource
    date selected-representation selected-representation-metadata
-   current-representations
    opts]
-
-  ;; Check for a 404 Not Found
-  (spin/check-not-found! current-representations)
-
-  ;; Check for a 406 Not Acceptable
-  (spin/check-not-acceptable! selected-representation)
 
   ;; Check for a 304 Not Modified
   (spin/evaluate-preconditions! request resource selected-representation-metadata)
@@ -411,6 +404,10 @@
                 ;; Get the 'current' representations of the resource.
                 current-representations (current-representations db resource)
 
+                ;; Check for a 404 Not Found
+                _ (when (contains? #{:get :head} (:request-method request))
+                    (spin/check-not-found! current-representations))
+
                 opts {::db-atom *database}
 
                 ;; Negotiate the best representation, determining the vary
@@ -430,6 +427,10 @@
 
                 selected-representation (::attached-representation representation-metadata)
 
+                ;; Check for a 406 Not Acceptable
+                _ (when (contains? #{:get :head} (:request-method request))
+                    (spin/check-not-acceptable! selected-representation))
+
                 representation-metadata
                 (as-> representation-metadata %
                   (dissoc % ::attached-representation)
@@ -437,7 +438,8 @@
                   (filter (comp string? first) %)
                   (into {} %))
 
-                ;; Pin the vary header
+                ;; Pin the vary header onto the selected representation's
+                ;; metadata
                 representation-metadata
                 (cond-> representation-metadata
                   (and representation-metadata (seq vary))
@@ -448,7 +450,6 @@
               (:get :head)
               (GET request resource
                    date selected-representation representation-metadata
-                   current-representations
                    {::db db})
 
               :post
