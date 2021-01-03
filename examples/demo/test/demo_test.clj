@@ -545,10 +545,8 @@
 ;; TODO: Now go back and read through all of RFC 7232 and RFC 7233, check and
 ;; annotate source code. (pay attention to strong/weak comparison of if-range)
 
-
-#_(with-redefs [demo.app/*database (atom initial-db)]
-  (demo/handler
-         {:uri "/en/index.html"
-          :request-method :get
-          :headers {"if-modified-since" "Fri, 25 Dec 2020 09:00:00 GMT"}})
-  )
+#_(with-redefs [demo/*database (atom initial-db)]
+    (demo/handler
+     {:uri "/en/index.html"
+      :request-method :get
+      :headers {"if-modified-since" "Fri, 25 Dec 2020 09:00:00 GMT"}}))
