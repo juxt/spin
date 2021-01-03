@@ -5,13 +5,13 @@
    [clojure.java.io :as io]
    [clojure.string :as str]
    [hiccup.page :as hp]
-   [juxt.pick.alpha.ring :refer [pick]]
    [juxt.reap.alpha.encoders :refer [format-http-date]]
    [juxt.spin.alpha.ranges :as ranges]
    [juxt.spin.alpha.representation :refer [representation-metadata
                                            make-char-sequence-representation
                                            IRepresentation
                                            payload]]
+   [juxt.spin.alpha.negotiation :as spin.negotiation]
    [juxt.spin.alpha :as spin]
    [ring.adapter.jetty :as jetty]
    [ring.core.protocols :refer [StreamableResponseBody]]))
@@ -408,41 +408,10 @@
                 _ (when (contains? #{:get :head} (:request-method request))
                     (spin/check-not-found! current-representations))
 
-                ;; Negotiate the best representation, determining the vary
-                ;; header.
-                {selected-representation-metadata :juxt.pick.alpha/representation
-                 vary :juxt.pick.alpha/vary}
-                (when (seq current-representations)
-                  ;; Call into pick which does that actual content-negotation
-                  ;; for us.
-                  (pick
-                   request
-                   (for [r current-representations]
-                     (-> r
-                         (representation-metadata date {::db db})
-                         (assoc ::attached-representation r)))
-                   {:juxt.pick.alpha/vary? true}))
-
-                selected-representation
-                (::attached-representation selected-representation-metadata)
-
-                ;; Check for a 406 Not Acceptable
-                _ (when (contains? #{:get :head} (:request-method request))
-                    (spin/check-not-acceptable! selected-representation))
-
-                selected-representation-metadata
-                (as-> selected-representation-metadata %
-                  (dissoc % ::attached-representation)
-                  ;; Remove the extraneous keyword entries added by pick.
-                  (filter (comp string? first) %)
-                  (into {} %))
-
-                ;; Pin the vary header onto the selected representation's
-                ;; metadata
-                selected-representation-metadata
-                (cond-> selected-representation-metadata
-                  (and selected-representation-metadata (seq vary))
-                  (assoc "vary" (str/join ", " vary)))]
+                ;; Negotiate the best representation
+                {:keys [selected-representation
+                        selected-representation-metadata]}
+                (spin.negotiation/negotiate-representation request current-representations date {::db db})]
 
             ;; Process the request method
             (case (:request-method request)
