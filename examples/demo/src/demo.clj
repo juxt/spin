@@ -397,7 +397,11 @@
           ;; Check method allowed
           (spin/check-method-not-allowed! request resource)
 
-          (let [ ;; Fix the date, this will be used as the message origination
+          ;; TODO: Authenticate (see resource for realm)
+
+          ;; TODO: Authorize access (see resource for rules)
+
+          (let [;; Fix the date, this will be used as the message origination
                 ;; date.
                 date (new java.util.Date)
 
@@ -415,6 +419,7 @@
 
             ;; Process the request method
             (case (:request-method request)
+
               (:get :head)
               (GET request resource date
                    selected-representation selected-representation-metadata
