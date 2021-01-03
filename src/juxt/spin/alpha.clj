@@ -267,12 +267,7 @@
       (when (#{:get :head} (:request-method request))
         (when-let [if-modified-since (get-in request [:headers "if-modified-since"])]
           (evaluate-if-modified-since! if-modified-since representation-metadata))))
-
-    ;; Step 5 (range requests)
-    ;; (TODO)
-
-    ;; Step 6: continue
-    ;; TODO: We should attempt to run this in a transaction when modifying the resource
+    ;; (Step 5 is handled elsewhere)
     ))
 
 (defn request-range [request
@@ -318,7 +313,7 @@
                              (get "last-modified")
                              reap/http-date
                              ::rfc7231/date))))
-              parsed-range))
+                parsed-range))
 
           ;; No If-Range header.
           parsed-range)))))
@@ -475,7 +470,7 @@
                {:status 415
                 :body "Unsupported Media Type\r\n"}}))))))
 
-    (let [out (java.io.ByteArrayOutputStream.)]
+    (let [out (new java.io.ByteArrayOutputStream)]
       (with-open [in (:body request)]
         (io/copy in out))
 
