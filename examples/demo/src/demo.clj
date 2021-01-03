@@ -207,7 +207,7 @@
        (add-comment "And add to them via a POST")
        (add-comment "How about a form?"))))
 
-(defn partial-representation-payload [{:keys [headers body] :as representation-payload}
+(defn partial-representation-payload [{::spin/keys [body]}
                                       {:juxt.reap.alpha.rfc7233/keys [units byte-range-set]
                                        :as ranges-specifier}
                                       representation-metadata]
@@ -216,7 +216,7 @@
              body ranges-specifier representation-metadata)))
 
 (defn representation-payload
-  "Returns a map of :payload-header-fields, :body and (optionally) :status for a given representation"
+  "Returns a map of ::spin/payload-header-fields, ::spin/body and (optionally) ::spin/status for a given representation"
   [representation
    date
    ranges-specifier
@@ -226,8 +226,8 @@
 
     (and (get-in representation [::spin/representation-data ::spin/payload-header-fields])
          (get-in representation [::spin/representation-data ::spin/bytes]))
-    (cond-> {:payload-header-fields (get-in representation [::spin/representation-data ::spin/payload-header-fields])
-             :body (get-in representation [::spin/representation-data ::spin/bytes])}
+    (cond-> {::spin/payload-header-fields (get-in representation [::spin/representation-data ::spin/payload-header-fields])
+             ::spin/body (get-in representation [::spin/representation-data ::spin/bytes])}
       ranges-specifier (partial-representation-payload
                         ranges-specifier
                         (::spin/representation-metadata representation)))
@@ -259,8 +259,8 @@
              (str/join
               (for [{:keys [representation]} (get-comments db)]
                 (str (String. (get-in representation [::spin/representation-data ::spin/bytes])) "\r\n")))))]
-      {:headers {"content-length" (str (count bytes))}
-       :body bytes})
+      {::spin/payload-header-fields {"content-length" (str (count bytes))}
+       ::spin/body bytes})
 
     :else
     (throw (ex-info "Error (TODO)" {::spin/response {:status 500 :body "TODO"}}))))
@@ -284,7 +284,7 @@
 
         ;; Here we determine the status (optional), payload headers and body of
         ;; the representation.
-        {:keys [status payload-header-fields body]}
+        {::spin/keys [status payload-header-fields body]}
         (representation-payload
          selected-representation
          date

@@ -44,8 +44,8 @@
                 (doto (new java.io.ByteArrayOutputStream)
                   (.write bytes first-byte-pos len)))]
 
-      (cond-> {:status 206
-               :payload-header-fields
+      (cond-> {::spin/status 206
+               ::spin/payload-header-fields
                {"content-length" (str len)
                 "content-range"
                 (format-content-range
@@ -54,7 +54,7 @@
                   :first-byte-pos first-byte-pos
                   :last-byte-pos last-byte-pos
                   :complete-length (count bytes)})}
-               :body body}))
+               ::spin/body body}))
 
     ;; There are multiple ranges requested
     (let [boundary (apply str (map char (repeatedly 32 #(rand-nth (clojure.core/range (int \a) (inc (int \z)))))))
@@ -95,10 +95,10 @@
                         :stream (new java.io.ByteArrayInputStream part-bytes)})])
           content-length (reduce + (map :length segments))]
 
-      {:status 206
-       :payload-header-fields
+      {::spin/status 206
+       ::spin/payload-header-fields
        {"content-type" (format "multipart/byteranges; boundary=%s" boundary)
         "content-length" (str content-length)}
-       :body (new java.io.SequenceInputStream
-                  (java.util.Collections/enumeration
-                   (map :stream segments)))})))
+       ::spin/body (new java.io.SequenceInputStream
+                        (java.util.Collections/enumeration
+                         (map :stream segments)))})))
