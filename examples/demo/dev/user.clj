@@ -3,8 +3,7 @@
 (ns user
   (:require
    [ring.adapter.jetty :refer [run-jetty]]
-   [demo.app :refer [*database]]
-   [demo.handler :refer [make-handler]]))
+   [demo :refer [make-handler *database]]))
 
 (defonce server
   (run-jetty
