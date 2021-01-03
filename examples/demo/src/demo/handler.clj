@@ -4,13 +4,11 @@
   (:require
    [demo.app :as app]
    [clojure.java.io :as io]
-   [juxt.spin.alpha.representation
-    :refer [representation-metadata]]
-   [juxt.spin.alpha.methods
-    :refer [GET extract-representation-from-request]]
-   [juxt.pick.alpha.ring :refer [pick]]
    [juxt.reap.alpha.encoders :refer [format-http-date]]
-   [juxt.spin.alpha :as spin]))
+   [juxt.spin.alpha.methods :refer [GET receive-representation]]
+   [juxt.spin.alpha.representation :refer [representation-metadata]]
+   [juxt.spin.alpha :as spin]
+   [juxt.pick.alpha.ring :refer [pick]]))
 
 (defn POST [request resource date {::spin/keys [db-atom]}]
 
@@ -52,13 +50,12 @@
                       (app/add-comment db (String. (.toByteArray out)))))]
         (cond->
             (spin/created (:last-location new-db))
-          date (assoc "date" (format-http-date date))
-          ;; TODO: Add optional payload, with payload headers
-          )))))
+            date (assoc "date" (format-http-date date))
+            ;; TODO: Add optional payload, with payload headers
+            )))))
 
 (defn PUT [request resource selected-representation-metadata date {:demo.app/keys [db-atom]}]
-  (let [new-representation (extract-representation-from-request
-                            request resource selected-representation-metadata date)
+  (let [new-representation (receive-representation request resource date)
         new-resource
         (-> resource
             (assoc ::spin/representations [new-representation])

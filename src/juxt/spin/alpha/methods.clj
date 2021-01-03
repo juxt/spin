@@ -69,10 +69,10 @@
       (= (:request-method request) :get) (assoc :body body))))
 
 
-(defn extract-representation-from-request
+(defn receive-representation
   "Replace the state of a resource with the state defined by the representation
   enclosed in the request message payload. Neither argument can be nil."
-  [request resource selected-representation-metadata date]
+  [request resource date]
 
   (assert (= (:uri request) (::spin/path resource)))
 
@@ -232,7 +232,7 @@
              (select-keys
               (:headers request)
               ["content-type" "content-language" "content-encoding"])
-             {"last-modified" (format-http-date (new java.util.Date))})]
+             {"last-modified" (format-http-date date)})]
 
         (cond
           (= (:juxt.reap.alpha.rfc7231/type content-type) "text")
