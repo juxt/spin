@@ -261,7 +261,7 @@
   "The GET method."
   [request resource
    date selected-representation selected-representation-metadata
-   current-representations vary
+   current-representations
    opts]
 
   ;; Check for a 404 Not Found
@@ -299,8 +299,6 @@
 
                (::spin/accept-ranges resource)
                (assoc "accept-ranges" (str/join ", " (::spin/accept-ranges resource)))
-
-               (seq vary) (assoc "vary" (str/join ", " vary))
 
                selected-representation-metadata (merge selected-representation-metadata)
 
@@ -407,7 +405,7 @@
           (spin/check-method-not-allowed! request resource)
 
           (let [ ;; Fix the date, this will be used as the message origination
-                 ;; date.
+                ;; date.
                 date (new java.util.Date)
 
                 ;; Get the 'current' representations of the resource.
@@ -437,14 +435,20 @@
                   (dissoc % ::attached-representation)
                   ;; Remove the extraneous keyword entries added by pick.
                   (filter (comp string? first) %)
-                  (into {} %))]
+                  (into {} %))
+
+                ;; Pin the vary header
+                representation-metadata
+                (cond-> representation-metadata
+                  (and representation-metadata (seq vary))
+                  (assoc "vary" (str/join ", " vary)))]
 
             ;; Process the request method
             (case (:request-method request)
               (:get :head)
               (GET request resource
                    date selected-representation representation-metadata
-                   current-representations vary
+                   current-representations
                    {::db db})
 
               :post
@@ -460,7 +464,7 @@
               (OPTIONS request resource date opts))))
 
         (catch clojure.lang.ExceptionInfo e
-;;          (tap> e)
+          ;;          (tap> e)
           (let [exdata (ex-data e)]
             (or
              (::spin/response exdata)
