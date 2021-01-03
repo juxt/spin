@@ -428,7 +428,7 @@
         (demo/handler
          {:uri "/bytes.txt"
           :request-method :get})]
-    (is (= "bytes, lines" (get headers "accept-ranges")))))
+    (is (= "bytes" (get headers "accept-ranges")))))
 
 (deftest single-byte-range-set-byte-range-spec-test
   (let [{:keys [status headers]}

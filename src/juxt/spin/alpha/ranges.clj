@@ -24,11 +24,11 @@
      :last-byte-pos last-byte-pos}))
 
 (defn byte-ranges-payload
-  "Return a representation's payload (as per IRepresentation/payload) which
-  conforms to the requested bytes range. This function has the downside of
-  requiring the entire byte-array of the representation, therefore do not use
-  for large byte arrays and instead implement a more efficient custom
-  implementation (perhaps using this as a guide)."
+  "Return a representation's payload which conforms to the requested bytes
+  range. This function has the downside of requiring the entire byte-array of
+  the representation, therefore do not use for large byte arrays and instead
+  implement a more efficient custom implementation (perhaps using this as a
+  guide)."
   [bytes
    {::rfc7233/keys [units byte-range-set]}
    representation-metadata]
@@ -45,7 +45,7 @@
                   (.write bytes first-byte-pos len)))]
 
       (cond-> {:status 206
-               :headers
+               :payload-header-fields
                {"content-length" (str len)
                 "content-range"
                 (format-content-range
@@ -96,9 +96,9 @@
           content-length (reduce + (map :length segments))]
 
       {:status 206
-       :headers {"content-type" (format "multipart/byteranges; boundary=%s" boundary)
-                 "content-length" (str content-length)}
+       :payload-header-fields
+       {"content-type" (format "multipart/byteranges; boundary=%s" boundary)
+        "content-length" (str content-length)}
        :body (new java.io.SequenceInputStream
                   (java.util.Collections/enumeration
-                   (map :stream segments)
-                   ))})))
+                   (map :stream segments)))})))

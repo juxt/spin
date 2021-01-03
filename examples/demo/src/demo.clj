@@ -7,10 +7,7 @@
    [hiccup.page :as hp]
    [juxt.reap.alpha.encoders :refer [format-http-date]]
    [juxt.spin.alpha.ranges :as ranges]
-   [juxt.spin.alpha.representation :refer [representation-metadata
-                                           make-char-sequence-representation
-                                           IRepresentation
-                                           payload]]
+   [juxt.spin.alpha.representation :refer [make-char-sequence-representation]]
    [juxt.spin.alpha.negotiation :as spin.negotiation]
    [juxt.spin.alpha :as spin]
    [ring.adapter.jetty :as jetty]
@@ -154,51 +151,20 @@
      "/comments.html"
      {::spin/methods #{:get :head :options}
       ::spin/representations
-      [(reify
-         IRepresentation
-         (representation-metadata [_ date _]
-           {"content-type" "text/html;charset=utf-8"
-            "content-location" "/comments.html"})
-         (payload [_ _ date ranges-specifier {::keys [db]}]
-           (let [bytes (.getBytes
-                        (str
-                         (hp/html5
-                          [:head
-                           [:title "Comments"]]
-                          [:body
-                           [:h1 "Comments"]
-                           [:ol
-                            (for [{:keys [location representation]} (get-comments db)]
-                              [:li
-                               (:char-sequence representation)
-                               "&nbsp;"
-                               [:small
-                                [:a {:href location}
-                                 "view"]]])]])
-                         "\r\n\r\n"))]
-             {:headers {"content-length" (str (count bytes))}
-              :body (reify StreamableResponseBody
-                      (write-body-to-stream [_ response output-stream]
-                        (.write output-stream bytes)))})))]}
+      [{::spin/representation-metadata
+        {"content-type" "text/html;charset=utf-8"
+         "content-location" "/comments.html"}
+        ::spin/representation-data
+        {::spin/payload-generator ::comments}}]}
 
      "/comments.txt"
      {::spin/methods #{:get :head :options}
       ::spin/representations
-      [(reify
-         IRepresentation
-         (representation-metadata [_ date opts]
-           {"content-type" "text/plain;charset=utf-8"
-            "content-location" "/comments.txt"})
-         (payload [_ _ date ranges-specifier {::keys [db]}]
-           (assert db)
-           (let [bytes (.getBytes
-                        (str/join
-                         (for [{:keys [representation]} (get-comments db)]
-                           (str (:char-sequence representation) "\r\n"))))]
-             {:headers {"content-length" (str (count bytes))}
-              :body (reify StreamableResponseBody
-                      (write-body-to-stream [_ response output-stream]
-                        (.write output-stream bytes)))})))]
+      [{::spin/representation-metadata
+        {"content-type" "text/plain;charset=utf-8"
+         "content-location" "/comments.txt"}
+        ::spin/representation-data
+        {::spin/payload-generator ::comments}}]
       ::spin/accept-ranges ["bytes" "comments"]}
 
      "/comments"
@@ -209,38 +175,22 @@
      "/bytes.txt"
      {::spin/methods #{:get :head :options}
       ::spin/representations
-      [(let [limit (* 8 100)]
-         (reify
-           IRepresentation
-           (representation-metadata [_ date opts]
-             {"content-type" "text/plain;charset=US-ASCII"
-              "etag" "\"abc\""
-              "last-modified" (format-http-date #inst "2020-12-31T16:00:00Z")})
-           (payload [_
-                     representation-metadata
-                     date
-                     {:juxt.reap.alpha.rfc7233/keys [units byte-range-set]
-                      :as ranges-specifier}
-                     {::keys [db]}]
-             (let [bytes (.getBytes
-                          (str/join (map #(format "%08d" %) (clojure.core/range 0 limit 8)))
-                          "US-ASCII")]
-               (if ranges-specifier
-                 (case units
-                   "bytes" (ranges/byte-ranges-payload
-                            bytes ranges-specifier representation-metadata)
-                   "lines" (throw
-                            (ex-info
-                             "Unsupported range units (TODO)"
-                             {:demo.handler/response
-                              {:status 500 :body (format "TODO: Support range units of %s\r\n" units)}})))
+      [(let [limit (* 8 100)
+             bytes (.getBytes
+                    (str/join (map #(format "%08d" %) (clojure.core/range 0 limit 8)))
+                    "US-ASCII")]
+         {::spin/representation-metadata
+          {"content-type" "text/plain;charset=US-ASCII"
+           "etag" "\"abc\""
+           "last-modified" (format-http-date #inst "2020-12-31T16:00:00Z")}
 
-                 {:headers {"content-length" (str (count bytes))}
-                  :body bytes})))))]
+          ::spin/representation-data
+          {::spin/payload-header-fields {"content-length" (str (count bytes))}
+           ::spin/bytes bytes}})]
 
       ;; to "indicate that it supports range requests for the target resource."
       ;; -- Section 2.3, RFC 7233
-      ::spin/accept-ranges ["bytes" "lines"]}}
+      ::spin/accept-ranges ["bytes"]}}
 
     :next-comment-id 1}))
 
@@ -257,6 +207,64 @@
        (add-comment "And add to them via a POST")
        (add-comment "How about a form?"))))
 
+(defn partial-representation-payload [{:keys [headers body] :as representation-payload}
+                                      {:juxt.reap.alpha.rfc7233/keys [units byte-range-set]
+                                       :as ranges-specifier}
+                                      representation-metadata]
+  (case units
+    "bytes" (ranges/byte-ranges-payload
+             body ranges-specifier representation-metadata)))
+
+(defn representation-payload
+  "Returns a map of :payload-header-fields, :body and (optionally) :status for a given representation"
+  [representation
+   date
+   ranges-specifier
+   {::keys [db]}]
+
+  (cond
+
+    (and (get-in representation [::spin/representation-data ::spin/payload-header-fields])
+         (get-in representation [::spin/representation-data ::spin/bytes]))
+    (cond-> {:payload-header-fields (get-in representation [::spin/representation-data ::spin/payload-header-fields])
+             :body (get-in representation [::spin/representation-data ::spin/bytes])}
+      ranges-specifier (partial-representation-payload
+                        ranges-specifier
+                        (::spin/representation-metadata representation)))
+
+    (= (get-in representation [::spin/representation-data ::spin/payload-generator]) ::comments)
+    (let [bytes
+          (case (get-in representation [::spin/representation-metadata "content-type"])
+            "text/html;charset=utf-8"
+            (.getBytes
+             (str
+              (hp/html5
+               [:head
+                [:title "Comments"]]
+               [:body
+                [:h1 "Comments"]
+                [:ol
+                 (for [{:keys [location representation]} (get-comments db)]
+                   [:li
+                    ;; NOTE: This feels like a bit of a hack
+                    (String. (get-in representation [::spin/representation-data ::spin/bytes]))
+                    "&nbsp;"
+                    [:small
+                     [:a {:href location}
+                      "view"]]])]])
+              "\r\n\r\n"))
+
+            "text/plain;charset=utf-8"
+            (.getBytes
+             (str/join
+              (for [{:keys [representation]} (get-comments db)]
+                (str (String. (get-in representation [::spin/representation-data ::spin/bytes])) "\r\n")))))]
+      {:headers {"content-length" (str (count bytes))}
+       :body bytes})
+
+    :else
+    (throw (ex-info "Error (TODO)" {::spin/response {:status 500 :body "TODO"}}))))
+
 (defn GET
   "The GET method."
   [request resource
@@ -272,18 +280,16 @@
   ;; words, Range is ignored when a conditional GET would result in a 304
   ;; (Not Modified) response.
 
-  (let [ranges-specifier (spin/request-range request resource selected-representation-metadata)
+  (let [ranges-specifier (spin/ranges-specifier request resource selected-representation-metadata)
 
         ;; Here we determine the status (optional), payload headers and body of
         ;; the representation.
-        {status :status
-         payload-headers :headers
-         body :body}
-        (payload selected-representation
-                 selected-representation-metadata
-                 date
-                 ranges-specifier
-                 opts)]
+        {:keys [status payload-header-fields body]}
+        (representation-payload
+         selected-representation
+         date
+         ranges-specifier
+         opts)]
 
     (cond-> {:status (or status 200)
              :headers
@@ -298,7 +304,7 @@
                (= (get selected-representation-metadata "content-location") (:uri request))
                (dissoc "content-location")
 
-               payload-headers (merge payload-headers))}
+               payload-header-fields (merge payload-header-fields))}
 
       ;; Don't add body for a HEAD method
       (= (:request-method request) :get) (assoc :body body))))

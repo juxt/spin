@@ -4,7 +4,6 @@
   (:require
    [clojure.string :as str]
    [juxt.pick.alpha.ring :refer [pick]]
-   [juxt.spin.alpha.representation :refer [representation-metadata]]
    [juxt.spin.alpha :as spin]))
 
 (defn negotiate-representation [request current-representations date opts]
@@ -18,8 +17,7 @@
           (pick
            request
            (for [r current-representations]
-             (-> r
-                 (representation-metadata date opts)
+             (-> (::spin/representation-metadata r)
                  (assoc ::attached-representation r)))
            {:juxt.pick.alpha/vary? true}))
 
@@ -45,6 +43,4 @@
           (assoc "vary" (str/join ", " vary)))]
 
     {:selected-representation selected-representation
-     :selected-representation-metadata selected-representation-metadata}
-
-    ))
+     :selected-representation-metadata selected-representation-metadata}))

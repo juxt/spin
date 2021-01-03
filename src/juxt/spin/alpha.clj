@@ -270,9 +270,9 @@
     ;; (Step 5 is handled elsewhere)
     ))
 
-(defn request-range [request
-                     {::keys [accept-ranges] :as resource}
-                     selected-representation-metadata]
+(defn ranges-specifier [request
+                        {::keys [accept-ranges] :as resource}
+                        selected-representation-metadata]
   (assert resource)
   (when-let [range-header-value (get-in request [:headers "range"])]
     (let [parsed-range
