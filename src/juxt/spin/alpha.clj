@@ -4,12 +4,12 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
-   [juxt.reap.alpha.decoders :as reap]
-   [juxt.reap.alpha.rfc7231 :as rfc7231]
-   [juxt.reap.alpha.rfc7232 :as rfc7232]
    [juxt.pick.alpha.core :refer [rate-representation]]
    [juxt.pick.alpha.ring :refer [decode-maybe]]
+   [juxt.reap.alpha.decoders :as reap]
    [juxt.reap.alpha.encoders :refer [format-http-date]]
+   [juxt.reap.alpha.rfc7231 :as rfc7231]
+   [juxt.reap.alpha.rfc7232 :as rfc7232]
    [juxt.reap.alpha.ring :refer [headers->decoded-preferences]]
    [juxt.spin.alpha :as spin]
    [juxt.spin.alpha.representation :refer [make-byte-array-representation
