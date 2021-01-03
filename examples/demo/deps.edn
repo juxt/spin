@@ -4,9 +4,7 @@
  :deps
  {ring/ring {:mvn/version "1.8.2"}
   hiccup/hiccup {:mvn/version "1.0.5"}
-  juxt/spin {:local/root "../.."}
-  juxt/pick {:git/url "https://github.com/juxt/pick.git"
-             :sha "3852b31f513f2cb83391d604739eb4251be78e8a"}}
+  juxt/spin {:local/root "../.."}}
 
  :aliases
  {:dev {:extra-paths ["dev" "test"]}
