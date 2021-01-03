@@ -408,11 +408,9 @@
                 _ (when (contains? #{:get :head} (:request-method request))
                     (spin/check-not-found! current-representations))
 
-                opts {::db-atom *database}
-
                 ;; Negotiate the best representation, determining the vary
                 ;; header.
-                {representation-metadata :juxt.pick.alpha/representation
+                {selected-representation-metadata :juxt.pick.alpha/representation
                  vary :juxt.pick.alpha/vary}
                 (when (seq current-representations)
                   ;; Call into pick which does that actual content-negotation
@@ -421,18 +419,19 @@
                    request
                    (for [r current-representations]
                      (-> r
-                         (representation-metadata date opts)
+                         (representation-metadata date {::db db})
                          (assoc ::attached-representation r)))
                    {:juxt.pick.alpha/vary? true}))
 
-                selected-representation (::attached-representation representation-metadata)
+                selected-representation
+                (::attached-representation selected-representation-metadata)
 
                 ;; Check for a 406 Not Acceptable
                 _ (when (contains? #{:get :head} (:request-method request))
                     (spin/check-not-acceptable! selected-representation))
 
-                representation-metadata
-                (as-> representation-metadata %
+                selected-representation-metadata
+                (as-> selected-representation-metadata %
                   (dissoc % ::attached-representation)
                   ;; Remove the extraneous keyword entries added by pick.
                   (filter (comp string? first) %)
@@ -440,29 +439,29 @@
 
                 ;; Pin the vary header onto the selected representation's
                 ;; metadata
-                representation-metadata
-                (cond-> representation-metadata
-                  (and representation-metadata (seq vary))
+                selected-representation-metadata
+                (cond-> selected-representation-metadata
+                  (and selected-representation-metadata (seq vary))
                   (assoc "vary" (str/join ", " vary)))]
 
             ;; Process the request method
             (case (:request-method request)
               (:get :head)
-              (GET request resource
-                   date selected-representation representation-metadata
+              (GET request resource date
+                   selected-representation selected-representation-metadata
                    {::db db})
 
               :post
-              (POST request resource date opts)
+              (POST request resource date {::db-atom *database})
 
               :put
-              (PUT request resource representation-metadata date opts)
+              (PUT request resource selected-representation-metadata date {::db-atom *database})
 
               :delete
-              (DELETE request resource representation-metadata date opts)
+              (DELETE request resource selected-representation-metadata date {::db-atom *database})
 
               :options
-              (OPTIONS request resource date opts))))
+              (OPTIONS request resource date {::db db}))))
 
         (catch clojure.lang.ExceptionInfo e
           ;;          (tap> e)
