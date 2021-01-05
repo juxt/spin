@@ -81,11 +81,11 @@
       {"accept" "text/asciidoc,text/plain"
        "accept-charset" "utf-8"}})))
 
-(defn current-representations [db resource]
+(defn current-representations [db resource date]
   (mapcat
    (fn [rep]
      (if (string? rep)
-       (current-representations db (get (:resources db) rep))
+       (current-representations db (get (:resources db) rep) date)
        [rep]))
    (::spin/representations resource)))
 
@@ -464,23 +464,20 @@
 
         ;; Locate the resource
         (let [resource (locate-resource db (:uri request))
-              ;;
               request (authenticate request resource)
               resource (authorize request resource)]
 
+          ;; Validate the request (check query params, body, other constraints)
+
           ;; Check method allowed
           (spin/check-method-not-allowed! request resource)
-
-          ;; TODO: Authenticate (see resource for realm)
-
-          ;; TODO: Authorize access (see resource for rules)
 
           (let [ ;; Fix the date, this will be used as the message origination
                 ;; date.
                 date (new java.util.Date)
 
                 ;; Get the 'current' representations of the resource.
-                current-representations (current-representations db resource)
+                current-representations (current-representations db resource date)
 
                 ;; Check for a 404 Not Found
                 _ (when (contains? #{:get :head} (:request-method request))
