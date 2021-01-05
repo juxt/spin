@@ -408,7 +408,11 @@
   ;; TODO: Implement *
   (spin/options (::spin/methods resource)))
 
-(defn add-credentials [request]
+(defn authenticate
+  "Authenticate a request. Return the request with any credentials, roles and
+  entitlements added to it. The resource can be used to determine the particular
+  Protection Space that it is part of."
+  [request resource]
   (let [roles
         (when-let [authorization-header (get-in request [:headers "authorization"])]
           (let [{:juxt.reap.alpha.rfc7235/keys [auth-scheme token68 #_auth-params]}
@@ -424,6 +428,33 @@
     (cond-> request
       roles (assoc ::roles roles))))
 
+(defn authorize
+  "Return the resource, as it appears to the request after authorization rules
+  have been applied."
+  [request resource]
+  (when-let [required-role (get resource ::required-role)]
+    (let [acquired-roles (get request ::roles)]
+      (when-not (set/intersection required-role acquired-roles)
+        (let [authorization-exists? (get-in request [:headers "authorization"])]
+          (throw
+           (ex-info
+            (if authorization-exists? "Forbidden" "Unauthorized")
+            {::spin/response
+             {:status (if authorization-exists? 403 401)
+              :headers
+              (cond-> {}
+                (not authorization-exists?)
+                (assoc
+                 "www-authenticate"
+                 (www-authenticate
+                  [#::rfc7235{:auth-scheme "Basic"
+                              :auth-params
+                              [#::rfc7235{:auth-param-name "realm",
+                                          :auth-param-value "Winterfell"}]}])))
+              :body "Credentials are required to access this page\r\n"}}))))))
+  ;; Return the resource, changed if necessary
+  resource)
+
 (defn make-handler [*database]
   (fn [request]
     (let [db @*database]
@@ -433,29 +464,9 @@
 
         ;; Locate the resource
         (let [resource (locate-resource db (:uri request))
-              request (add-credentials request)]
-
-          ;; Authorize access
-          (when-let [required-role (get resource ::required-role)]
-            (let [acquired-roles (get request ::roles)]
-              (when-not (set/intersection required-role acquired-roles)
-                (let [authorization-exists? (get-in request [:headers "authorization"])]
-                  (throw
-                   (ex-info
-                    (if authorization-exists? "Forbidden" "Unauthorized")
-                    {::spin/response
-                     {:status (if authorization-exists? 403 401)
-                      :headers
-                      (cond-> {}
-                        (not authorization-exists?)
-                        (assoc
-                         "www-authenticate"
-                         (www-authenticate
-                          [#::rfc7235{:auth-scheme "Basic"
-                                      :auth-params
-                                      [#::rfc7235{:auth-param-name "realm",
-                                                  :auth-param-value "Winterfell"}]}])))
-                      :body "Credentials are required to access this page\r\n"}}))))))
+              ;;
+              request (authenticate request resource)
+              resource (authorize request resource)]
 
           ;; Check method allowed
           (spin/check-method-not-allowed! request resource)
