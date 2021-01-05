@@ -7,11 +7,11 @@
 
   juxt/reap
   {:git/url "https://github.com/juxt/reap.git"
-   :sha "593f63f5b59d5f3d76d539a8bd5f4fb3b0a417e2"}
+   :sha "fc34ca14db4919df28c852689e5f0000fb6f6a8e"}
 
   juxt/pick
   {:git/url "https://github.com/juxt/pick.git"
-   :sha "3852b31f513f2cb83391d604739eb4251be78e8a"}}
+   :sha "ce09fed6dfebc5d5dee97d50a71d2c39fc9075d8"}}
 
  :aliases
  {:dev
