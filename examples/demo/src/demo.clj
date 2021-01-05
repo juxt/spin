@@ -3,14 +3,17 @@
 (ns demo
   (:require
    [clojure.java.io :as io]
+   [clojure.set :as set]
    [clojure.string :as str]
    [hiccup.page :as hp]
-   [juxt.reap.alpha.encoders :refer [format-http-date]]
+   [juxt.reap.alpha.encoders :refer [format-http-date www-authenticate]]
+   [juxt.reap.alpha.decoders :as reap]
    [juxt.spin.alpha.ranges :as ranges]
    [juxt.spin.alpha.representation :refer [make-char-sequence-representation]]
    [juxt.spin.alpha.negotiation :as spin.negotiation]
    [juxt.spin.alpha :as spin]
    [ring.adapter.jetty :as jetty]
+   [juxt.reap.alpha.rfc7235 :as rfc7235]
    [ring.core.protocols :refer [StreamableResponseBody]]))
 
 (defn make-comment [comment]
@@ -171,6 +174,21 @@
      {::spin/methods #{:get :head :post :options}
       ::spin/representations
       ["/comments.html" "/comments.txt"]}
+
+     "/protected-area.html"
+     {::spin/methods #{:get :head :options}
+      ::spin/authentication-scheme "Basic"
+      ::spin/realm "Winterfell"
+      ::spin/representations
+      [{::spin/representation-metadata
+        {"content-type" "text/html;charset=utf-8"
+         "last-modified" "Tue, 1 Dec 2020 09:00:00 GMT"}
+        ::spin/representation-data
+        {::spin/payload-header-fields {}
+         ::spin/bytes (.getBytes "<h1>Hidden Area</h1><p>Access Granted</p>")}}]
+      ::required-role {:get #{::valid-user}
+                       :head #{::valid-user}
+                       :options #{::valid-user}}}
 
      "/bytes.txt"
      {::spin/methods #{:get :head :options}
@@ -390,6 +408,22 @@
   ;; TODO: Implement *
   (spin/options (::spin/methods resource)))
 
+(defn add-credentials [request]
+  (let [roles
+        (when-let [authorization-header (get-in request [:headers "authorization"])]
+          (let [{:juxt.reap.alpha.rfc7235/keys [auth-scheme token68 #_auth-params]}
+                (reap/authorization authorization-header)]
+            (case auth-scheme
+              "Basic"
+              (let [[_ user password]
+                    (re-matches #"([^:]*):([^:]*)"
+                                (String. (.decode (java.util.Base64/getDecoder) token68)))]
+                (when (and (= user "mal")
+                           (= password "tara"))
+                  #{::valid-user})))))]
+    (cond-> request
+      roles (assoc ::roles roles))))
+
 (defn make-handler [*database]
   (fn [request]
     (let [db @*database]
@@ -398,7 +432,30 @@
         (spin/check-method-not-implemented! request)
 
         ;; Locate the resource
-        (let [resource (locate-resource db (:uri request))]
+        (let [resource (locate-resource db (:uri request))
+              request (add-credentials request)]
+
+          ;; Authorize access
+          (when-let [required-role (get resource ::required-role)]
+            (let [acquired-roles (get request ::roles)]
+              (when-not (set/intersection required-role acquired-roles)
+                (let [authorization-exists? (get-in request [:headers "authorization"])]
+                  (throw
+                   (ex-info
+                    (if authorization-exists? "Forbidden" "Unauthorized")
+                    {::spin/response
+                     {:status (if authorization-exists? 403 401)
+                      :headers
+                      (cond-> {}
+                        (not authorization-exists?)
+                        (assoc
+                         "www-authenticate"
+                         (www-authenticate
+                          [#::rfc7235{:auth-scheme "Basic"
+                                      :auth-params
+                                      [#::rfc7235{:auth-param-name "realm",
+                                                  :auth-param-value "Winterfell"}]}])))
+                      :body "Credentials are required to access this page\r\n"}}))))))
 
           ;; Check method allowed
           (spin/check-method-not-allowed! request resource)
@@ -407,7 +464,7 @@
 
           ;; TODO: Authorize access (see resource for rules)
 
-          (let [;; Fix the date, this will be used as the message origination
+          (let [ ;; Fix the date, this will be used as the message origination
                 ;; date.
                 date (new java.util.Date)
 
