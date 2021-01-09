@@ -175,21 +175,6 @@
       ::spin/representations
       ["/comments.html" "/comments.txt"]}
 
-     "/protected-area.html"
-     {::spin/methods #{:get :head :options}
-      ::spin/authentication-scheme "Basic"
-      ::spin/realm "Winterfell"
-      ::spin/representations
-      [{::spin/representation-metadata
-        {"content-type" "text/html;charset=utf-8"
-         "last-modified" "Tue, 1 Dec 2020 09:00:00 GMT"}
-        ::spin/representation-data
-        {::spin/payload-header-fields {}
-         ::spin/bytes (.getBytes "<h1>Hidden Area</h1><p>Access Granted</p>")}}]
-      ::required-role {:get #{::valid-user}
-                       :head #{::valid-user}
-                       :options #{::valid-user}}}
-
      "/bytes.txt"
      {::spin/methods #{:get :head :options}
       ::spin/representations
@@ -208,7 +193,22 @@
 
       ;; to "indicate that it supports range requests for the target resource."
       ;; -- Section 2.3, RFC 7233
-      ::spin/accept-ranges ["bytes"]}}
+      ::spin/accept-ranges ["bytes"]}
+
+     "/protected-area.html"
+     {::spin/methods #{:get :head :options}
+      ::spin/authentication-scheme "Basic"
+      ::spin/realm "Winterfell"
+      ::spin/representations
+      [{::spin/representation-metadata
+        {"content-type" "text/html;charset=utf-8"
+         "last-modified" "Tue, 1 Dec 2020 09:00:00 GMT"}
+        ::spin/representation-data
+        {::spin/payload-header-fields {}
+         ::spin/bytes (.getBytes "<h1>Hidden Area</h1><p>Access Granted</p>")}}]
+      ::required-role {:get #{::valid-user}
+                       :head #{::valid-user}
+                       :options #{::valid-user}}}}
 
     :next-comment-id 1}))
 
