@@ -329,14 +329,6 @@
   ;; If resource just has one representation, we wish to put over it. We should
   ;; be able to do this in the general case.
 
-  (when-not (get-in request [:headers "content-length"])
-    (throw
-     (ex-info
-      "No Content-Length header found"
-      {::spin/response
-       {:status 411
-        :body "Length Required\r\n"}})))
-
   (if-let [content-length (get-in request [:headers "content-length"])]
     (when-let [max-content-length (::spin/max-content-length resource)]
       (try
@@ -358,13 +350,13 @@
               :body "Bad Request\r\n"}}
             e)))))
 
-    ;; No content-length
-    (throw
-     (ex-info
-      "Length Required"
-      {::spin/response
-       {:status 411
-        :body "Length Required\r\n"}})))
+    (when-not (get-in request [:headers "content-length"])
+      (throw
+       (ex-info
+        "No Content-Length header found"
+        {::spin/response
+         {:status 411
+          :body "Length Required\r\n"}}))))
 
   (when-not (:body request)
     (throw
