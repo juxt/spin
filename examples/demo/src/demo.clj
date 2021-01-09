@@ -183,7 +183,10 @@
         {"content-type" "text/plain;charset=utf-8"
          "last-modified" (format-http-date #inst "2020-12-28T15:00:00Z")}
         ::spin/representation-data
-        {::spin/bytes (.getBytes "Hello World!")}}]}
+        {::spin/bytes (.getBytes "Hello World!")}}]
+      ::spin/acceptable
+      {"accept" "text/plain"
+       "accept-charset" "utf-8"}}
 
      "/bytes.txt"
      {::spin/methods #{:get :head :options}
@@ -528,10 +531,10 @@
       (h req)
       (catch clojure.lang.ExceptionInfo e
         ;;          (tap> e)
+        (prn e)
         (let [exdata (ex-data e)]
           (or
            (::spin/response exdata)
-        (prn e)
            {:status 500 :body "Internal Error\r\n"}))))))
 
 (defn handler
