@@ -259,7 +259,7 @@
       ;; Step 1
       (evaluate-if-match! request resource representation-metadata)
       ;; Step 2
-      (when-let [if-unmodified-since (get-in request [:headers "if-match"])]
+      (when-let [if-unmodified-since (get-in request [:headers "if-unmodified-since"])]
         (evaluate-if-unmodified-since! if-unmodified-since representation-metadata)))
     ;; Step 3
     (if (get-in request [:headers "if-none-match"])
