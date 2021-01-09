@@ -3,9 +3,11 @@
 (ns user
   (:require
    [ring.adapter.jetty :refer [run-jetty]]
-   [demo :refer [make-handler *database]]))
+   [demo :refer [make-handler wrap-exception-handler *database]]))
 
 (defonce server
   (run-jetty
-   (fn [req] ((#'make-handler *database) req))
+   (fn [req] ((->
+               (#'make-handler *database)
+               wrap-exception-handler) req))
    {:port 8080 :join? false}))

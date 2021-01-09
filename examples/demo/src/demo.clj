@@ -531,6 +531,7 @@
         (let [exdata (ex-data e)]
           (or
            (::spin/response exdata)
+        (prn e)
            {:status 500 :body "Internal Error\r\n"}))))))
 
 (defn handler
@@ -543,5 +544,6 @@
 
 (defn run [opts]
   (jetty/run-jetty
-   (make-handler *database)
+   (-> (make-handler *database)
+       wrap-exception-handler)
    {:port (Integer/parseInt (get opts "--port" "8080")) :join? true}))
