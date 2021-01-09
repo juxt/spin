@@ -458,66 +458,79 @@
 (defn make-handler [*database]
   (fn [request]
     (let [db @*database]
-      (try
-        ;; Check method implemented
-        (spin/check-method-not-implemented! request)
+      ;; Check method implemented
+      (spin/check-method-not-implemented! request)
 
-        ;; Locate the resource
-        (let [resource (locate-resource db (:uri request))
-              request (authenticate request resource)
-              resource (authorize request resource)]
+      ;; Locate the resource
+      (let [resource (locate-resource db (:uri request))
+            request (authenticate request resource)
+            resource (authorize request resource)]
 
-          ;; Validate the request (check query params, body, other constraints)
+        ;; Validate the request (check query params, body, other constraints)
 
-          ;; Check method allowed
-          (spin/check-method-not-allowed! request resource)
+        ;; Check method allowed
+        (spin/check-method-not-allowed! request resource)
 
-          (let [ ;; Fix the date, this will be used as the message origination
-                ;; date.
-                date (new java.util.Date)
+        (let [ ;; Fix the date, this will be used as the message origination
+              ;; date.
+              date (new java.util.Date)
 
-                ;; Get the 'current' representations of the resource.
-                current-representations (current-representations db resource date)
+              ;; Get the 'current' representations of the resource.
+              current-representations (current-representations db resource date)
 
-                ;; Check for a 404 Not Found
-                _ (when (contains? #{:get :head} (:request-method request))
-                    (spin/check-not-found! current-representations))
+              ;; Check for a 404 Not Found
+              _ (when (contains? #{:get :head} (:request-method request))
+                  (spin/check-not-found! current-representations))
 
-                ;; Negotiate the best representation
-                {:keys [selected-representation
-                        selected-representation-metadata]}
-                (spin.negotiation/negotiate-representation request current-representations date {::db db})]
+              ;; Negotiate the best representation
+              {:keys [selected-representation
+                      selected-representation-metadata]}
+              (spin.negotiation/negotiate-representation request current-representations date {::db db})]
 
-            ;; Process the request method
-            (case (:request-method request)
+          ;; Process the request method
+          (case (:request-method request)
 
-              (:get :head)
-              (GET request resource date
-                   selected-representation selected-representation-metadata
-                   {::db db})
+            (:get :head)
+            (GET request resource date
+                 selected-representation selected-representation-metadata
+                 {::db db})
 
-              :post
-              (POST request resource date {::db-atom *database})
+            :post
+            (POST request resource date {::db-atom *database})
 
-              :put
-              (PUT request resource selected-representation-metadata date {::db-atom *database})
+            :put
+            (PUT request resource selected-representation-metadata date {::db-atom *database})
 
-              :delete
-              (DELETE request resource selected-representation-metadata date {::db-atom *database})
+            :delete
+            (DELETE request resource selected-representation-metadata date {::db-atom *database})
 
-              :options
-              (OPTIONS request resource date {::db db}))))
+            :options
+            (OPTIONS request resource date {::db db})))))))
 
-        (catch clojure.lang.ExceptionInfo e
-          ;;          (tap> e)
-          (let [exdata (ex-data e)]
-            (or
-             (::spin/response exdata)
-             {:status 500 :body "Internal Error\r\n"})))))))
+(defn handler*
+  "A handler that throws exceptions on errors."
+  [req]
+  (let [h (make-handler *database)]
+    (h req)))
 
+(defn wrap-exception-handler [h]
+  (fn [req]
+    (try
+      (h req)
+      (catch clojure.lang.ExceptionInfo e
+        ;;          (tap> e)
+        (let [exdata (ex-data e)]
+          (or
+           (::spin/response exdata)
+           {:status 500 :body "Internal Error\r\n"}))))))
 
-(defn handler [req]
-  ((make-handler *database) req))
+(defn handler
+  "A handler that handles errors by wrapping in an exception handler."
+  [req]
+  (let [h (->
+           (make-handler *database)
+           wrap-exception-handler)]
+    (h req)))
 
 (defn run [opts]
   (jetty/run-jetty
