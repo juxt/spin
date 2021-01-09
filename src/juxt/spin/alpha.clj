@@ -324,20 +324,20 @@
   enclosed in the request message payload. Neither argument can be nil."
   [request resource date]
 
-  (assert (= (:uri request) (::spin/path resource)))
+  (assert (= (:uri request) (::path resource)))
 
   ;; If resource just has one representation, we wish to put over it. We should
   ;; be able to do this in the general case.
 
   (if-let [content-length (get-in request [:headers "content-length"])]
-    (when-let [max-content-length (::spin/max-content-length resource)]
+    (when-let [max-content-length (::max-content-length resource)]
       (try
         (let [content-length (Long/parseLong content-length)]
           (when (> content-length max-content-length)
             (throw
              (ex-info
               "Payload too large"
-              {::spin/response
+              {::response
                {:status 413
                 :body "Payload Too Large\r\n"}}))))
 
@@ -345,7 +345,7 @@
           (throw
            (ex-info
             "Bad content length"
-            {::spin/response
+            {::response
              {:status 400
               :body "Bad Request\r\n"}}
             e)))))
@@ -354,7 +354,7 @@
       (throw
        (ex-info
         "No Content-Length header found"
-        {::spin/response
+        {::response
          {:status 411
           :body "Length Required\r\n"}}))))
 
@@ -362,7 +362,7 @@
     (throw
      (ex-info
       "No body in request"
-      {::spin/response
+      {::response
        {:status 400
         :body "Bad Request\r\n"}})))
 
@@ -374,7 +374,7 @@
            "content-encoding"
            "content-language"]))]
 
-    (when-let [acceptable (::spin/acceptable resource)]
+    (when-let [acceptable (::acceptable resource)]
       (let [prefs (headers->decoded-preferences acceptable)
             request-rep (rate-representation prefs decoded-representation)]
 
@@ -384,7 +384,7 @@
             (throw
              (ex-info
               "Request must contain Content-Type header"
-              {::spin/response
+              {::response
                {:status 415
                 :body "Unsupported Media Type\r\n"}}))
 
@@ -396,7 +396,7 @@
                ::resource resource
                ::acceptable acceptable
                ::content-type (get request-rep "content-type")
-               ::spin/response
+               ::response
                {:status 415
                 :body "Unsupported Media Type\r\n"}}))
 
@@ -411,7 +411,7 @@
                ::resource resource
                ::acceptable acceptable
                ::content-type (get request-rep "content-type")
-               ::spin/response
+               ::response
                {:status 415
                 :body "Unsupported Media Type\r\n"}}))
 
@@ -423,7 +423,7 @@
                ::resource resource
                ::acceptable acceptable
                ::content-type (get request-rep "content-type")
-               ::spin/response
+               ::response
                {:status 415
                 :body "Unsupported Media Type\r\n"}}))))
 
@@ -437,7 +437,7 @@
                ::resource resource
                ::acceptable acceptable
                ::content-language (get-in request [:headers "content-encoding"] "identity")
-               ::spin/response
+               ::response
                {:status 409
                 :body "Conflict\r\n"}}))))
 
@@ -447,7 +447,7 @@
             (throw
              (ex-info
               "Request must contain Content-Language header"
-              {::spin/response
+              {::response
                {:status 409
                 :body "Conflict\r\n"}}))
 
@@ -459,7 +459,7 @@
                ::resource resource
                ::acceptable acceptable
                ::content-language (get-in request [:headers "content-language"])
-               ::spin/response
+               ::response
                {:status 415
                 :body "Unsupported Media Type\r\n"}}))))))
 
