@@ -130,16 +130,17 @@
   (let [header-field (reap/if-match (get-in request [:headers "if-match"]))]
     (cond
       ;; "If the field-value is '*' …"
-      (and (map? header-field) (::rfc7232/wildcard header-field))
+      (and (map? header-field)
+           (::rfc7232/wildcard header-field)
+           (empty? (::representations resource)))
       ;; "… the condition is false if the origin server does not have a current
       ;; representation for the target resource."
-      (when (empty? (::representations resource))
-        (throw
-         (ex-info
-          "If-Match precondition failed"
-          {::message "No current representations for resource, so * doesn't match"
-           ::response {:status 412
-                       :body "Precondition Failed\r\n"}})))
+      (throw
+       (ex-info
+        "If-Match precondition failed"
+        {::message "No current representations for resource, so * doesn't match"
+         ::response {:status 412
+                     :body "Precondition Failed\r\n"}}))
 
       (sequential? header-field)
       (when-let [rep-etag (some-> (get representation-metadata "etag") reap/entity-tag)]
