@@ -421,6 +421,42 @@
 
     (is (= 412 (:status response)))))
 
+;; If-Unmodified-Since
+
+(deftest if-unmodified-since-test
+  (let [{:keys [status]}
+        (demo/handler
+         {:uri "/message"
+          :request-method :get
+          :headers {"if-unmodified-since" "Mon, 28 Dec 2020 14:00:00 GMT"}
+          })]
+    (is (= 412 status)))
+
+  (let [{:keys [status]}
+        (demo/handler
+         {:uri "/message"
+          :request-method :get
+          :headers {"if-unmodified-since" "Mon, 28 Dec 2020 15:00:00 GMT"}})]
+    (is (= 200 status)))
+
+  (let [{:keys [status]}
+        (demo/handler
+         {:uri "/message"
+          :request-method :get
+          :headers {"if-unmodified-since" "Mon, 28 Dec 2020 16:00:00 GMT"}})]
+    (is (= 200 status)))
+
+  (let [new-message "Happy New Year!"
+        response
+        (demo/handler
+         {:uri "/message"
+          :request-method :put
+          :headers {"content-length" (str (count (.getBytes new-message)))
+                    "content-type" "text/plain;charset=utf-8"
+                    "if-unmodified-since" "Mon, 28 Dec 2020 14:00:00 GMT"}
+          :body (new java.io.ByteArrayInputStream (.getBytes new-message))})]
+    (is (= 412 (:status response)))))
+
 ;; RFC 7233 tests
 
 (deftest accept-ranges-test

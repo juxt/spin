@@ -175,6 +175,16 @@
       ::spin/representations
       ["/comments.html" "/comments.txt"]}
 
+     ;; A message that can be over-written externally, just has a last-modified date
+     "/message"
+     {::spin/methods #{:get :head :put :options}
+      ::spin/representations
+      [{::spin/representation-metadata
+        {"content-type" "text/plain;charset=utf-8"
+         "last-modified" (format-http-date #inst "2020-12-28T15:00:00Z")}
+        ::spin/representation-data
+        {::spin/bytes (.getBytes "Hello World!")}}]}
+
      "/bytes.txt"
      {::spin/methods #{:get :head :options}
       ::spin/representations
@@ -242,8 +252,7 @@
 
   (cond
 
-    (and (get-in representation [::spin/representation-data ::spin/payload-header-fields])
-         (get-in representation [::spin/representation-data ::spin/bytes]))
+    (get-in representation [::spin/representation-data ::spin/bytes])
     (cond-> {::spin/payload-header-fields (get-in representation [::spin/representation-data ::spin/payload-header-fields])
              ::spin/body (get-in representation [::spin/representation-data ::spin/bytes])}
       ranges-specifier (partial-representation-payload
@@ -281,7 +290,7 @@
        ::spin/body bytes})
 
     :else
-    (throw (ex-info "Error (TODO)" {::spin/response {:status 500 :body "TODO"}}))))
+    (throw (ex-info "Error (TODO)" {::spin/response {:status 500 :body "TODO\r\n"}}))))
 
 (defn GET
   "The GET method."
