@@ -302,7 +302,7 @@
    opts]
 
   ;; Check for a 304 Not Modified
-  (spin/evaluate-preconditions! request resource selected-representation-metadata)
+  (spin/evaluate-preconditions! request resource selected-representation-metadata date)
 
   ;; "The Range header field is evaluated after evaluating the precondition
   ;; header fields defined in [RFC7232], and only if the result in absence
@@ -393,7 +393,7 @@
     (swap!
      db-atom
      (fn [db]
-       (spin/evaluate-preconditions! request resource selected-representation-metadata)
+       (spin/evaluate-preconditions! request resource selected-representation-metadata date)
        (assoc-in
         db [:resources (:uri request)] new-resource)))
 
@@ -410,7 +410,7 @@
 
 (defn DELETE [request resource selected-representation-metadata date {::keys [db-atom]}]
   (swap! db-atom #(do
-                    (spin/evaluate-preconditions! request resource selected-representation-metadata)
+                    (spin/evaluate-preconditions! request resource selected-representation-metadata date)
                     (update % :resources dissoc (::spin/path resource))))
   (cond-> {:status 200}
     date (assoc "date" (format-http-date date))

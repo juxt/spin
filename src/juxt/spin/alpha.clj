@@ -120,6 +120,19 @@
     ;; middleware, which can set the content-length header accordingly?
     "content-length" "0"}})
 
+(defn- compute-304-headers
+  "The server generating a 304 response MUST generate any of the following
+   header fields that would have been sent in a 200 (OK) response to the same
+   request: Cache-Control, Content-Location, Date, ETag, Expires, and Vary."
+  [representation-metadata request date]
+  (cond->
+      (select-keys
+       representation-metadata
+       ["cache-control" "content-location" "etag" "expires" "vary"])
+      date (assoc "date" (format-http-date date))
+      (= (get representation-metadata "content-location") (:uri request))
+      (dissoc "content-location")))
+
 (defn evaluate-if-match!
   "Evaluate an If-None-Match precondition header field in the context of a
   resource. If the precondition is found to be false, an exception is thrown
@@ -163,17 +176,12 @@
 
 ;; TODO: See Section 4.1, RFC 7232:
 ;;
-;; "The server generating a 304 response MUST generate any of the following
-;; header fields that would have been sent in a 200 (OK) response to the same
-;; request: Cache-Control, Content-Location, Date, ETag, Expires, and Vary."
-
-
 (defn evaluate-if-none-match!
   "Evaluate an If-None-Match precondition header field in the context of a
   resource and, when applicable, the representation metadata of the selected
   representation. If the precondition is found to be false, an exception is
   thrown with ex-data containing the proper response."
-  [request resource representation-metadata]
+  [request resource representation-metadata date]
   ;; (All quotes in this function's comments are from Section 3.2, RFC 7232,
   ;; unless otherwise stated).
   (let [header-field (reap/if-none-match (get-in request [:headers "if-none-match"]))]
@@ -198,6 +206,7 @@
                ;; Modified) status code if the request method is GET or HEAD …"
                (if (#{:get :head} (:request-method request))
                  {:status 304
+                  :headers (compute-304-headers representation-metadata request date)
                   :body "Not Modified\r\n"}
                  ;; "… or 412 (Precondition Failed) status code for all other
                  ;; request methods."
@@ -219,6 +228,7 @@
            ;; Modified) status code if the request method is GET or HEAD …"
            (if (#{:get :head} (:request-method request))
              {:status 304
+              :headers (compute-304-headers representation-metadata request date)
               :body "Not Modified\r\n"}
              ;; "… or 412 (Precondition Failed) status code for all other
              ;; request methods."
@@ -238,7 +248,7 @@
          ::response
          {:status 412 :body "Precondition Failed\r\n"}})))))
 
-(defn evaluate-if-modified-since! [if-modified-since representation-metadata]
+(defn evaluate-if-modified-since! [if-modified-since representation-metadata request date]
   (let [if-modified-since-date (::rfc7231/date (reap/http-date if-modified-since))
         rep-last-modified-date (some-> (get representation-metadata "last-modified") reap/http-date ::rfc7231/date)]
     (assert if-modified-since-date)
@@ -252,11 +262,15 @@
         "Not modified"
         {::representation-metadata representation-metadata
          ::response
-         {:status 304 :body "Not Modified\r\n"}})))))
+         {:status 304
+          :headers (compute-304-headers representation-metadata request date)
+          :body "Not Modified\r\n"}})))))
 
 (defn evaluate-preconditions!
-  "Implementation of Section 6 of RFC 7232."
-  [request resource representation-metadata]
+  "Implementation of Section 6 of RFC 7232. Arguments are the (Ring) request, a
+  resource (map, typically with Spin namespaced entries, representation metadata
+  of the selected representation and the response message origination date."
+  [request resource representation-metadata date]
   ;; "… a server MUST ignore the conditional request header fields … when
   ;; received with a request method that does not involve the selection or
   ;; modification of a selected representation, such as CONNECT, OPTIONS, or
@@ -270,11 +284,11 @@
         (evaluate-if-unmodified-since! if-unmodified-since representation-metadata)))
     ;; Step 3
     (if (get-in request [:headers "if-none-match"])
-      (evaluate-if-none-match! request resource representation-metadata)
+      (evaluate-if-none-match! request resource representation-metadata date)
       ;; Step 4, else branch: if-none-match is not present
       (when (#{:get :head} (:request-method request))
         (when-let [if-modified-since (get-in request [:headers "if-modified-since"])]
-          (evaluate-if-modified-since! if-modified-since representation-metadata))))
+          (evaluate-if-modified-since! if-modified-since representation-metadata request date))))
     ;; (Step 5 is handled elsewhere)
     ))
 

@@ -128,32 +128,68 @@
     (is (= "accept-language" vary))))
 
 (deftest get-with-if-modified-since-test
-  (let [{status :status}
-        (demo/handler
-         {:uri "/en/index.html"
-          :request-method :get
-          :headers {"if-modified-since" "Fri, 25 Dec 2020 09:00:00 GMT"}})]
-    (is (= 304 status)))
-  (let [{status :status}
+  (let [{status :status
+         headers :headers}
         (demo/handler
          {:uri "/en/index.html"
           :request-method :get
           :headers {"if-modified-since" "Fri, 25 Dec 2020 08:00:00 GMT"}})]
-    (is (= 200 status))))
+    (is (= 200 status))
+    (is (= #{"content-type" "content-length" "etag" "date" "last-modified"
+             "content-language"}
+           (set (keys headers)))))
+  (let [{status :status
+         headers :headers}
+        (demo/handler
+         {:uri "/en/index.html"
+          :request-method :get
+          :headers {"if-modified-since" "Fri, 25 Dec 2020 09:00:00 GMT"}})]
+    (is (= 304 status))
+    (is (= #{"etag" "date"} (set (keys headers))))))
 
 (deftest get-with-if-none-match-test
   (let [{status1 :status
-         {:strs [etag]} :headers}
+         {:strs [etag] :as headers1} :headers}
         (demo/handler
          {:uri "/en/index.html"
           :request-method :get})
-        {status2 :status}
+        {status2 :status headers2 :headers}
         (demo/handler
          {:uri "/en/index.html"
           :request-method :get
           :headers {"if-none-match" etag}})]
     (is (= 200 status1))
-    (is (= 304 status2))))
+    (is (= #{"date" "content-type" "etag" "last-modified" "content-language" "content-length"}
+           (set (keys headers1))))
+    (is (= 304 status2))
+    ;; "The server generating a 304 response MUST generate any of the following
+    ;; header fields that would have been sent in a 200 (OK) response to the
+    ;; same request: Cache-Control, Content-Location, Date, ETag, Expires, and
+    ;; Vary." -- Section 4.1, RFC 7232
+    (is (= #{"date" "etag"} (set (keys headers2)))))
+
+  ;; Check that content-location and vary are also generated, when they would be
+  ;; for a 200.
+  (let [{status1 :status
+         headers1 :headers}
+        (demo/handler
+         {:uri "/index.html"
+          :request-method :get})
+        {status2 :status
+         headers2 :headers}
+        (demo/handler
+         {:uri "/index.html"
+          :request-method :get
+          :headers {"if-none-match" "\"1465419893\""}})]
+
+    (is (= 200 status1))
+    (is (= #{"date" "etag" "vary" "content-location"
+             "content-type" "content-length" "last-modified" "content-language"}
+           (set (keys headers1))))
+    (is (= 304 status2))
+    (is (= #{"date" "etag" "vary" "content-location"} (set (keys headers2))))
+    ;; TODO: test for cache-control & expires
+    ))
 
 (deftest disallowed-method-test
   (let [{status :status
