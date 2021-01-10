@@ -333,163 +333,164 @@
 
   (assert (= (:uri request) (::path resource)))
 
-  ;; If resource just has one representation, we wish to put over it. We should
-  ;; be able to do this in the general case.
 
-  (if-let [content-length (get-in request [:headers "content-length"])]
-    (when-let [max-content-length (::max-content-length resource)]
-      (try
-        (let [content-length (Long/parseLong content-length)]
-          (when (> content-length max-content-length)
+  (let [content-length
+        (try
+          (some->
+           (get-in request [:headers "content-length"])
+           (Long/parseLong))
+          (catch NumberFormatException e
             (throw
              (ex-info
-              "Payload too large"
+              "Bad content length"
               {::response
-               {:status 413
-                :body "Payload Too Large\r\n"}}))))
+               {:status 400
+                :body "Bad Request\r\n"}}
+              e))))]
 
-        (catch NumberFormatException e
-          (throw
-           (ex-info
-            "Bad content length"
-            {::response
-             {:status 400
-              :body "Bad Request\r\n"}}
-            e)))))
-
-    (when-not (get-in request [:headers "content-length"])
+    (when (nil? content-length)
       (throw
        (ex-info
         "No Content-Length header found"
         {::response
          {:status 411
-          :body "Length Required\r\n"}}))))
+          :body "Length Required\r\n"}})))
 
-  (when-not (:body request)
-    (throw
-     (ex-info
-      "No body in request"
-      {::response
-       {:status 400
-        :body "Bad Request\r\n"}})))
+    (when-let [max-content-length (::max-content-length resource)]
+      (when (> content-length max-content-length)
+        (throw
+         (ex-info
+          "Payload too large"
+          {::response
+           {:status 413
+            :body "Payload Too Large\r\n"}}))))
 
-  (let [decoded-representation
-        (decode-maybe
-         (select-keys
-          (merge {"content-encoding" "identity"} (:headers request))
-          ["content-type"
-           "content-encoding"
-           "content-language"]))]
+    (when-not (:body request)
+      (throw
+       (ex-info
+        "No body in request"
+        {::response
+         {:status 400
+          :body "Bad Request\r\n"}})))
 
-    (when-let [acceptable (::acceptable resource)]
-      (let [prefs (headers->decoded-preferences acceptable)
-            request-rep (rate-representation prefs decoded-representation)]
+    (let [decoded-representation
+          (decode-maybe
+           (select-keys
+            (merge {"content-encoding" "identity"} (:headers request))
+            ["content-type"
+             "content-encoding"
+             "content-language"]))]
 
-        (when (or (get prefs "accept") (get prefs "accept-charset"))
-          (cond
-            (not (contains? (:headers request) "content-type"))
-            (throw
-             (ex-info
-              "Request must contain Content-Type header"
-              {::response
-               {:status 415
-                :body "Unsupported Media Type\r\n"}}))
+      (when-let [acceptable (::acceptable resource)]
+        (let [prefs (headers->decoded-preferences acceptable)
+              request-rep (rate-representation prefs decoded-representation)]
 
-            (= (:juxt.pick.alpha/content-type-qvalue request-rep) 0.0)
-            (throw
-             (ex-info
-              "The content-type of the request payload is not supported by the resource"
-              {::request request
-               ::resource resource
-               ::acceptable acceptable
-               ::content-type (get request-rep "content-type")
-               ::response
-               {:status 415
-                :body "Unsupported Media Type\r\n"}}))
+          (when (or (get prefs "accept") (get prefs "accept-charset"))
+            (cond
+              (not (contains? (:headers request) "content-type"))
+              (throw
+               (ex-info
+                "Request must contain Content-Type header"
+                {::response
+                 {:status 415
+                  :body "Unsupported Media Type\r\n"}}))
 
-            (and
-             (= "text" (get-in request-rep [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/type]))
-             (get prefs "accept-charset")
-             (not (contains? (get-in request-rep [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map]) "charset")))
-            (throw
-             (ex-info
-              "The Content-Type header in the request is a text type and is required to specify its charset as a media-type parameter"
-              {::request request
-               ::resource resource
-               ::acceptable acceptable
-               ::content-type (get request-rep "content-type")
-               ::response
-               {:status 415
-                :body "Unsupported Media Type\r\n"}}))
+              (= (:juxt.pick.alpha/content-type-qvalue request-rep) 0.0)
+              (throw
+               (ex-info
+                "The content-type of the request payload is not supported by the resource"
+                {::request request
+                 ::resource resource
+                 ::acceptable acceptable
+                 ::content-type (get request-rep "content-type")
+                 ::response
+                 {:status 415
+                  :body "Unsupported Media Type\r\n"}}))
 
-            (= (:juxt.pick.alpha/charset-qvalue request-rep) 0.0)
-            (throw
-             (ex-info
-              "The charset of the Content-Type header in the request is not supported by the resource"
-              {::request request
-               ::resource resource
-               ::acceptable acceptable
-               ::content-type (get request-rep "content-type")
-               ::response
-               {:status 415
-                :body "Unsupported Media Type\r\n"}}))))
+              (and
+               (= "text" (get-in request-rep [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/type]))
+               (get prefs "accept-charset")
+               (not (contains? (get-in request-rep [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map]) "charset")))
+              (throw
+               (ex-info
+                "The Content-Type header in the request is a text type and is required to specify its charset as a media-type parameter"
+                {::request request
+                 ::resource resource
+                 ::acceptable acceptable
+                 ::content-type (get request-rep "content-type")
+                 ::response
+                 {:status 415
+                  :body "Unsupported Media Type\r\n"}}))
 
-        (when (get prefs "accept-encoding")
-          (cond
-            (= (:juxt.pick.alpha/content-encoding-qvalue request-rep) 0.0)
-            (throw
-             (ex-info
-              "The content-encoding in the request is not supported by the resource"
-              {::request request
-               ::resource resource
-               ::acceptable acceptable
-               ::content-language (get-in request [:headers "content-encoding"] "identity")
-               ::response
-               {:status 409
-                :body "Conflict\r\n"}}))))
+              (= (:juxt.pick.alpha/charset-qvalue request-rep) 0.0)
+              (throw
+               (ex-info
+                "The charset of the Content-Type header in the request is not supported by the resource"
+                {::request request
+                 ::resource resource
+                 ::acceptable acceptable
+                 ::content-type (get request-rep "content-type")
+                 ::response
+                 {:status 415
+                  :body "Unsupported Media Type\r\n"}}))))
 
-        (when (get prefs "accept-language")
-          (cond
-            (not (contains? (:headers request) "content-language"))
-            (throw
-             (ex-info
-              "Request must contain Content-Language header"
-              {::response
-               {:status 409
-                :body "Conflict\r\n"}}))
+          (when (get prefs "accept-encoding")
+            (cond
+              (= (:juxt.pick.alpha/content-encoding-qvalue request-rep) 0.0)
+              (throw
+               (ex-info
+                "The content-encoding in the request is not supported by the resource"
+                {::request request
+                 ::resource resource
+                 ::acceptable acceptable
+                 ::content-language (get-in request [:headers "content-encoding"] "identity")
+                 ::response
+                 {:status 409
+                  :body "Conflict\r\n"}}))))
 
-            (= (:juxt.pick.alpha/content-language-qvalue request-rep) 0.0)
-            (throw
-             (ex-info
-              "The content-language in the request is not supported by the resource"
-              {::request request
-               ::resource resource
-               ::acceptable acceptable
-               ::content-language (get-in request [:headers "content-language"])
-               ::response
-               {:status 415
-                :body "Unsupported Media Type\r\n"}}))))))
+          (when (get prefs "accept-language")
+            (cond
+              (not (contains? (:headers request) "content-language"))
+              (throw
+               (ex-info
+                "Request must contain Content-Language header"
+                {::response
+                 {:status 409
+                  :body "Conflict\r\n"}}))
 
-    (let [out (new java.io.ByteArrayOutputStream)]
-      (with-open [in (:body request)]
-        (io/copy in out))
+              (= (:juxt.pick.alpha/content-language-qvalue request-rep) 0.0)
+              (throw
+               (ex-info
+                "The content-language in the request is not supported by the resource"
+                {::request request
+                 ::resource resource
+                 ::acceptable acceptable
+                 ::content-language (get-in request [:headers "content-language"])
+                 ::response
+                 {:status 415
+                  :body "Unsupported Media Type\r\n"}})))))
 
-      (let [content-type (:juxt.reap.alpha.rfc7231/content-type decoded-representation)
-            charset (get-in decoded-representation [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map "charset"])
-            new-representation-metadata
-            (merge
-             (select-keys
-              (:headers request)
-              ["content-type" "content-language" "content-encoding"])
-             {"last-modified" (format-http-date date)})]
+        (let [bytes (byte-array content-length)]
 
-        (cond
-          (= (:juxt.reap.alpha.rfc7231/type content-type) "text")
-          (make-char-sequence-representation
-           (new String (.toByteArray out) charset)
-           new-representation-metadata)
+          (with-open [in (:body request)]
+            (.read in bytes 0 content-length))
 
-          :else
-          (make-byte-array-representation
-           (.toByteArray out)
-           new-representation-metadata))))))
+          (let [content-type (:juxt.reap.alpha.rfc7231/content-type decoded-representation)
+                charset (get-in decoded-representation [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map "charset"])
+                new-representation-metadata
+                (merge
+                 (select-keys
+                  (:headers request)
+                  ["content-type" "content-language" "content-encoding"])
+                 {"last-modified" (format-http-date date)})]
+
+            (cond
+              (= (:juxt.reap.alpha.rfc7231/type content-type) "text")
+              (make-char-sequence-representation
+               (new String bytes charset)
+               new-representation-metadata)
+
+              :else
+              (make-byte-array-representation
+               bytes
+               new-representation-metadata))))))))
