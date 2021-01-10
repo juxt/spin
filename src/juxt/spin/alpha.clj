@@ -161,6 +161,13 @@
              {:status 412
               :body "Precondition Failed\r\n"}})))))))
 
+;; TODO: See Section 4.1, RFC 7232:
+;;
+;; "The server generating a 304 response MUST generate any of the following
+;; header fields that would have been sent in a 200 (OK) response to the same
+;; request: Cache-Control, Content-Location, Date, ETag, Expires, and Vary."
+
+
 (defn evaluate-if-none-match!
   "Evaluate an If-None-Match precondition header field in the context of a
   resource and, when applicable, the representation metadata of the selected
@@ -194,7 +201,7 @@
                   :body "Not Modified\r\n"}
                  ;; "… or 412 (Precondition Failed) status code for all other
                  ;; request methods."
-                 {:status 304
+                 {:status 412
                   :body "Precondition Failed\r\n"})})))))
 
       ;; "If-None-Match can also be used with a value of '*' …"
