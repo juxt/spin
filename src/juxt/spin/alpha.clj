@@ -327,8 +327,7 @@
           parsed-range)))))
 
 (defn receive-representation
-  "Replace the state of a resource with the state defined by the representation
-  enclosed in the request message payload. Neither argument can be nil."
+  "Check and load the representation enclosed in the request message payload."
   [request resource date]
 
   (assert (= (:uri request) (::path resource)))
