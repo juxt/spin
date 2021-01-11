@@ -8,12 +8,13 @@
    [hiccup.page :as hp]
    [juxt.reap.alpha.encoders :refer [format-http-date www-authenticate]]
    [juxt.reap.alpha.decoders :as reap]
-   [juxt.spin.alpha.ranges :as ranges]
    [juxt.spin.alpha.representation :refer [make-char-sequence-representation]]
    [juxt.spin.alpha.negotiation :as spin.negotiation]
    [juxt.spin.alpha :as spin]
-   [ring.adapter.jetty :as jetty]
-   [juxt.reap.alpha.rfc7235 :as rfc7235]))
+   [juxt.spin.alpha.ranges :as spin.ranges]
+   [juxt.spin.alpha.representation :as spin.representation]
+   [juxt.reap.alpha.rfc7235 :as rfc7235]
+   [ring.adapter.jetty :as jetty]))
 
 (defn make-comment [comment]
   (make-char-sequence-representation
@@ -237,14 +238,6 @@
        (add-comment "And add to them via a POST")
        (add-comment "How about a form?"))))
 
-(defn partial-representation-payload [{::spin/keys [body]}
-                                      {:juxt.reap.alpha.rfc7233/keys [units byte-range-set]
-                                       :as ranges-specifier}
-                                      representation-metadata]
-  (case units
-    "bytes" (ranges/byte-ranges-payload
-             body ranges-specifier representation-metadata)))
-
 (defn representation-payload
   "Returns a map of ::spin/payload-header-fields, ::spin/body and (optionally) ::spin/status for a given representation"
   [representation
@@ -257,7 +250,7 @@
     (get-in representation [::spin/representation-data ::spin/bytes])
     (cond-> {::spin/payload-header-fields (get-in representation [::spin/representation-data ::spin/payload-header-fields])
              ::spin/body (get-in representation [::spin/representation-data ::spin/bytes])}
-      ranges-specifier (partial-representation-payload
+      ranges-specifier (spin.ranges/partial-representation-payload
                         ranges-specifier
                         (::spin/representation-metadata representation)))
 
@@ -383,7 +376,7 @@
             )))))
 
 (defn PUT [request resource selected-representation-metadata date {::keys [db-atom]}]
-  (let [new-representation (spin/receive-representation request resource date)
+  (let [new-representation (spin.representation/receive-representation request resource date)
         new-resource
         (-> resource
             (assoc ::spin/representations [new-representation])
@@ -530,7 +523,7 @@
       (h req)
       (catch clojure.lang.ExceptionInfo e
         ;;          (tap> e)
-        (prn e)
+        ;;(prn e)
         (let [exdata (ex-data e)]
           (or
            (::spin/response exdata)

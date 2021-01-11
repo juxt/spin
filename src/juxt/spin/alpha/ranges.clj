@@ -102,3 +102,13 @@
        ::spin/body (new java.io.SequenceInputStream
                         (java.util.Collections/enumeration
                          (map :stream segments)))})))
+
+
+(defn partial-representation-payload
+  [{::spin/keys [body]}
+   {:juxt.reap.alpha.rfc7233/keys [units]
+    :as ranges-specifier}
+   representation-metadata]
+  (case units
+    "bytes" (byte-ranges-payload
+             body ranges-specifier representation-metadata)))
