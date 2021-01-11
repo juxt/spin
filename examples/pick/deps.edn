@@ -1,7 +1,0 @@
-;; Copyright © 2020-2021, JUXT LTD.
-
-{:paths ["src"]
- :deps {juxt/pick
-        {:git/url "https://github.com/juxt/pick.git"
-         :sha "793f7dcea01bdfba566b55bcd8eeb9fa1df1e89a"}
-        juxt/spin {:local/root "../.."}}}
