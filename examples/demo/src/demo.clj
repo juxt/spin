@@ -6,14 +6,14 @@
    [clojure.set :as set]
    [clojure.string :as str]
    [hiccup.page :as hp]
+   [juxt.reap.alpha.rfc7235 :as rfc7235]
    [juxt.reap.alpha.encoders :refer [format-http-date www-authenticate]]
    [juxt.reap.alpha.decoders :as reap]
-   [juxt.spin.alpha.representation :refer [make-char-sequence-representation]]
-   [juxt.spin.alpha.negotiation :as spin.negotiation]
+   [juxt.spin.alpha.representation :refer [make-char-sequence-representation
+                                           receive-representation]]
    [juxt.spin.alpha :as spin]
+   [juxt.spin.alpha.negotiation :as spin.negotiation]
    [juxt.spin.alpha.ranges :as spin.ranges]
-   [juxt.spin.alpha.representation :as spin.representation]
-   [juxt.reap.alpha.rfc7235 :as rfc7235]
    [ring.adapter.jetty :as jetty]))
 
 (defn make-comment [comment]
@@ -376,7 +376,7 @@
             )))))
 
 (defn PUT [request resource selected-representation-metadata date {::keys [db-atom]}]
-  (let [new-representation (spin.representation/receive-representation request resource date)
+  (let [new-representation (receive-representation request resource date)
         new-resource
         (-> resource
             (assoc ::spin/representations [new-representation])

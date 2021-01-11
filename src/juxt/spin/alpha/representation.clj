@@ -2,11 +2,11 @@
 
 (ns juxt.spin.alpha.representation
   (:require
-   [juxt.reap.alpha.encoders :refer [format-http-date]]
    [juxt.pick.alpha.core :refer [rate-representation]]
    [juxt.pick.alpha.ring :refer [decode-maybe]]
-   [juxt.reap.alpha.ring :refer [headers->decoded-preferences]]
+   [juxt.reap.alpha.encoders :refer [format-http-date]]
    [juxt.reap.alpha.decoders :as reap]
+   [juxt.reap.alpha.ring :refer [headers->decoded-preferences]]
    [juxt.spin.alpha :as spin]))
 
 ;; The separation of representation-metadata and payload is to allow
