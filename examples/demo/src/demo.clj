@@ -13,8 +13,7 @@
    [juxt.spin.alpha.negotiation :as spin.negotiation]
    [juxt.spin.alpha :as spin]
    [ring.adapter.jetty :as jetty]
-   [juxt.reap.alpha.rfc7235 :as rfc7235]
-   [ring.core.protocols :refer [StreamableResponseBody]]))
+   [juxt.reap.alpha.rfc7235 :as rfc7235]))
 
 (defn make-comment [comment]
   (make-char-sequence-representation
