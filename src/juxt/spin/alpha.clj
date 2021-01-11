@@ -6,8 +6,7 @@
    [juxt.reap.alpha.decoders :as reap]
    [juxt.reap.alpha.encoders :refer [format-http-date]]
    [juxt.reap.alpha.rfc7231 :as rfc7231]
-   [juxt.reap.alpha.rfc7232 :as rfc7232]
-   [juxt.spin.alpha :as spin]))
+   [juxt.reap.alpha.rfc7232 :as rfc7232]))
 
 (defn check-method-not-implemented!
   "When the request method is not implemented, return a 501 response."
