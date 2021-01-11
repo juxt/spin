@@ -6,14 +6,13 @@
    [clojure.set :as set]
    [clojure.string :as str]
    [hiccup.page :as hp]
-   [juxt.reap.alpha.rfc7235 :as rfc7235]
-   [juxt.reap.alpha.encoders :refer [format-http-date www-authenticate]]
-   [juxt.reap.alpha.decoders :as reap]
+   [juxt.reap.alpha.encoders :refer [format-http-date]]
    [juxt.spin.alpha.representation :refer [make-char-sequence-representation
                                            receive-representation]]
    [juxt.spin.alpha :as spin]
    [juxt.spin.alpha.negotiation :as spin.negotiation]
    [juxt.spin.alpha.ranges :as spin.ranges]
+   [juxt.spin.alpha.auth :as spin.auth]
    [ring.adapter.jetty :as jetty]))
 
 (defn make-comment [comment]
@@ -212,6 +211,8 @@
      {::spin/methods #{:get :head :options}
       ::spin/authentication-scheme "Basic"
       ::spin/realm "Winterfell"
+      ::username "mal"
+      ::password "tara"
       ::spin/representations
       [{::spin/representation-metadata
         {"content-type" "text/html;charset=utf-8"
@@ -417,18 +418,10 @@
   entitlements added to it. The resource can be used to determine the particular
   Protection Space that it is part of."
   [request resource]
-  (let [roles
-        (when-let [authorization-header (get-in request [:headers "authorization"])]
-          (let [{:juxt.reap.alpha.rfc7235/keys [auth-scheme token68 #_auth-params]}
-                (reap/authorization authorization-header)]
-            (case auth-scheme
-              "Basic"
-              (let [[_ user password]
-                    (re-matches #"([^:]*):([^:]*)"
-                                (String. (.decode (java.util.Base64/getDecoder) token68)))]
-                (when (and (= user "mal")
-                           (= password "tara"))
-                  #{::valid-user})))))]
+  (let [{::spin.auth/keys [user password]} (spin.auth/decode-authorization-header request)
+        roles (when (and (= user (::username resource))
+                         (= password (::password resource)))
+                #{::valid-user})]
     (cond-> request
       roles (assoc ::roles roles))))
 
@@ -450,11 +443,7 @@
                 (not authorization-exists?)
                 (assoc
                  "www-authenticate"
-                 (www-authenticate
-                  [#::rfc7235{:auth-scheme "Basic"
-                              :auth-params
-                              [#::rfc7235{:auth-param-name "realm",
-                                          :auth-param-value "Winterfell"}]}])))
+                 (spin.auth/basic-auth-www-authenticate "Winterfell")))
               :body "Credentials are required to access this page\r\n"}}))))))
   ;; Return the resource, changed if necessary
   resource)
