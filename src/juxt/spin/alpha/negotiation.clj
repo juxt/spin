@@ -6,7 +6,7 @@
    [juxt.pick.alpha.ring :refer [pick]]
    [juxt.spin.alpha :as spin]))
 
-(defn negotiate-representation [request current-representations date opts]
+(defn negotiate-representation [request current-representations date]
   ;; Negotiate the best representation, determining the vary
   ;; header.
   (let [{selected-representation-metadata :juxt.pick.alpha/representation

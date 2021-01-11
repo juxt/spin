@@ -478,7 +478,7 @@
               ;; Negotiate the best representation
               {:keys [selected-representation
                       selected-representation-metadata]}
-              (spin.negotiation/negotiate-representation request current-representations date {::db db})]
+              (spin.negotiation/negotiate-representation request current-representations date)]
 
           ;; Process the request method
           (case (:request-method request)
