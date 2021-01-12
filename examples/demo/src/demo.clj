@@ -207,12 +207,10 @@
       ;; -- Section 2.3, RFC 7233
       ::spin/accept-ranges ["bytes"]}
 
-     "/protected-area.html"
+     "/protected.html"
      {::spin/methods #{:get :head :options}
       ::spin/authentication-scheme "Basic"
       ::spin/realm "Winterfell"
-      ::username "mal"
-      ::password "tara"
       ::spin/representations
       [{::spin/representation-metadata
         {"content-type" "text/html;charset=utf-8"
@@ -223,6 +221,10 @@
       ::required-role {:get #{::valid-user}
                        :head #{::valid-user}
                        :options #{::valid-user}}}}
+
+    :realms
+    {"Winterfell"
+     {:users {"mal" {:password "tara"}}}}
 
     :next-comment-id 1}))
 
@@ -417,11 +419,12 @@
   "Authenticate a request. Return the request with any credentials, roles and
   entitlements added to it. The resource can be used to determine the particular
   Protection Space that it is part of."
-  [request resource]
+  [request resource db]
   (let [{::spin.auth/keys [user password]} (spin.auth/decode-authorization-header request)
-        roles (when (and (= user (::username resource))
-                         (= password (::password resource)))
-                #{::valid-user})]
+        realm (get-in db [:realms (::spin/realm resource)])
+        valid-user (get-in realm [:users user])
+        valid-user? (when valid-user (= (:password valid-user) password))
+        roles (when valid-user? #{::valid-user})]
     (cond-> request
       roles (assoc ::roles roles))))
 
@@ -443,7 +446,7 @@
                 (not authorization-exists?)
                 (assoc
                  "www-authenticate"
-                 (spin.auth/basic-auth-www-authenticate "Winterfell")))
+                 (spin.auth/basic-auth-www-authenticate (::spin/realm resource))))
               :body "Credentials are required to access this page\r\n"}}))))))
   ;; Return the resource, changed if necessary
   resource)
@@ -456,7 +459,7 @@
 
       ;; Locate the resource
       (let [resource (locate-resource db (:uri request))
-            request (authenticate request resource)
+            request (authenticate request resource db)
             resource (authorize request resource)]
 
         ;; Validate the request (check query params, body, other constraints)
@@ -512,7 +515,7 @@
       (h req)
       (catch clojure.lang.ExceptionInfo e
         ;;          (tap> e)
-        ;;(prn e)
+        (prn e)
         (let [exdata (ex-data e)]
           (or
            (::spin/response exdata)
