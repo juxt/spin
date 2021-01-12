@@ -156,8 +156,7 @@
       [{::spin/representation-metadata
         {"content-type" "text/html;charset=utf-8"
          "content-location" "/comments.html"}
-        ::spin/representation-data
-        {::spin/payload-generator ::comments}}]}
+        ::spin/payload-generator ::comments}]}
 
      "/comments.txt"
      {::spin/methods #{:get :head :options}
@@ -165,8 +164,7 @@
       [{::spin/representation-metadata
         {"content-type" "text/plain;charset=utf-8"
          "content-location" "/comments.txt"}
-        ::spin/representation-data
-        {::spin/payload-generator ::comments}}]
+        ::spin/payload-generator ::comments}]
       ::spin/accept-ranges ["bytes" "comments"]}
 
      "/comments"
@@ -181,8 +179,7 @@
       [{::spin/representation-metadata
         {"content-type" "text/plain;charset=utf-8"
          "last-modified" (format-http-date #inst "2020-12-28T15:00:00Z")}
-        ::spin/representation-data
-        {::spin/bytes (.getBytes "Hello World!")}}]
+        ::spin/bytes (.getBytes "Hello World!")}]
       ::spin/acceptable
       {"accept" "text/plain"
        "accept-charset" "utf-8"}}
@@ -199,9 +196,8 @@
            "etag" "\"abc\""
            "last-modified" (format-http-date #inst "2020-12-31T16:00:00Z")}
 
-          ::spin/representation-data
-          {::spin/payload-header-fields {"content-length" (str (count bytes))}
-           ::spin/bytes bytes}})]
+          ::spin/payload-header-fields {"content-length" (str (count bytes))}
+          ::spin/bytes bytes})]
 
       ;; to "indicate that it supports range requests for the target resource."
       ;; -- Section 2.3, RFC 7233
@@ -217,9 +213,8 @@
       [{::spin/representation-metadata
         {"content-type" "text/html;charset=utf-8"
          "last-modified" "Tue, 1 Dec 2020 09:00:00 GMT"}
-        ::spin/representation-data
-        {::spin/payload-header-fields {}
-         ::spin/bytes (.getBytes "<h1>Hidden Area</h1><p>Access Granted</p>")}}]
+        ::spin/payload-header-fields {}
+        ::spin/bytes (.getBytes "<h1>Hidden Area</h1><p>Access Granted</p>")}]
       ::required-role {:get #{::valid-user}
                        :head #{::valid-user}
                        :options #{::valid-user}}}}
@@ -252,14 +247,14 @@
 
   (cond
 
-    (get-in representation [::spin/representation-data ::spin/bytes])
-    (cond-> {::spin/payload-header-fields (get-in representation [::spin/representation-data ::spin/payload-header-fields])
-             ::spin/body (get-in representation [::spin/representation-data ::spin/bytes])}
+    (::spin/bytes representation)
+    (cond-> {::spin/payload-header-fields (::spin/payload-header-fields representation)
+             ::spin/body (::spin/bytes representation)}
       ranges-specifier (spin.ranges/partial-representation-payload
                         ranges-specifier
                         (::spin/representation-metadata representation)))
 
-    (= (get-in representation [::spin/representation-data ::spin/payload-generator]) ::comments)
+    (= (::spin/payload-generator representation) ::comments)
     (let [bytes
           (case (get-in representation [::spin/representation-metadata "content-type"])
             "text/html;charset=utf-8"
@@ -274,7 +269,7 @@
                  (for [{:keys [location representation]} (get-comments db)]
                    [:li
                     ;; NOTE: This feels like a bit of a hack
-                    (String. (get-in representation [::spin/representation-data ::spin/bytes]))
+                    (String. (::spin/bytes representation))
                     "&nbsp;"
                     [:small
                      [:a {:href location}
@@ -285,7 +280,7 @@
             (.getBytes
              (str/join
               (for [{:keys [representation]} (get-comments db)]
-                (str (String. (get-in representation [::spin/representation-data ::spin/bytes])) "\r\n")))))]
+                (str (String. (::spin/bytes representation)) "\r\n")))))]
       {::spin/payload-header-fields {"content-length" (str (count bytes))}
        ::spin/body bytes})
 
@@ -518,7 +513,7 @@
       (h req)
       (catch clojure.lang.ExceptionInfo e
         ;;          (tap> e)
-        (prn e)
+        ;;(prn e)
         (let [exdata (ex-data e)]
           (or
            (::spin/response exdata)
