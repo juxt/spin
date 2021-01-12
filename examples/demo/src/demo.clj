@@ -209,8 +209,10 @@
 
      "/protected.html"
      {::spin/methods #{:get :head :options}
-      ::spin/authentication-scheme "Basic"
-      ::spin/realm "Winterfell"
+      ::spin/authentication-schemes
+      [{::spin/authentication-scheme "Basic"
+        ::spin/realm "Winterfell"}]
+
       ::spin/representations
       [{::spin/representation-metadata
         {"content-type" "text/html;charset=utf-8"
@@ -421,7 +423,7 @@
   Protection Space that it is part of."
   [request resource db]
   (let [{::spin.auth/keys [user password]} (spin.auth/decode-authorization-header request)
-        realm (get-in db [:realms (::spin/realm resource)])
+        realm (get-in db [:realms "Winterfell"])
         valid-user (get-in realm [:users user])
         valid-user? (when valid-user (= (:password valid-user) password))
         roles (when valid-user? #{::valid-user})]
@@ -435,7 +437,7 @@
   (when-let [required-role (get resource ::required-role)]
     (let [acquired-roles (get request ::roles)]
       (when-not (set/intersection required-role acquired-roles)
-        (let [authorization-exists? (get-in request [:headers "authorization"])]
+        (let [authorization-exists? (spin.auth/decode-authorization-header request)]
           (throw
            (ex-info
             (if authorization-exists? "Forbidden" "Unauthorized")
@@ -446,7 +448,8 @@
                 (not authorization-exists?)
                 (assoc
                  "www-authenticate"
-                 (spin.auth/basic-auth-www-authenticate (::spin/realm resource))))
+                 (spin.auth/www-authenticate
+                  (::spin/authentication-schemes resource))))
               :body "Credentials are required to access this page\r\n"}}))))))
   ;; Return the resource, changed if necessary
   resource)
