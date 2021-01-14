@@ -6,10 +6,10 @@
    [juxt.pick.alpha.ring :refer [pick]]
    [juxt.spin.alpha :as spin]))
 
-(defn negotiate-representation [request current-representations date]
+(defn negotiate-representation [request current-representations]
   ;; Negotiate the best representation, determining the vary
   ;; header.
-  (let [{selected-representation-metadata :juxt.pick.alpha/representation
+  (let [{selected-representation :juxt.pick.alpha/representation
          vary :juxt.pick.alpha/vary}
         (when (seq current-representations)
           ;; Call into pick which does that actual content-negotation
@@ -17,30 +17,16 @@
           (pick
            request
            (for [r current-representations]
-             (-> (::spin/representation-metadata r)
-                 (assoc ::attached-representation r)))
+             (assoc r :juxt.pick.alpha/representation-metadata (::spin/representation-metadata r)))
            {:juxt.pick.alpha/vary? true}))
-
-        selected-representation
-        (::attached-representation selected-representation-metadata)
 
         ;; Check for a 406 Not Acceptable
         _ (when (contains? #{:get :head} (:request-method request))
-            (spin/check-not-acceptable! selected-representation))
+            (spin/check-not-acceptable! selected-representation))]
 
-        selected-representation-metadata
-        (as-> selected-representation-metadata %
-          (dissoc % ::attached-representation)
-          ;; Remove the extraneous keyword entries added by pick.
-          (filter (comp string? first) %)
-          (into {} %))
-
-        ;; Pin the vary header onto the selected representation's
-        ;; metadata
-        selected-representation-metadata
-        (cond-> selected-representation-metadata
-          (and selected-representation-metadata (seq vary))
-          (assoc "vary" (str/join ", " vary)))]
-
-    {:selected-representation selected-representation
-     :selected-representation-metadata selected-representation-metadata}))
+    ;; Pin the vary header onto the selected representation's
+    ;; metadata
+    (cond-> selected-representation
+      (not-empty vary) (assoc-in
+                        [::spin/representation-metadata "vary"]
+                        (str/join ", " vary)))))

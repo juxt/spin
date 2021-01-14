@@ -290,11 +290,10 @@
 (defn GET
   "The GET method."
   [request resource
-   date selected-representation selected-representation-metadata
-   opts]
+   date selected-representation opts]
 
   ;; Check for a 304 Not Modified
-  (spin/evaluate-preconditions! request resource selected-representation-metadata date)
+  (spin/evaluate-preconditions! request resource (::spin/representation-metadata selected-representation) date)
 
   ;; "The Range header field is evaluated after evaluating the precondition
   ;; header fields defined in [RFC7232], and only if the result in absence
@@ -302,7 +301,7 @@
   ;; words, Range is ignored when a conditional GET would result in a 304
   ;; (Not Modified) response.
 
-  (let [ranges-specifier (spin/ranges-specifier request resource selected-representation-metadata)
+  (let [ranges-specifier (spin/ranges-specifier request resource (::spin/representation-metadata selected-representation))
 
         ;; Here we determine the status (optional), payload headers and body of
         ;; the representation.
@@ -321,9 +320,10 @@
                (::spin/accept-ranges resource)
                (assoc "accept-ranges" (str/join ", " (::spin/accept-ranges resource)))
 
-               selected-representation-metadata (merge selected-representation-metadata)
+               (::spin/representation-metadata selected-representation)
+               (merge (::spin/representation-metadata selected-representation))
 
-               (= (get selected-representation-metadata "content-location") (:uri request))
+               (= (get (::spin/representation-metadata selected-representation) "content-location") (:uri request))
                (dissoc "content-location")
 
                payload-header-fields (merge payload-header-fields))}
@@ -477,26 +477,23 @@
                   (spin/check-not-found! current-representations))
 
               ;; Negotiate the best representation
-              {:keys [selected-representation
-                      selected-representation-metadata]}
-              (spin.negotiation/negotiate-representation request current-representations date)]
+              selected-representation
+              (spin.negotiation/negotiate-representation request current-representations)]
 
           ;; Process the request method
           (case (:request-method request)
 
             (:get :head)
-            (GET request resource date
-                 selected-representation selected-representation-metadata
-                 {::db db})
+            (GET request resource date selected-representation {::db db})
 
             :post
             (POST request resource date {::db-atom *database})
 
             :put
-            (PUT request resource selected-representation-metadata date {::db-atom *database})
+            (PUT request resource (::spin/representation-metadata selected-representation) date {::db-atom *database})
 
             :delete
-            (DELETE request resource selected-representation-metadata date {::db-atom *database})
+            (DELETE request resource (::spin/representation-metadata selected-representation) date {::db-atom *database})
 
             :options
             (OPTIONS request resource date {::db db})))))))

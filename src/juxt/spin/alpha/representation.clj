@@ -91,11 +91,17 @@
 
     (let [decoded-representation
           (decode-maybe
-           (select-keys
-            (merge {"content-encoding" "identity"} (:headers request))
-            ["content-type"
-             "content-encoding"
-             "content-language"]))]
+           {:juxt.pick.alpha/representation-metadata
+            (select-keys
+             (merge
+              ;; See Section 3.1.1.5, RFC 7231 as to why content-type defaults
+              ;; to application/octet-stream
+              {"content-type" "application/octet-stream"
+               "content-encoding" "identity"}
+              (:headers request))
+             ["content-type"
+              "content-encoding"
+              "content-language"])})]
 
       (when-let [acceptable (::spin/acceptable resource)]
         (let [prefs (headers->decoded-preferences acceptable)
@@ -103,14 +109,6 @@
 
           (when (or (get prefs "accept") (get prefs "accept-charset"))
             (cond
-              (not (contains? (:headers request) "content-type"))
-              (throw
-               (ex-info
-                "Request must contain Content-Type header"
-                {::spin/response
-                 {:status 415
-                  :body "Unsupported Media Type\r\n"}}))
-
               (= (:juxt.pick.alpha/content-type-qvalue request-rep) 0.0)
               (throw
                (ex-info
