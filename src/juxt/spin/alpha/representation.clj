@@ -182,29 +182,29 @@
                  ::content-language (get-in request [:headers "content-language"])
                  ::spin/response
                  {:status 415
-                  :body "Unsupported Media Type\r\n"}})))))
+                  :body "Unsupported Media Type\r\n"}}))))))
 
-        (let [bytes (byte-array content-length)]
+      (let [bytes (byte-array content-length)]
 
-          (with-open [in (:body request)]
-            (.read in bytes 0 content-length))
+        (with-open [in (:body request)]
+          (.read in bytes 0 content-length))
 
-          (let [content-type (:juxt.reap.alpha.rfc7231/content-type decoded-representation)
-                charset (get-in decoded-representation [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map "charset"])
-                new-representation-metadata
-                (merge
-                 (select-keys
-                  (:headers request)
-                  ["content-type" "content-language" "content-encoding"])
-                 {"last-modified" (format-http-date date)})]
+        (let [content-type (:juxt.reap.alpha.rfc7231/content-type decoded-representation)
+              charset (get-in decoded-representation [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map "charset"])
+              new-representation-metadata
+              (merge
+               (select-keys
+                (:headers request)
+                ["content-type" "content-language" "content-encoding"])
+               {"last-modified" (format-http-date date)})]
 
-            (cond
-              (= (:juxt.reap.alpha.rfc7231/type content-type) "text")
-              (make-char-sequence-representation
-               (new String bytes charset)
-               new-representation-metadata)
+          (cond
+            (= (:juxt.reap.alpha.rfc7231/type content-type) "text")
+            (make-char-sequence-representation
+             (new String bytes charset)
+             new-representation-metadata)
 
-              :else
-              (make-byte-array-representation
-               bytes
-               new-representation-metadata))))))))
+            :else
+            (make-byte-array-representation
+             bytes
+             new-representation-metadata)))))))
