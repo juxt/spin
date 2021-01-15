@@ -60,9 +60,13 @@
             :body "Method Not Allowed\r\n"}}))))
     ;; We forbid POST, PUT and DELETE on a nil resource
     (when (#{:put :delete :post} (:request-method request))
-      {:status 405
-       :headers {"allow" (allow-header #{:get :head})}
-       :body "Method Not Allowed\r\n"})))
+      (throw
+       (ex-info
+        "Method not allowed"
+        {::response
+         {:status 405
+          :headers {"allow" (allow-header #{:get :head})}
+          :body "Method Not Allowed\r\n"}})))))
 
 (defn check-not-found! [current-representations]
   (when (empty? current-representations)
