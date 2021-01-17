@@ -48,8 +48,6 @@
   "Check and load the representation enclosed in the request message payload."
   [request resource date]
 
-  (assert (= (:uri request) (::spin/path resource)))
-
   (let [content-length
         (try
           (some->

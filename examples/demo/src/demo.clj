@@ -68,11 +68,11 @@
   (or
    (some->
     (get-in db [:resources path])
-    (assoc ::spin/path path))
+    (assoc ::path path))
    (when (re-matches #"/articles/[a-z][a-z0-9-]*.adoc" path)
      ;; Return a resource that represents the missing article. This is the
      ;; resource that will be added to the database
-     {::spin/path path
+     {::path path
       ::spin/methods #{:get :head :put :options}
       ::spin/representations []
       ::spin/max-content-length 1024
@@ -333,7 +333,7 @@
 
 (defn POST [request resource date {::spin/keys [db-atom]}]
 
-  (assert (= (:uri request) (::spin/path resource)))
+  (assert (= (:uri request) (::path resource)))
 
   ;; Revisit - we should not encode knowledge of the URI structure here.
   (case (:uri request)
@@ -376,11 +376,13 @@
             )))))
 
 (defn PUT [request resource selected-representation-metadata date {::keys [db-atom]}]
+  (assert (= (:uri request) (::path resource)))
+
   (let [new-representation (receive-representation request resource date)
         new-resource
         (-> resource
             (assoc ::spin/representations [new-representation])
-            (dissoc ::spin/path))]
+            (dissoc ::path))]
 
     (swap!
      db-atom
@@ -403,7 +405,7 @@
 (defn DELETE [request resource selected-representation-metadata date {::keys [db-atom]}]
   (swap! db-atom #(do
                     (spin/evaluate-preconditions! request resource selected-representation-metadata date)
-                    (update % :resources dissoc (::spin/path resource))))
+                    (update % :resources dissoc (::path resource))))
   (cond-> {:status 200}
     date (assoc "date" (format-http-date date))
     true (assoc :body "Deleted\r\n")))
