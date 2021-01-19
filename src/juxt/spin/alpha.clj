@@ -336,3 +336,29 @@
 
           ;; No If-Range header.
           parsed-range)))))
+
+(defn response
+  "Construct a Ring response. Any of the arguments may be nil. The parameter
+  accept-ranges, if provided, should be a collection of range units. The request
+  is used to determine whether content-location should be added as a header."
+  [status
+   selected-representation-metadata
+   payload-header-fields
+   request
+   accept-ranges
+   date
+   body]
+  (into
+   (if status {:status status} {})
+   [[:headers
+     (cond-> {}
+       date (assoc "date" (format-http-date (or date (java.util.Date.))))
+       accept-ranges (assoc "accept-ranges" (str/join ", " accept-ranges))
+       selected-representation-metadata (merge selected-representation-metadata)
+       payload-header-fields (merge payload-header-fields)
+       (and request
+            (= (get selected-representation-metadata "content-location")
+               (:uri request)))
+       (dissoc "content-location"))]
+    (when (= (:request-method request) :get)
+      [:body body])]))

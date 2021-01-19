@@ -312,24 +312,14 @@
          ranges-specifier
          opts)]
 
-    (cond-> {:status (or status 200)
-             :headers
-             (cond-> {}
-               date (assoc "date" (format-http-date date))
-
-               (::spin/accept-ranges resource)
-               (assoc "accept-ranges" (str/join ", " (::spin/accept-ranges resource)))
-
-               (::spin/representation-metadata selected-representation)
-               (merge (::spin/representation-metadata selected-representation))
-
-               (= (get (::spin/representation-metadata selected-representation) "content-location") (:uri request))
-               (dissoc "content-location")
-
-               payload-header-fields (merge payload-header-fields))}
-
-      ;; Don't add body for a HEAD method
-      (= (:request-method request) :get) (assoc :body body))))
+    (spin/response
+     (or status 200)
+     (::spin/representation-metadata selected-representation)
+     payload-header-fields
+     request
+     (::spin/accept-ranges resource)
+     date
+     body)))
 
 (defn POST [request resource date {::spin/keys [db-atom]}]
 
