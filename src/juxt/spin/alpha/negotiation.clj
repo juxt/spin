@@ -12,8 +12,7 @@
   (let [{selected-representation :juxt.pick.alpha/representation
          vary :juxt.pick.alpha/vary}
         (when (seq current-representations)
-          ;; Call into pick which does that actual content-negotation
-          ;; for us.
+          ;; Call into pick which does that actual negotiation for us.
           (pick
            request
            (for [r current-representations]
