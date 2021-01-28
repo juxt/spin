@@ -368,6 +368,14 @@
 (defn PUT [request resource selected-representation-metadata date {::keys [db-atom]}]
   (assert (= (:uri request) (::path resource)))
 
+  (when (get-in request [:headers "content-range"])
+    (throw
+     (ex-info
+      "Content-Range header not allowed on a PUT request"
+      {::spin/response
+       {:status 400
+        :body "Bad Request\r\n"}})))
+
   (let [new-representation (receive-representation request resource date)
         new-resource
         (-> resource
