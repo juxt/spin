@@ -50,7 +50,7 @@
   (if resource
     (let [methods (::methods resource)
           method (:request-method request)]
-      (when-not (contains? methods method)
+      (when-not (contains? (set methods) method)
         (throw
          (ex-info
           "Method not allowed"
