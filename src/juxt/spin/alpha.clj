@@ -360,5 +360,5 @@
             (= (get selected-representation-metadata "content-location")
                (:uri request)))
        (dissoc "content-location"))]
-    (when (= (:request-method request) :get)
+    (when (not= (:request-method request) :head)
       [:body body])]))
