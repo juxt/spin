@@ -199,7 +199,7 @@
           (cond
             (= (:juxt.reap.alpha.rfc7231/type content-type) "text")
             (make-char-sequence-representation
-             (new String bytes charset)
+             (new String bytes (or charset "utf-8"))
              new-representation-metadata)
 
             :else
