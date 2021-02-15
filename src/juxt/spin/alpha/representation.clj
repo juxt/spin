@@ -2,6 +2,7 @@
 
 (ns juxt.spin.alpha.representation
   (:require
+   [clojure.tools.logging :as log]
    [juxt.pick.alpha.core :refer [rate-representation]]
    [juxt.pick.alpha.ring :refer [decode-maybe]]
    [juxt.reap.alpha.encoders :refer [format-http-date]]
@@ -61,6 +62,8 @@
                {:status 400
                 :body "Bad Request\r\n"}}
               e))))]
+
+    (log/debug "content-length received is" content-length)
 
     (when (nil? content-length)
       (throw
