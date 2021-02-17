@@ -188,7 +188,7 @@
       (let [bytes (byte-array content-length)]
 
         (with-open [in (:body request)]
-          (.read in bytes 0 content-length))
+          (.readFully (java.io.DataInputStream. in) bytes))
 
         (let [content-type (:juxt.reap.alpha.rfc7231/content-type decoded-representation)
               new-representation-metadata
