@@ -73,7 +73,10 @@
          {:status 411
           :body "Length Required\r\n"}})))
 
-    (when-let [max-content-length (::spin/max-content-length resource)]
+    ;; Spin protects resources from PUTs that are too large. If you need to
+    ;; exceed this limitation, explicitly declare ::spin/max-content-length in
+    ;; your resource.
+    (when-let [max-content-length (get resource ::spin/max-content-length (Math/pow 2 16))]
       (when (> content-length max-content-length)
         (throw
          (ex-info
