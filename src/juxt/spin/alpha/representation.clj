@@ -191,7 +191,6 @@
           (.read in bytes 0 content-length))
 
         (let [content-type (:juxt.reap.alpha.rfc7231/content-type decoded-representation)
-              charset (get-in decoded-representation [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map "charset"])
               new-representation-metadata
               (merge
                (select-keys
@@ -201,9 +200,10 @@
 
           (cond
             (= (:juxt.reap.alpha.rfc7231/type content-type) "text")
-            (make-char-sequence-representation
-             (new String bytes (or charset "utf-8"))
-             new-representation-metadata)
+            (let [charset (get-in decoded-representation [:juxt.reap.alpha.rfc7231/content-type :juxt.reap.alpha.rfc7231/parameter-map "charset"])]
+              (make-char-sequence-representation
+               (new String bytes (or charset "utf-8"))
+               new-representation-metadata))
 
             :else
             (make-byte-array-representation
