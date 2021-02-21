@@ -5,6 +5,8 @@
    [clojure.test :refer [deftest is testing]]
    [juxt.spin.alpha :as spin]))
 
+(alias 'http (create-ns 'juxt.http.alpha))
+
 (defn header [request header value]
   (-> request
       (assoc-in [:headers header] value)))
@@ -60,7 +62,7 @@
 
 (deftest check-method-not-allowed-test
   (testing "a 405 response if method not allowed"
-    (let [resource {::spin/methods #{:get}}]
+    (let [resource {::http/methods #{:get}}]
       (is
        (=
         {:status 405 :headers {"allow" "GET"}}
@@ -69,43 +71,6 @@
            (spin/check-method-not-allowed! request resource))
          (request :post "/")
          [:status "allow"]))))))
-
-(deftest get-and-head-test
-  (let [resource {::spin/methods #{:get :head}}
-        h (fn [request]
-            (spin/check-method-not-allowed! request resource)
-
-            (case (:request-method request)
-              (:head :get)
-              (let [representation
-                    {"content-type" "text/plain"
-                     "content-length" (str (count (.getBytes "Hello World!\r\n")))}]
-
-                (cond-> (assoc (spin/ok) :headers representation)
-                  (not (spin/head? request)) ; when not HEAD …
-                  ;; … we add the body ourselves
-                  (conj {:body "Hello World!\r\n"})))))]
-
-    (testing "a 200 response, with a body, in response to a GET request"
-      (is
-       (=
-        {:status 200
-         :headers {"content-length" "14"}
-         :body "Hello World!\r\n"}
-
-        (response-for
-         h
-         (request :get "/")
-         [:status :body "content-length"]))))
-
-    (testing "a 200 response, without a body, in response to a HEAD request"
-      (let [response
-            (response-for
-             h
-             (request :head "/"))]
-        (is (= 200 (:status response)                     ))
-        (is (= "14" (get-in response [:headers "content-length"])))
-        (is (nil? (find response :body)))))))
 
 (deftest bad-request-test
   (testing "a 400 response if bad request"
@@ -122,7 +87,7 @@
        [:status])))))
 
 (deftest post-test
-  (let [resource {::spin/methods #{:post}}
+  (let [resource {::http/methods #{:post}}
         h (fn [request]
             (or
              (spin/check-method-not-allowed! request resource)

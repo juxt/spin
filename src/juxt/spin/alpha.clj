@@ -8,6 +8,8 @@
    [juxt.reap.alpha.rfc7231 :as rfc7231]
    [juxt.reap.alpha.rfc7232 :as rfc7232]))
 
+(alias 'http (create-ns 'juxt.http.alpha))
+
 (defn check-method-not-implemented!
   "When the request method is not implemented, return a 501 response."
   ([request]
@@ -48,7 +50,7 @@
 (defn check-method-not-allowed!
   [request resource]
   (if resource
-    (let [methods (::methods resource)
+    (let [methods (::http/methods resource)
           method (:request-method request)]
       (when-not (contains? (set methods) method)
         (throw
@@ -123,20 +125,20 @@
   "The server generating a 304 response MUST generate any of the following
    header fields that would have been sent in a 200 (OK) response to the same
    request: Cache-Control, Content-Location, Date, ETag, Expires, and Vary."
-  [representation-metadata request date]
+  [representation request date]
   (cond->
       (select-keys
-       representation-metadata
-       ["cache-control" "content-location" "etag" "expires" "vary"])
+       representation
+       [::http/cache-control ::http/content-location ::http/etag ::http/expires ::http/vary])
       date (assoc "date" (format-http-date date))
-      (= (get representation-metadata "content-location") (:uri request))
-      (dissoc "content-location")))
+      (= (get representation ::http/content-location) (:uri request))
+      (dissoc ::http/content-location)))
 
 (defn evaluate-if-match!
   "Evaluate an If-None-Match precondition header field in the context of a
   resource. If the precondition is found to be false, an exception is thrown
   with ex-data containing the proper response."
-  [request resource representation-metadata]
+  [request resource representation]
   ;; (All quotes in this function's comments are from Section 3.2, RFC 7232,
   ;; unless otherwise stated).
   (let [header-field (reap/if-match (get-in request [:headers "if-match"]))]
@@ -144,7 +146,7 @@
       ;; "If the field-value is '*' …"
       (and (map? header-field)
            (::rfc7232/wildcard header-field)
-           (empty? (::representations resource)))
+           (empty? (::http/representations resource)))
       ;; "… the condition is false if the origin server does not have a current
       ;; representation for the target resource."
       (throw
@@ -155,7 +157,7 @@
                      :body "Precondition Failed\r\n"}}))
 
       (sequential? header-field)
-      (when-let [rep-etag (some-> (get representation-metadata "etag") reap/entity-tag)]
+      (when-let [rep-etag (some-> (get representation ::http/etag) reap/entity-tag)]
         (when-not (seq
                    (for [etag header-field
                          ;; "An origin server MUST use the strong comparison function
@@ -180,13 +182,13 @@
   resource and, when applicable, the representation metadata of the selected
   representation. If the precondition is found to be false, an exception is
   thrown with ex-data containing the proper response."
-  [request resource representation-metadata date]
+  [request resource representation date]
   ;; (All quotes in this function's comments are from Section 3.2, RFC 7232,
   ;; unless otherwise stated).
   (let [header-field (reap/if-none-match (get-in request [:headers "if-none-match"]))]
     (cond
       (sequential? header-field)
-      (when-let [rep-etag (some-> (get representation-metadata "etag") reap/entity-tag)]
+      (when-let [rep-etag (some-> (get representation ::http/etag) reap/entity-tag)]
         ;; "If the field-value is a list of entity-tags, the condition is false
         ;; if one of the listed tags match the entity-tag of the selected
         ;; representation."
@@ -199,13 +201,13 @@
               "If-None-Match precondition failed"
               {::message "One of the etags in the if-none-match header matches the selected representation"
                ::entity-tag etag
-               ::representation-metadata representation-metadata
+               ::representation representation
                ::response
                ;; "the origin server MUST respond with either a) the 304 (Not
                ;; Modified) status code if the request method is GET or HEAD …"
                (if (#{:get :head} (:request-method request))
                  {:status 304
-                  :headers (compute-304-headers representation-metadata request date)
+                  :headers (compute-304-headers representation request date)
                   :body "Not Modified\r\n"}
                  ;; "… or 412 (Precondition Failed) status code for all other
                  ;; request methods."
@@ -216,7 +218,7 @@
       (and (map? header-field) (::rfc7232/wildcard header-field))
       ;; "… the condition is false if the origin server has a current
       ;; representation for the target resource."
-      (when (seq (::representations resource))
+      (when (seq (::http/representations resource))
         (throw
          (ex-info
           "If-None-Match precondition failed"
@@ -227,29 +229,29 @@
            ;; Modified) status code if the request method is GET or HEAD …"
            (if (#{:get :head} (:request-method request))
              {:status 304
-              :headers (compute-304-headers representation-metadata request date)
+              :headers (compute-304-headers representation request date)
               :body "Not Modified\r\n"}
              ;; "… or 412 (Precondition Failed) status code for all other
              ;; request methods."
              {:status 412
               :body "Precondition Failed\r\n"})}))))))
 
-(defn evaluate-if-unmodified-since! [if-unmodified-since representation-metadata]
+(defn evaluate-if-unmodified-since! [if-unmodified-since representation]
   (let [if-unmodified-since-date (::rfc7231/date (reap/http-date if-unmodified-since))
-        rep-last-modified-date (some-> (get representation-metadata "last-modified") reap/http-date ::rfc7231/date)]
+        rep-last-modified-date (get representation ::http/last-modified)]
     (when (.isAfter
            (.toInstant rep-last-modified-date)
            (.toInstant if-unmodified-since-date))
       (throw
        (ex-info
         "Precondition failed"
-        {::representation-metadata representation-metadata
+        {::representation representation
          ::response
          {:status 412 :body "Precondition Failed\r\n"}})))))
 
-(defn evaluate-if-modified-since! [if-modified-since representation-metadata request date]
+(defn evaluate-if-modified-since! [if-modified-since representation request date]
   (let [if-modified-since-date (::rfc7231/date (reap/http-date if-modified-since))
-        rep-last-modified-date (some-> (get representation-metadata "last-modified") reap/http-date ::rfc7231/date)]
+        rep-last-modified-date (get representation ::http/last-modified)]
     (assert if-modified-since-date)
     (assert rep-last-modified-date)
 
@@ -259,10 +261,10 @@
       (throw
        (ex-info
         "Not modified"
-        {::representation-metadata representation-metadata
+        {::representation representation
          ::response
          {:status 304
-          :headers (compute-304-headers representation-metadata request date)
+          :headers (compute-304-headers representation request date)
           :body "Not Modified\r\n"}})))))
 
 (defn evaluate-preconditions!
@@ -293,7 +295,7 @@
 
 (defn ranges-specifier [request
                         {::keys [accept-ranges] :as resource}
-                        selected-representation-metadata]
+                        selected-representation]
   (assert resource)
   (when-let [range-header-value (get-in request [:headers "range"])]
     (let [parsed-range
@@ -325,27 +327,44 @@
                   (::rfc7232/entity-tag parsed-if-range)
                   (rfc7232/strong-compare-match?
                    (::rfc7232/entity-tag parsed-if-range)
-                   (some-> selected-representation-metadata (get "etag") reap/entity-tag)))
+                   (some-> selected-representation ::http/etag reap/entity-tag)))
 
                  (and
                   (::rfc7231/http-date parsed-if-range)
                   (= (::rfc7231/date (::rfc7231/http-date parsed-if-range))
-                     (some-> selected-representation-metadata
-                             (get "last-modified")
-                             reap/http-date
-                             ::rfc7231/date))))
+                     (::http/last-modified selected-representation))))
                 parsed-range))
 
           ;; No If-Range header.
           parsed-range)))))
+
+(defn assoc-when-some [m k v]
+  (cond-> m v (assoc k v)))
+
+(defn representation-headers [rep body]
+  (-> {}
+      (assoc-when-some "content-type" (some-> rep ::http/content-type))
+      (assoc-when-some "content-encoding" (some-> rep ::http/content-encoding))
+      (assoc-when-some "content-language" (some-> rep ::http/content-language))
+      (assoc-when-some "content-location" (some-> rep ::http/content-location str))
+      (assoc-when-some "last-modified" (some-> rep ::http/last-modified format-http-date))
+      (assoc-when-some "etag" (some-> rep ::http/etag))
+      (assoc-when-some "vary" (some-> rep ::http/vary))
+
+      (assoc-when-some "content-length" (or
+                                         (some-> rep ::http/content-length str)
+                                         (when (counted? body)
+                                           (some-> body count str))))
+      (assoc-when-some "content-range" (::http/content-range rep))
+      (assoc-when-some "trailer" (::http/trailer rep))
+      (assoc-when-some "transfer-encoding" (::http/transfer-encoding rep))))
 
 (defn response
   "Construct a Ring response. Any of the arguments may be nil. The parameter
   accept-ranges, if provided, should be a collection of range units. The request
   is used to determine whether content-location should be added as a header."
   [status
-   selected-representation-metadata
-   payload-header-fields
+   selected-representation
    request
    accept-ranges
    date
@@ -356,10 +375,9 @@
      (cond-> {}
        date (assoc "date" (format-http-date (or date (java.util.Date.))))
        accept-ranges (assoc "accept-ranges" (str/join ", " accept-ranges))
-       selected-representation-metadata (merge selected-representation-metadata)
-       payload-header-fields (merge payload-header-fields)
+       selected-representation (merge (representation-headers selected-representation body))
        (and request
-            (= (get selected-representation-metadata "content-location")
+            (= (get selected-representation ::http/content-location)
                (:uri request)))
        (dissoc "content-location"))]
     (when (not= (:request-method request) :head)
