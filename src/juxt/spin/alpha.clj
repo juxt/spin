@@ -364,7 +364,7 @@
   accept-ranges, if provided, should be a collection of range units. The request
   is used to determine whether content-location should be added as a header."
   [status
-   selected-representation
+   representation
    request
    accept-ranges
    date
@@ -375,9 +375,9 @@
      (cond-> {}
        date (assoc "date" (format-http-date (or date (java.util.Date.))))
        accept-ranges (assoc "accept-ranges" (str/join ", " accept-ranges))
-       selected-representation (merge (representation-headers selected-representation body))
+       representation (merge (representation-headers representation body))
        (and request
-            (= (get selected-representation ::http/content-location)
+            (= (get representation ::http/content-location)
                (:uri request)))
        (dissoc "content-location"))]
     (when (not= (:request-method request) :head)
