@@ -11,8 +11,11 @@ worthwhile trade, depending on your needs.
 
 == Status
 
-Spin is still under active development and is ALPHA status, meaning that the API
+Spin is still in development and is ALPHA status, meaning that the API
 should be considered unstable and likely to change.
+
+IMPORTANT: Currently, work on Spin has stopped temporarily and active development of the various utility functions is taking place in https://github.com/juxt/site.
+
 
 == Naming
 
